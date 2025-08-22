@@ -143,18 +143,18 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
             HTML出力
           </button>
           <button
-            onClick={handlePrint}
-            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
-          >
-            <FiPrinter className="mr-1" />
-            印刷
-          </button>
-          <button
             onClick={handleExportPDF}
             className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm"
           >
             <FiDownload className="mr-1" />
             PDF出力
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+          >
+            <FiPrinter className="mr-1" />
+            印刷
           </button>
         </div>
       </div>
