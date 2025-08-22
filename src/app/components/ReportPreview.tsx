@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FiDownload, FiEdit } from 'react-icons/fi';
+import { FiDownload, FiEdit, FiPrinter, FiFileText } from 'react-icons/fi';
 import { Report } from '@/types';
 
 interface ReportPreviewProps {
@@ -20,6 +20,79 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
       updatedAt: new Date()
     });
     setIsEditing(false);
+  };
+
+  const handleExportHTML = async () => {
+    try {
+      const response = await fetch('/api/export-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('HTML export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report.title}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('HTML export failed:', error);
+      alert('HTML出力に失敗しました');
+    }
+  };
+
+  const handlePrint = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>${report.title}</title>
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      line-height: 1.8;
+      color: #333;
+      max-width: 210mm;
+      margin: 0 auto;
+      padding: 20mm;
+    }
+    h1 { font-size: 24px; margin-bottom: 10px; }
+    .metadata { color: #666; font-size: 14px; margin-bottom: 30px; }
+    .content { white-space: pre-wrap; }
+    @media print {
+      body { margin: 0; padding: 10mm; }
+    }
+  </style>
+</head>
+<body>
+  <h1>${report.title}</h1>
+  <div class="metadata">
+    <p>対象: ${report.stakeholder.role} | 戦略: ${report.rhetoricStrategy}</p>
+    <p>作成日: ${new Date(report.createdAt).toLocaleDateString('ja-JP')}</p>
+  </div>
+  <div class="content">${report.content}</div>
+</body>
+</html>`;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // 印刷ダイアログを開く
+    printWindow.onload = () => {
+      printWindow.print();
+    };
   };
 
   const handleExportPDF = async () => {
@@ -48,8 +121,8 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     <div className="h-full flex flex-col">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-600">{report.title}</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
+          <p className="text-sm text-gray-700 mt-1">
             対象: {report.stakeholder.role} | 
             戦略: {report.rhetoricStrategy}
           </p>
@@ -61,6 +134,20 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           >
             <FiEdit className="mr-1" />
             {isEditing ? 'プレビュー' : '編集'}
+          </button>
+          <button
+            onClick={handleExportHTML}
+            className="flex items-center px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm"
+          >
+            <FiFileText className="mr-1" />
+            HTML出力
+          </button>
+          <button
+            onClick={handlePrint}
+            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+          >
+            <FiPrinter className="mr-1" />
+            印刷
           </button>
           <button
             onClick={handleExportPDF}
