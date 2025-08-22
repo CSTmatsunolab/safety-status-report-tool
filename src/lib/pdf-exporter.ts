@@ -61,6 +61,9 @@ export async function generatePDF(
       waitUntil: 'networkidle0'
     });
 
+    // 日本語フォントの読み込みを待つ
+    await page.evaluateHandle('document.fonts.ready');
+
     // PDFを生成
     const pdfBuffer = await page.pdf({
       format: pageSize,
@@ -71,7 +74,7 @@ export async function generatePDF(
       footerTemplate: generateFooterTemplate(footerText),
     });
 
-    return pdfBuffer;
+    return Buffer.from(pdfBuffer);
   } finally {
     await browser.close();
   }
@@ -91,9 +94,6 @@ function generateHTMLContent(
   }
 ): string {
   const { includeMetadata, includeTimestamp, watermark } = options;
-
-  // Markdownをパースして構造化
-  const sections = parseMarkdownSections(report.content);
 
   return `
 <!DOCTYPE html>
@@ -168,40 +168,21 @@ function generateHTMLContent(
       margin-top: 30px;
     }
     
-    /* セクション */
-    .section {
-      margin-bottom: 40px;
-      page-break-inside: avoid;
+    .content {
+      margin-top: 30px;
     }
     
-    .section h2 {
-      font-size: 24px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      color: #2c3e50;
-      border-bottom: 2px solid #3498db;
-      padding-bottom: 10px;
+    .content p {
+      margin-bottom: 10px;
+      text-align: justify;
+      line-height: 1.8;
     }
     
-    .section h3 {
+    .content h3 {
       font-size: 18px;
       font-weight: 700;
       margin: 20px 0 10px;
       color: #34495e;
-    }
-    
-    .section p {
-      margin-bottom: 15px;
-      text-align: justify;
-    }
-    
-    .section ul, .section ol {
-      margin: 15px 0;
-      padding-left: 30px;
-    }
-    
-    .section li {
-      margin-bottom: 8px;
     }
     
     /* 強調表示 */
@@ -294,12 +275,9 @@ function generateHTMLContent(
     </div>
     
     <!-- レポート本文 -->
-    ${sections.map(section => `
-      <div class="section">
-        <h2>${escapeHtml(section.title)}</h2>
-        ${formatContent(section.content)}
-      </div>
-    `).join('')}
+    <div class="content">
+      ${formatContent(report.content)}
+    </div>
   </div>
 </body>
 </html>
@@ -329,77 +307,21 @@ function generateFooterTemplate(footerText?: string): string {
 }
 
 /**
- * Markdownをセクションに分割
- */
-function parseMarkdownSections(content: string): Array<{ title: string; content: string }> {
-  const sections: Array<{ title: string; content: string }> = [];
-  const lines = content.split('\n');
-  let currentSection: { title: string; content: string } | null = null;
-  
-  for (const line of lines) {
-    if (line.startsWith('## ')) {
-      if (currentSection) {
-        sections.push(currentSection);
-      }
-      currentSection = {
-        title: line.substring(3).trim(),
-        content: ''
-      };
-    } else if (currentSection) {
-      currentSection.content += line + '\n';
-    }
-  }
-  
-  if (currentSection) {
-    sections.push(currentSection);
-  }
-  
-  return sections;
-}
-
-/**
- * コンテンツのフォーマット（簡易Markdownパーサー）
+ * コンテンツのフォーマット
  */
 function formatContent(content: string): string {
-  return content
-    // 段落
-    .split('\n\n')
-    .map(paragraph => {
-      if (paragraph.trim() === '') return '';
-      
-      // リスト
-      if (paragraph.startsWith('- ') || paragraph.startsWith('* ')) {
-        const items = paragraph.split('\n')
-          .filter(line => line.trim())
-          .map(line => `<li>${escapeHtml(line.substring(2))}</li>`)
-          .join('\n');
-        return `<ul>\n${items}\n</ul>`;
-      }
-      
-      // 番号付きリスト
-      if (/^\d+\.\s/.test(paragraph)) {
-        const items = paragraph.split('\n')
-          .filter(line => line.trim())
-          .map(line => `<li>${escapeHtml(line.replace(/^\d+\.\s/, ''))}</li>`)
-          .join('\n');
-        return `<ol>\n${items}\n</ol>`;
-      }
-      
-      // 通常の段落
-      let formatted = escapeHtml(paragraph);
-      
-      // 太字
-      formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      
-      // 斜体
-      formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
-      
-      // インラインコード
-      formatted = formatted.replace(/`(.+?)`/g, '<code>$1</code>');
-      
-      return `<p>${formatted}</p>`;
-    })
-    .join('\n');
+  // 改行を<br>タグに変換
+  const lines = content.split('\n');
+  const formattedLines = lines.map(line => {
+    // 見出しの処理
+    if (line.match(/^\d+\.\s/)) {
+      return `<h3>${escapeHtml(line)}</h3>`;
+    }
+    // 通常の行
+    return `<p>${escapeHtml(line)}</p>`;
+  });
+  
+  return formattedLines.join('\n');
 }
 
 /**

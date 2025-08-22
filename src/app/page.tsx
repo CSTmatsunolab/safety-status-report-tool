@@ -14,7 +14,11 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
-    setFiles([...files, ...newFiles]);
+    setFiles(prevFiles => [...prevFiles, ...newFiles]);
+  };
+
+  const handleFileRemove = (id: string) => {
+    setFiles(prevFiles => prevFiles.filter(f => f.id !== id));
   };
 
   const handleGenerateReport = async () => {
@@ -60,7 +64,11 @@ export default function Home() {
               <h2 className={`text-xl font-semibold mb-4 ${files.length > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
                 1. データアップロード
               </h2>
-              <FileUpload onUpload={handleFileUpload} files={files} />
+              <FileUpload 
+                onUpload={handleFileUpload} 
+                onRemove={handleFileRemove}
+                files={files} 
+              />
             </div>
             
             {/* ステークホルダー選択 */}

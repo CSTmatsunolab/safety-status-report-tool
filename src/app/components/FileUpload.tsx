@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
@@ -8,27 +8,73 @@ import { UploadedFile } from '@/types';
 interface FileUploadProps {
   files: UploadedFile[];
   onUpload: (files: UploadedFile[]) => void;
+  onRemove: (id: string) => void;
 }
 
-export default function FileUpload({ files, onUpload }: FileUploadProps) {
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const newFiles: UploadedFile[] = await Promise.all(
-      acceptedFiles.map(async (file) => {
-        const content = await file.text();
-        const type = file.name.includes('GSN') ? 'gsn' : 
-                     file.name.includes('議事録') ? 'minutes' : 'other';
-        
-        return {
-          id: Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          type,
-          content,
-          uploadedAt: new Date(),
-        };
-      })
-    );
+// PDFをテキストに変換する関数
+async function extractTextFromPDF(file: File): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
     
-    onUpload(newFiles);
+    const response = await fetch('/api/pdf-extract', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('PDF extraction failed:', errorData);
+      throw new Error(`PDF extraction failed: ${response.status}`);
+    }
+    
+    const { text } = await response.json();
+    return text || '';
+  } catch (error) {
+    console.error('PDF extraction error:', error);
+    // エラーが発生してもアップロードを続行（空のテキストとして扱う）
+    return '';
+  }
+}
+
+export default function FileUpload({ files, onUpload, onRemove }: FileUploadProps) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    setIsProcessing(true);
+    try {
+      const newFiles: UploadedFile[] = await Promise.all(
+        acceptedFiles.map(async (file) => {
+          let content = '';
+          
+          // PDFファイルの場合も通常のテキストとして読み込み（一時的な対処）
+          try {
+            content = await file.text();
+          } catch (error) {
+            console.log(`Could not read file ${file.name} as text, using empty content`);
+            content = '';
+          }
+          
+          console.log(`File: ${file.name}, Content length: ${content.length}`);
+          console.log('First 500 chars:', content.substring(0, 500));
+          
+          const type = file.name.includes('GSN') ? 'gsn' : 
+                       file.name.includes('議事録') ? 'minutes' : 'other';
+          
+          return {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: file.name,
+            type,
+            content,
+            uploadedAt: new Date(),
+          };
+        })
+      );
+      
+      onUpload(newFiles);
+    } finally {
+      setIsProcessing(false);
+    }
   }, [onUpload]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -41,8 +87,7 @@ export default function FileUpload({ files, onUpload }: FileUploadProps) {
   });
 
   const removeFile = (id: string) => {
-    const updatedFiles = files.filter(f => f.id !== id);
-    onUpload(updatedFiles);
+    onRemove(id);
   };
 
   return (
@@ -50,11 +95,14 @@ export default function FileUpload({ files, onUpload }: FileUploadProps) {
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
+          ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
+          ${isProcessing ? 'opacity-50 cursor-wait' : ''}`}
       >
-        <input {...getInputProps()} />
+        <input {...getInputProps()} disabled={isProcessing} />
         <FiUpload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-        {isDragActive ? (
+        {isProcessing ? (
+          <p className="text-gray-600">ファイルを処理中...</p>
+        ) : isDragActive ? (
           <p className="text-blue-600">ファイルをドロップしてください</p>
         ) : (
           <div>
@@ -79,7 +127,7 @@ export default function FileUpload({ files, onUpload }: FileUploadProps) {
               <div className="flex items-center space-x-3">
                 <FiFile className="text-gray-500" />
                 <div>
-                  <p className="text-sm font-medium">{file.name}</p>
+                  <p className="text-sm font-medium text-gray-600">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
                             file.type === 'minutes' ? '議事録' : 'その他'}
