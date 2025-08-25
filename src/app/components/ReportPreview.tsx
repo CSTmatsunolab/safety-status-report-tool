@@ -130,7 +130,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
         <div className="flex space-x-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-md text-sm"
           >
             <FiEdit className="mr-1" />
             {isEditing ? 'プレビュー' : '編集'}
@@ -173,7 +173,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
                   setEditedContent(report.content);
                   setIsEditing(false);
                 }}
-                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 text-black border border-black rounded-md hover:bg-gray-50"
               >
                 キャンセル
               </button>
