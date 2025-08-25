@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Report, Stakeholder, AnalysisResult, UploadedFile } from '@/types';
-import { extractStakeholderSpecificInfo } from './ai-analysis';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -46,9 +45,6 @@ export async function generateReport(
   // レトリック戦略を決定
   const strategy = determineRhetoricStrategy(stakeholder, analysisResult);
   
-  // ステークホルダー固有の情報を抽出
-  const stakeholderInfo = await extractStakeholderSpecificInfo(files, stakeholder);
-  
   // レポートの構造を決定
   const structure = determineReportStructure(stakeholder, strategy, length);
   
@@ -56,7 +52,7 @@ export async function generateReport(
   const content = await generateReportContent(
     stakeholder,
     analysisResult,
-    stakeholderInfo,
+    files,
     strategy,
     structure,
     {
@@ -172,7 +168,7 @@ function determineReportStructure(
 async function generateReportContent(
   stakeholder: Stakeholder,
   analysisResult: AnalysisResult,
-  stakeholderInfo: any,
+  files: UploadedFile[],
   strategy: RhetoricStrategy,
   structure: string[],
   options: {
@@ -191,7 +187,7 @@ async function generateReportContent(
   
   const userPrompt = buildReportUserPrompt(
     analysisResult,
-    stakeholderInfo,
+    files,
     options.emphasizePoints
   );
 
@@ -298,7 +294,7 @@ function getStrategyGuidelines(strategy: RhetoricStrategy): string {
  */
 function buildReportUserPrompt(
   analysisResult: AnalysisResult,
-  stakeholderInfo: any,
+  files: UploadedFile[],
   emphasizePoints: string[]
 ): string {
   return `
@@ -309,10 +305,8 @@ function buildReportUserPrompt(
 - 識別されたリスク: ${analysisResult.risks.join(', ')}
 - 推奨事項: ${analysisResult.recommendations.join(', ')}
 
-【ステークホルダー固有の情報】
-- 関連セクション: ${stakeholderInfo.relevantSections?.join(', ') || 'なし'}
-- 重要ポイント: ${stakeholderInfo.keyPoints?.join(', ') || 'なし'}
-- 懸念事項: ${stakeholderInfo.concerns?.join(', ') || 'なし'}
+【提供されたファイル】
+${files.map(f => `- ${f.name} (${f.type})`).join('\n')}
 
 ${emphasizePoints.length > 0 ? `
 【特に強調すべき点】
