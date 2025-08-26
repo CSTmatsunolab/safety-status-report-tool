@@ -64,12 +64,12 @@ npm start
 
 2. **ステークホルダーの選択**
    - 以下の6つから対象を選択：
-     - R&D Division / 研究開発部門
-     - Product Division / 製品部門
-     - Business Division / 事業部門
-     - Architect / アーキテクト
-     - Technical Fellows / 技術専門家
      - CxO / 経営層
+     - Technical Fellows / 技術専門家
+     - Architect / アーキテクト
+     - Business Division / 事業部門
+     - Product Division / 製品部門
+     - R&D Division / 研究開発部門
 
 3. **レポート生成**
    - 「レポートを生成」ボタンをクリック
@@ -192,7 +192,3 @@ export const PREDEFINED_STAKEHOLDERS: Stakeholder[] = [
 ### 環境変数エラー
 - `.env.local` ファイルが正しく作成されているか確認
 - APIキーが有効であることを確認
-
-## ライセンス
-
-[ライセンス情報を記載]
