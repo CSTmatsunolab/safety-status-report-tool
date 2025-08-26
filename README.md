@@ -22,7 +22,7 @@ GSNファイルや議事録などのドキュメントから、AIを活用して
 
 1. **リポジトリのクローン**
    ```bash
-   git clone [repository-url]
+   git clone https://github.com/CSTmatsunolab/safety-status-report-tool.git
    cd safety-status-report-tool
    ```
 
