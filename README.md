@@ -119,26 +119,38 @@ safety-status-report-tool/
 │   │   ├── api/
 │   │   │   ├── generate-report/
 │   │   │   │   └── route.ts         # レポート生成API
+│   │   │   ├── export-html/
+│   │   │   │   └── route.ts         # html出力API
+│   │   │   ├── export-docx/
+│   │   │   │   └── route.ts         # docx出力API
 │   │   │   ├── export-pdf/
 │   │   │   │   └── route.ts         # PDF出力API
-│   │   │   └── pdf-extract/
-│   │   │       └── route.ts         # PDFテキスト抽出API
+│   │   │   ├── pdf-extract/
+│   │   │   │   └── route.ts         # PDFテキスト抽出API
+│   │   │   └── excel-extract/
+│   │   │       └── route.ts         # Excelテキスト抽出API
+│   │   │
 │   │   ├── components/
 │   │   │   ├── FileUpload.tsx       # ファイルアップロードUI
 │   │   │   ├── StakeholderSelect.tsx # ステークホルダー選択UI
 │   │   │   ├── ReportPreview.tsx    # レポートプレビュー
 │   │   │   └── ReportEditor.tsx     # レポート編集機能
+│   │   │
 │   │   ├── stakeholder-settings/
 │   │   │   └── page.tsx             # ステークホルダー設定メインページ
+│   │   │
 │   │   ├── layout.tsx               # アプリケーションレイアウト
 │   │   ├── page.tsx                 # メインページ
 │   │   └── globals.css              # グローバルスタイル
+│   │
 │   ├── lib/
 │   │   ├── stakeholders.ts          # ステークホルダー管理ロジック
 │   │   ├── report-generator.ts      # レポート生成ロジック
 │   │   └── pdf-exporter.ts          # PDF出力処理
+│   │
 │   └── types/
 │       └── index.ts                 # TypeScript型定義
+│
 ├── public/
 ├── .env.local                       # 環境変数（Gitには含めない）
 ├── .gitignore
