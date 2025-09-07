@@ -4,11 +4,11 @@ GSNファイルや議事録などのドキュメントから、AIを活用して
 
 ## 主な機能
 
-- **ファイルアップロード**: PDF、テキスト、CSVなど多様な形式に対応
+- **ファイルアップロード**: PDF、テキスト、CSV、Excel（xls/xlsx）など多様な形式に対応
 - **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
 - **ステークホルダー管理**: ステークホルダーの追加・編集・削除機能
 - **AI活用**: Claude APIを使用した高品質なレポート作成
-- **PDF出力**: 生成されたレポートをPDF形式でダウンロード
+- **多様な出力形式**: PDF、HTML、Word（docx）形式でのダウンロード
 - **編集機能**: 生成後のレポートを手動で編集可能
 
 ## 始め方
@@ -75,7 +75,7 @@ npm start
 4. **レポートの編集・出力**
    - 生成されたレポートをプレビュー画面で確認
    - 必要に応じて編集
-   - PDF形式でダウンロード
+   - PDF、HTML、Word（docx）形式でダウンロード
 
 ### ステークホルダー管理
 
@@ -119,10 +119,6 @@ safety-status-report-tool/
 │   │   ├── api/
 │   │   │   ├── generate-report/
 │   │   │   │   └── route.ts         # レポート生成API
-│   │   │   ├── export-html/
-│   │   │   │   └── route.ts         # html出力API
-│   │   │   ├── export-docx/
-│   │   │   │   └── route.ts         # docx出力API
 │   │   │   ├── export-pdf/
 │   │   │   │   └── route.ts         # PDF出力API
 │   │   │   └── pdf-extract/
@@ -158,8 +154,11 @@ safety-status-report-tool/
 ### `/src/app/api/` - APIエンドポイント
 
 - **`generate-report/route.ts`**: アップロードされたドキュメントと選択されたステークホルダー情報を基に、Claude APIを使用してSSRを生成
+- **`export-html/route.ts`**: 生成されたレポートをHTML形式でエクスポート
+- **`export-docx/route.ts`**: 生成されたレポートをWord（docx）形式に変換
 - **`export-pdf/route.ts`**: 生成されたレポートをPuppeteerを使用してPDF形式に変換
-- **`pdf-extract/route.ts`**: PDFファイルからテキストを抽出（pdf-parseライブラリ使用）
+- **`pdf-extract/route.ts`**: PDFファイルからテキストを抽出（pdfjs-dist使用）
+- **`excel-extract/route.ts`**: ExcelファイルからテキストをCSV形式で抽出（xlsx使用）（pdf-parseライブラリ使用）
 
 ### `/src/app/components/` - UIコンポーネント
 
@@ -194,9 +193,11 @@ safety-status-report-tool/
 - **言語**: TypeScript
 - **スタイリング**: Tailwind CSS
 - **AI**: Anthropic Claude API (Claude 3 Haiku)
-- **PDF処理**: 
-  - 生成: Puppeteer
-  - 抽出: pdf-parse
+- **ファイル処理**:
+  - PDF生成: Puppeteer
+  - PDF抽出: pdfjs-dist
+  - Excel処理: xlsx
+  - Word生成: docx
 - **UI**: React 18
 - **データ永続化**: ローカルストレージ（カスタムステークホルダー用）
 - **開発ツール**: Turbopack（高速開発サーバー）
@@ -229,9 +230,15 @@ export const PREDEFINED_STAKEHOLDERS: Stakeholder[] = [
 
 ## トラブルシューティング
 
-### PDFファイルが読み込めない場合
-- ブラウザのコンソールでエラーを確認
-- PDFが画像ベースの場合、テキスト抽出ができない可能性があります
+### Excelファイルが読み込めない場合
+- ファイル形式が.xlsまたは.xlsxであることを確認
+- 非常に大きなファイルの場合、処理に時間がかかる可能性があります
+- 破損したExcelファイルは読み込めません
+
+### 出力形式の選択
+- **PDF**: 印刷や配布に最適。日本語フォント対応
+- **HTML**: Web公開やブラウザでの閲覧に適している
+- **Word（docx）**: 編集や共同作業が必要な場合に便利
 
 ### レポート生成が遅い場合
 - 大きなファイルは自動的に文字数制限（50,000文字）が適用されます
@@ -245,3 +252,9 @@ export const PREDEFINED_STAKEHOLDERS: Stakeholder[] = [
 - ブラウザのローカルストレージをクリアして再度追加
 - プライベートブラウジングモードでは永続化されません
 - 異なるブラウザ間ではステークホルダー情報は共有されません
+
+## 今後の機能拡張予定
+
+- ステークホルダー情報のエクスポート/インポート機能
+- チーム間でのステークホルダー設定の共有機能
+- ステークホルダーのグループ化とテンプレート機能

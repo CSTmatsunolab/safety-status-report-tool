@@ -32,7 +32,29 @@ async function extractTextFromPDF(file: File): Promise<string> {
     return text || '';
   } catch (error) {
     console.error('PDF extraction error:', error);
-    // エラーが発生してもアップロードを続行（空のテキストとして扱う）
+    return '';
+  }
+}
+
+// Excelをテキストに変換する関数
+async function extractTextFromExcel(file: File): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch('/api/excel-extract', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Excel extraction failed: ${response.status}`);
+    }
+    
+    const { text } = await response.json();
+    return text || '';
+  } catch (error) {
+    console.error('Excel extraction error:', error);
     return '';
   }
 }
@@ -49,11 +71,20 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
           
           // ファイルタイプに応じて適切な処理を行う
           if (file.type === 'application/pdf') {
-            // PDFファイルの場合はテキスト抽出APIを使用
+            // PDFファイルの場合
             console.log(`Extracting text from PDF: ${file.name}`);
             content = await extractTextFromPDF(file);
+          } else if (
+            file.type === 'application/vnd.ms-excel' || 
+            file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.name.endsWith('.xls') || 
+            file.name.endsWith('.xlsx')
+          ) {
+            // Excelファイルの場合
+            console.log(`Extracting text from Excel: ${file.name}`);
+            content = await extractTextFromExcel(file);
           } else {
-            // その他のテキストファイルは直接読み込む
+            // テキスト・CSVファイルは直接読み込む
             try {
               content = await file.text();
             } catch (error) {
@@ -63,7 +94,9 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
           }
           
           console.log(`File: ${file.name}, Type: ${file.type}, Content length: ${content.length}`);
-          console.log('First 500 chars:', content.substring(0, 500));
+          if (content.length > 0) {
+            console.log('First 500 chars:', content.substring(0, 500));
+          }
           
           // ファイル名からタイプを判定
           const type = file.name.includes('GSN') ? 'gsn' : 
@@ -93,7 +126,7 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
     accept: {
       'text/*': ['.txt', '.csv'],
       'application/pdf': ['.pdf'],
-      'application/vnd.ms-excel': ['.xls', '.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
     multiple: true,
@@ -114,7 +147,12 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
         <input {...getInputProps()} disabled={isProcessing} />
         <FiUpload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         {isProcessing ? (
-          <p className="text-gray-600">ファイルを処理中...</p>
+          <div>
+            <p className="text-gray-600 mb-2">ファイルを処理中...</p>
+            <p className="text-sm text-gray-500">
+              PDFやExcelファイルの場合、処理に時間がかかることがあります
+            </p>
+          </div>
         ) : isDragActive ? (
           <p className="text-blue-600">ファイルをドロップしてください</p>
         ) : (
@@ -144,9 +182,13 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
                   <p className="text-xs text-gray-500">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
                             file.type === 'minutes' ? '議事録' : 'その他'}
-                    {file.content.length > 0 && (
+                    {file.content.length > 0 ? (
                       <span className="ml-2">
                         ({file.content.length.toLocaleString()} 文字)
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-red-500">
+                        (読み込みエラー)
                       </span>
                     )}
                   </p>
