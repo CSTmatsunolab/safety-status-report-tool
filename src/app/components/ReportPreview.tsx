@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FiDownload, FiEdit, FiPrinter, FiFileText } from 'react-icons/fi';
+import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile } from 'react-icons/fi';
 import { Report } from '@/types';
 
 interface ReportPreviewProps {
@@ -20,6 +20,33 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
       updatedAt: new Date()
     });
     setIsEditing(false);
+  };
+
+  const handleExportDOCX = async () => {
+    try {
+      const response = await fetch('/api/export-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('DOCX export failed');
+      }
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report.title}.docx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('DOCX export failed:', error);
+      alert('Word出力に失敗しました');
+    }
   };
 
   const handleExportHTML = async () => {
@@ -134,6 +161,13 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           >
             <FiEdit className="mr-1" />
             {isEditing ? 'プレビュー' : '編集'}
+          </button>
+          <button
+            onClick={handleExportDOCX}
+            className="flex items-center px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+          >
+            <FiFile className="mr-1" />
+            Word出力
           </button>
           <button
             onClick={handleExportHTML}

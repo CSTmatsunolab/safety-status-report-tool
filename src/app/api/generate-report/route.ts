@@ -108,6 +108,26 @@ ${f.content.substring(0, 10000)}${f.content.length > 10000 ? '...(省略)' : ''}
 }
 
 function determineRhetoricStrategy(stakeholder: Stakeholder): string {
+  // カスタムステークホルダーの場合、役職から推測
+  if (stakeholder.id.startsWith('custom-')) {
+    const role = stakeholder.role.toLowerCase();
+    
+    if (role.includes('品質') || role.includes('qa')) {
+      return '品質重視型';
+    } else if (role.includes('財務') || role.includes('経理')) {
+      return '財務インパクト重視型';
+    } else if (role.includes('法務') || role.includes('コンプライアンス')) {
+      return '規制・法令遵守重視型';
+    } else if (role.includes('人事') || role.includes('hr')) {
+      return '人材・組織重視型';
+    } else if (role.includes('顧客') || role.includes('カスタマー')) {
+      return '顧客価値重視型';
+    } else {
+      return 'バランス型';
+    }
+  }
+  
+  // 既存のロジック
   const roleMap: { [key: string]: string } = {
     'r-and-d': '技術的詳細重視型',
     'product': '製品価値訴求型',

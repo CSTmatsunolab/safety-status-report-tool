@@ -47,17 +47,25 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
         acceptedFiles.map(async (file) => {
           let content = '';
           
-          // PDFファイルの場合も通常のテキストとして読み込み（一時的な対処）
-          try {
-            content = await file.text();
-          } catch (error) {
-            console.log(`Could not read file ${file.name} as text, using empty content`);
-            content = '';
+          // ファイルタイプに応じて適切な処理を行う
+          if (file.type === 'application/pdf') {
+            // PDFファイルの場合はテキスト抽出APIを使用
+            console.log(`Extracting text from PDF: ${file.name}`);
+            content = await extractTextFromPDF(file);
+          } else {
+            // その他のテキストファイルは直接読み込む
+            try {
+              content = await file.text();
+            } catch (error) {
+              console.log(`Could not read file ${file.name} as text, using empty content`);
+              content = '';
+            }
           }
           
-          console.log(`File: ${file.name}, Content length: ${content.length}`);
+          console.log(`File: ${file.name}, Type: ${file.type}, Content length: ${content.length}`);
           console.log('First 500 chars:', content.substring(0, 500));
           
+          // ファイル名からタイプを判定
           const type = file.name.includes('GSN') ? 'gsn' : 
                        file.name.includes('議事録') ? 'minutes' : 'other';
           
@@ -72,6 +80,9 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
       );
       
       onUpload(newFiles);
+    } catch (error) {
+      console.error('File processing error:', error);
+      alert('ファイルの処理中にエラーが発生しました。');
     } finally {
       setIsProcessing(false);
     }
@@ -83,7 +94,9 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
       'text/*': ['.txt', '.csv'],
       'application/pdf': ['.pdf'],
       'application/vnd.ms-excel': ['.xls', '.xlsx'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
     },
+    multiple: true,
   });
 
   const removeFile = (id: string) => {
@@ -127,18 +140,23 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
               <div className="flex items-center space-x-3">
                 <FiFile className="text-gray-500" />
                 <div>
-                  <p className="text-sm font-medium text-gray-600">{file.name}</p>
+                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
                             file.type === 'minutes' ? '議事録' : 'その他'}
+                    {file.content.length > 0 && (
+                      <span className="ml-2">
+                        ({file.content.length.toLocaleString()} 文字)
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => removeFile(file.id)}
-                className="text-red-500 hover:text-red-700"
+                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
               >
-                <FiX />
+                <FiX size={18} />
               </button>
             </div>
           ))}

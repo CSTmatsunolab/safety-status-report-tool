@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
@@ -12,6 +12,15 @@ export default function Home() {
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [generatedReport, setGeneratedReport] = useState<Report | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>(PREDEFINED_STAKEHOLDERS);
+
+  useEffect(() => {
+    // カスタムステークホルダーを読み込む
+    const saved = localStorage.getItem('customStakeholders');
+    if (saved) {
+      setStakeholders(JSON.parse(saved));
+    }
+  }, []);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => [...prevFiles, ...newFiles]);
@@ -52,9 +61,17 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">
-          Safety Status Report 自動生成ツール
-        </h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Safety Status Report 自動生成ツール
+          </h1>
+          <a
+            href="/stakeholder-settings"
+            className="text-blue-600 hover:text-blue-700 underline text-[20px]"
+          >
+            ⚙️ステークホルダー設定
+          </a>
+        </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* 左側：入力セクション */}
@@ -77,7 +94,7 @@ export default function Home() {
                 2. ステークホルダー選択
               </h2>
               <StakeholderSelect
-                stakeholders={PREDEFINED_STAKEHOLDERS}
+                stakeholders={stakeholders}
                 selected={selectedStakeholder}
                 onSelect={setSelectedStakeholder}
               />
