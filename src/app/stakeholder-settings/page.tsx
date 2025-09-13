@@ -31,7 +31,7 @@ export default function StakeholderSettings() {
   const addStakeholder = () => {
     if (newStakeholder.role.trim()) {
       const stakeholder: Stakeholder = {
-        id: `custom-${Date.now()}`,
+        id: `custom_${Date.now()}`,
         role: newStakeholder.role,
         concerns: newStakeholder.concerns.filter(c => c.trim())
       };

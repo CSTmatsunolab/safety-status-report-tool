@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { UploadedFile, Stakeholder, Report } from '@/types';
+import { MemoryVectorStore } from 'langchain/vectorstores/memory';
+import { createEmbeddings } from '@/lib/embeddings';
+
+// グローバルストレージ（メモリストアの参照を保持）
+const globalStores = (global as any).vectorStores || new Map();
+(global as any).vectorStores = globalStores;
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -19,9 +25,45 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Generating report for:', stakeholder.role);
-    console.log('Files count:', files.length);
+    console.log('Using vector store:', process.env.VECTOR_STORE || 'memory');
 
-    // レトリック戦略の決定とレポート生成
+    // エンベディングの初期化
+    const embeddings = createEmbeddings();
+
+    // ベクトルストアの取得（メモリストア）
+    const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
+    console.log('Looking for vector store with key:', storeKey); // デバッグ用
+console.log('Available keys:', Array.from(globalStores.keys())); // デバッグ用
+
+    const vectorStore = globalStores.get(storeKey);
+
+    let contextContent = '';
+
+    if (vectorStore && vectorStore instanceof MemoryVectorStore) {
+      // 関連するドキュメントを検索
+      console.log('Searching in vector store...');
+      const searchQuery = stakeholder.concerns.join(' ');
+      const relevantDocs = await vectorStore.similaritySearch(searchQuery, 5);
+      
+      if (relevantDocs.length > 0) {
+        console.log(`Found ${relevantDocs.length} relevant documents`);
+        contextContent = relevantDocs.map(doc => doc.pageContent).join('\n\n');
+      } else {
+        console.log('No relevant documents found, using all files');
+        contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
+      }
+    } else {
+      // ベクトルストアがない場合は全ファイルを使用
+      console.log('No vector store found, using all file contents');
+      contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
+    }
+
+    // 文字数制限（Claudeのコンテキスト制限対策）
+    if (contextContent.length > 50000) {
+      contextContent = contextContent.substring(0, 50000) + '...(省略)';
+    }
+
+    // レポート生成
     const message = await anthropic.messages.create({
       model: 'claude-3-haiku-20240307',
       max_tokens: 4000,
@@ -46,12 +88,7 @@ export async function POST(request: NextRequest) {
 - **文体は「である調」で統一すること（例：～である、～する、～となる）**
 
 提供された文書の内容:
-${files.map(f => `
-【${f.name}】
-タイプ: ${f.type}
-内容:
-${f.content.substring(0, 10000)}${f.content.length > 10000 ? '...(省略)' : ''}
-`).join('\n\n---\n\n')}
+${contextContent}
 
 上記の文書内容を基に、以下の構成でSSRを作成してください：
 

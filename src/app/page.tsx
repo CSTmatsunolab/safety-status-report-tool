@@ -6,6 +6,7 @@ import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
+import { FiDatabase, FiCheckCircle, FiLoader } from 'react-icons/fi';
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -13,6 +14,8 @@ export default function Home() {
   const [generatedReport, setGeneratedReport] = useState<Report | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>(PREDEFINED_STAKEHOLDERS);
+  const [isKnowledgeBaseBuilding, setIsKnowledgeBaseBuilding] = useState(false);
+  const [knowledgeBaseStatus, setKnowledgeBaseStatus] = useState<'idle' | 'building' | 'ready' | 'error'>('idle');
 
   useEffect(() => {
     // カスタムステークホルダーを読み込む
@@ -24,14 +27,58 @@ export default function Home() {
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => [...prevFiles, ...newFiles]);
+    // ファイルが追加されたら知識ベースの状態をリセット
+    setKnowledgeBaseStatus('idle');
   };
 
   const handleFileRemove = (id: string) => {
     setFiles(prevFiles => prevFiles.filter(f => f.id !== id));
+    // ファイルが削除されたら知識ベースの状態をリセット
+    setKnowledgeBaseStatus('idle');
+  };
+
+  // 知識ベースを構築する関数
+  const buildKnowledgeBase = async () => {
+    if (!selectedStakeholder || files.length === 0) return;
+    
+    setIsKnowledgeBaseBuilding(true);
+    setKnowledgeBaseStatus('building');
+    
+    try {
+      const response = await fetch('/api/build-knowledge-base', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files,
+          stakeholderId: selectedStakeholder.id,
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Knowledge base building failed');
+      }
+      
+      const result = await response.json();
+      console.log('Knowledge base built:', result);
+      setKnowledgeBaseStatus('ready');
+    } catch (error) {
+      console.error('Knowledge base building error:', error);
+      setKnowledgeBaseStatus('error');
+      alert('知識ベースの構築に失敗しました。');
+    } finally {
+      setIsKnowledgeBaseBuilding(false);
+    }
   };
 
   const handleGenerateReport = async () => {
     if (!selectedStakeholder || files.length === 0) return;
+    
+    // 知識ベースが構築されていない場合は、先に構築
+    if (knowledgeBaseStatus !== 'ready') {
+      await buildKnowledgeBase();
+      // エラーが発生した場合は処理を中断
+      if (knowledgeBaseStatus === 'error') return;
+    }
     
     setIsGenerating(true);
     try {
@@ -56,6 +103,12 @@ export default function Home() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  // ステークホルダーが変更されたら知識ベースの状態をリセット
+  const handleStakeholderSelect = (stakeholder: Stakeholder) => {
+    setSelectedStakeholder(stakeholder);
+    setKnowledgeBaseStatus('idle');
   };
 
   return (
@@ -96,12 +149,53 @@ export default function Home() {
               <StakeholderSelect
                 stakeholders={stakeholders}
                 selected={selectedStakeholder}
-                onSelect={setSelectedStakeholder}
+                onSelect={handleStakeholderSelect}
               />
+
+              {/* RAG知識ベース構築ステータス */}
+              {selectedStakeholder && files.length > 0 && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">
+                      RAG知識ベース
+                    </span>
+                    {knowledgeBaseStatus === 'idle' && (
+                      <button
+                        onClick={buildKnowledgeBase}
+                        disabled={isKnowledgeBaseBuilding}
+                        className="text-sm text-blue-600 hover:text-blue-700 flex items-center"
+                      >
+                        <FiDatabase className="mr-1" />
+                        構築する
+                      </button>
+                    )}
+                    {knowledgeBaseStatus === 'building' && (
+                      <span className="text-sm text-yellow-600 flex items-center">
+                        <FiLoader className="mr-1 animate-spin" />
+                        構築中...
+                      </span>
+                    )}
+                    {knowledgeBaseStatus === 'ready' && (
+                      <span className="text-sm text-green-600 flex items-center">
+                        <FiCheckCircle className="mr-1" />
+                        準備完了
+                      </span>
+                    )}
+                    {knowledgeBaseStatus === 'error' && (
+                      <span className="text-sm text-red-600">
+                        エラー
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します
+                  </p>
+                </div>
+              )}
               
               <button
                 onClick={handleGenerateReport}
-                disabled={!selectedStakeholder || files.length === 0 || isGenerating}
+                disabled={!selectedStakeholder || files.length === 0 || isGenerating || isKnowledgeBaseBuilding}
                 className="mt-4 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {isGenerating ? 'レポート生成中...' : 'レポートを生成'}
