@@ -4,7 +4,6 @@ import { Document } from '@langchain/core/documents';
 import { UploadedFile } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
-import { MemoryVectorStore } from 'langchain/vectorstores/memory';
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
@@ -75,13 +74,10 @@ export async function POST(request: NextRequest) {
       embeddings,
       { stakeholderId, embeddings }
     );
-
-    // グローバルストレージに保存（メモリストアの場合）
-    if (vectorStore instanceof MemoryVectorStore) {
-      const storeKey = `ssr_${stakeholderId.replace(/-/g, '_')}`;
-      globalStores.set(storeKey, vectorStore);
-      console.log(`Saved memory store to global storage with key: ${storeKey}`);
-    }
+  
+    const storeKey = `ssr_${stakeholderId.replace(/-/g, '_')}`;
+    globalStores.set(storeKey, vectorStore);
+    console.log(`Saved memory store to global storage with key: ${storeKey}`);
 
     console.log('Knowledge base built successfully');
 

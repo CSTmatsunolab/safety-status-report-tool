@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { UploadedFile, Stakeholder, Report } from '@/types';
-import { MemoryVectorStore } from 'langchain/vectorstores/memory';
-import { createEmbeddings } from '@/lib/embeddings';
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
@@ -27,34 +25,41 @@ export async function POST(request: NextRequest) {
     console.log('Generating report for:', stakeholder.role);
     console.log('Using vector store:', process.env.VECTOR_STORE || 'memory');
 
-    // エンベディングの初期化
-    const embeddings = createEmbeddings();
-
     // ベクトルストアの取得（メモリストア）
     const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
     console.log('Looking for vector store with key:', storeKey); // デバッグ用
-console.log('Available keys:', Array.from(globalStores.keys())); // デバッグ用
+    console.log('Available keys:', Array.from(globalStores.keys())); // デバッグ用
 
     const vectorStore = globalStores.get(storeKey);
 
     let contextContent = '';
 
-    if (vectorStore && vectorStore instanceof MemoryVectorStore) {
-      // 関連するドキュメントを検索
+    if (vectorStore) {
+  console.log('Found vector store, type:', vectorStore.constructor.name);
+  
+  // 型に関係なく、similaritySearchメソッドがあれば使用
+  if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
       console.log('Searching in vector store...');
-      const searchQuery = stakeholder.concerns.join(' ');
+      
+      // より良い検索クエリの構築
+      const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
       const relevantDocs = await vectorStore.similaritySearch(searchQuery, 5);
       
       if (relevantDocs.length > 0) {
         console.log(`Found ${relevantDocs.length} relevant documents`);
-        contextContent = relevantDocs.map(doc => doc.pageContent).join('\n\n');
+        // スコアでソートすることも検討
+        contextContent = relevantDocs
+          .map((doc: any) => doc.pageContent)
+          .join('\n\n---\n\n'); // セクション区切りを追加
       } else {
-        console.log('No relevant documents found, using all files');
+        console.log('No relevant documents found');
+        // ファイル全体を使用する前に警告
         contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
       }
-    } else {
-      // ベクトルストアがない場合は全ファイルを使用
-      console.log('No vector store found, using all file contents');
+    }
+    }
+    else {
+      console.warn('No vector store found for stakeholder:', stakeholder.id);
       contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
     }
 

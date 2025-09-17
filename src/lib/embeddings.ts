@@ -1,14 +1,7 @@
 import { OpenAIEmbeddings } from '@langchain/openai';
 import { Embeddings } from '@langchain/core/embeddings';
 
-/**
- * エンベディングモデルの設定
- * 
- * デフォルトでOpenAIの text-embedding-3-small を使用
- * 他のオプション:
- * - text-embedding-3-large (より高精度、1536次元)
- * - text-embedding-ada-002 (旧モデル、1536次元)
- */
+
 export function createEmbeddings(): Embeddings {
   // OpenAI APIキーが設定されていない場合は、ダミーのエンベディングを使用
   if (!process.env.OPENAI_API_KEY) {
@@ -16,20 +9,13 @@ export function createEmbeddings(): Embeddings {
     return new DummyEmbeddings();
   }
 
-  const embeddingModel = process.env.EMBEDDING_MODEL || 'text-embedding-3-small';
-  
-  console.log(`Using embedding model: ${embeddingModel}`);
-  
   return new OpenAIEmbeddings({
     apiKey: process.env.OPENAI_API_KEY,
-    model: embeddingModel,
+    model: 'text-embedding-3-small',
   });
 }
 
-/**
- * 開発用のダミーエンベディング
- * OpenAI APIキーがない場合の開発用
- */
+// 開発用のダミーエンベディング
 class DummyEmbeddings extends Embeddings {
   constructor() {
     super({});
@@ -45,22 +31,3 @@ class DummyEmbeddings extends Embeddings {
     return Array(1536).fill(0).map(() => Math.random());
   }
 }
-
-// エンベディングモデルの情報
-export const EMBEDDING_MODELS = {
-  'text-embedding-3-small': {
-    dimensions: 1536,
-    maxTokens: 8191,
-    costPer1kTokens: 0.00002, // USD
-  },
-  'text-embedding-3-large': {
-    dimensions: 3072,
-    maxTokens: 8191,
-    costPer1kTokens: 0.00013, // USD
-  },
-  'text-embedding-ada-002': {
-    dimensions: 1536,
-    maxTokens: 8191,
-    costPer1kTokens: 0.00010, // USD
-  },
-} as const;

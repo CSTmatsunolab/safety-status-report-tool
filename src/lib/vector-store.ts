@@ -1,18 +1,69 @@
 import { Document } from '@langchain/core/documents';
 import { Embeddings } from '@langchain/core/embeddings';
 import { VectorStore } from '@langchain/core/vectorstores';
-import { Chroma } from '@langchain/community/vectorstores/chroma';
 import { MemoryVectorStore } from 'langchain/vectorstores/memory';
 import { PineconeStore } from '@langchain/pinecone';
 import { Pinecone } from '@pinecone-database/pinecone';
+import { DirectChromaStore } from './direct-chroma-store';
 
 export interface VectorStoreConfig {
   stakeholderId: string;
   embeddings: Embeddings;
 }
 
+// ChromaDB直接実装のラッパー（VectorStoreインターフェースに適合）
+class ChromaVectorStoreWrapper extends VectorStore {
+  private chromaStore: DirectChromaStore;
+  private collectionName: string;
+  
+  constructor(
+    embeddings: Embeddings,
+    collectionName: string,
+    chromaStore: DirectChromaStore
+  ) {
+    super(embeddings, {});
+    this.chromaStore = chromaStore;
+    this.collectionName = collectionName;
+  }
+  
+  async addDocuments(documents: Document[]): Promise<void> {
+    await this.chromaStore.addDocuments(this.collectionName, documents);
+  }
+  
+  async addVectors(vectors: number[][], documents: Document[]): Promise<void> {
+    // ChromaDBは内部でエンベディングを処理するため、このメソッドは使用しない
+    await this.addDocuments(documents);
+  }
+  
+  async similaritySearch(query: string, k?: number): Promise<Document[]> {
+    return await this.chromaStore.similaritySearch(this.collectionName, query, k);
+  }
+  
+  async similaritySearchWithScore(
+    query: string,
+    k?: number
+  ): Promise<[Document, number][]> {
+    const docs = await this.similaritySearch(query, k);
+    return docs.map(doc => [doc, doc.metadata.score || 0]);
+  }
+  
+  async similaritySearchVectorWithScore(
+    query: number[],
+    k: number
+  ): Promise<[Document, number][]> {
+    // ベクトル検索は現在未実装（必要に応じて実装）
+    console.warn('similaritySearchVectorWithScore is not implemented for ChromaDB direct');
+    return [];
+  }
+  
+  _vectorstoreType(): string {
+    return 'chromadb-direct';
+  }
+}
+
 export class VectorStoreFactory {
   private static memoryStores: Map<string, MemoryVectorStore> = new Map();
+  private static chromaClient: DirectChromaStore | null = null;
 
   static async fromDocuments(
     docs: Document[],
@@ -47,6 +98,11 @@ export class VectorStoreFactory {
     const store = await MemoryVectorStore.fromDocuments(docs, embeddings);
     this.memoryStores.set(storeKey, store);
     
+    // グローバルストレージにも保存
+    const globalStores = (global as any).vectorStores || new Map();
+    (global as any).vectorStores = globalStores;
+    globalStores.set(storeKey, store);
+    
     console.log(`Memory store created successfully`);
     return store;
   }
@@ -58,7 +114,7 @@ export class VectorStoreFactory {
   ): Promise<VectorStore> {
     const collectionName = `ssr_${config.stakeholderId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
     
-    console.log(`Creating Chroma store for collection: ${collectionName}`);
+    console.log(`Creating ChromaDB store for collection: ${collectionName}`);
     console.log(`Number of documents: ${docs.length}`);
     
     if (docs.length === 0) {
@@ -66,24 +122,35 @@ export class VectorStoreFactory {
     }
     
     try {
-      console.log('Attempting to create Chroma store...');
-    
-      const chromaStore = new Chroma(embeddings, {
-        url: process.env.CHROMA_URL || 'http://localhost:8000',
-        collectionName: collectionName,
-      });
+      // ChromaDB直接クライアントの初期化（シングルトン）
+      if (!this.chromaClient) {
+        this.chromaClient = new DirectChromaStore(embeddings);
+        const isConnected = await this.chromaClient.testConnection();
+        if (!isConnected) {
+          throw new Error('Failed to connect to ChromaDB');
+        }
+      }
+      
+      // 既存のコレクションを削除（リセット）
+      await this.chromaClient.deleteCollection(collectionName);
       
       // ドキュメントを追加
-      await chromaStore.addDocuments(docs);
+      await this.chromaClient.addDocuments(collectionName, docs);
       
-      console.log('Chroma store created and documents added successfully');
-      return chromaStore as unknown as VectorStore;
+      // ラッパーを返す
+      const wrapper = new ChromaVectorStoreWrapper(
+        embeddings,
+        collectionName,
+        this.chromaClient
+      );
+      
+      console.log('ChromaDB store created successfully');
+      return wrapper;
       
     } catch (error) {
-      console.error('Error with Chroma store:', error);
+      console.error('Error with ChromaDB store:', error);
       console.log('Falling back to memory store...');
       process.env.VECTOR_STORE = 'memory';
-      // エラーが発生した場合はメモリストアにフォールバック
       return this.createMemoryStoreFromDocuments(docs, embeddings, config);
     }
   }
@@ -112,7 +179,11 @@ export class VectorStoreFactory {
       
       // 既存のドキュメントをクリア（オプション）
       if (process.env.CLEAR_VECTOR_STORE === 'true') {
-        await pineconeIndex.namespace(config.stakeholderId).deleteAll();
+          try {
+            await pineconeIndex.namespace(config.stakeholderId).deleteAll();
+          } catch (error) {
+            console.log('Namespace might not exist yet, continuing...');
+          }
       }
       
       const vectorStore = await PineconeStore.fromDocuments(docs, embeddings, {
