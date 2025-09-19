@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { UploadedFile, Stakeholder, Report } from '@/types';
+import { VectorStoreFactory } from '@/lib/vector-store';
+
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
@@ -9,6 +11,47 @@ const globalStores = (global as any).vectorStores || new Map();
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// 動的K値計算関数
+const getDynamicK = (
+  totalChunks: number, 
+  stakeholder: Stakeholder,
+  storeType: string
+): number => {
+  // ベース値：チャンク数の30%
+  let baseK = Math.ceil(totalChunks * 0.3);
+  
+  // ストアタイプ別の上限
+  const limits: Record<string, number> = {
+    'pinecone': 50,
+    'chromadb-direct': 30,
+    'memory': 20
+  };
+  
+  const maxK = limits[storeType] || 20;
+  baseK = Math.min(maxK, Math.max(5, baseK));
+  
+  // 役職による調整
+  let roleMultiplier = 1.0;
+  if (stakeholder.role.includes('技術') || stakeholder.role.includes('エンジニア')) {
+    roleMultiplier = 1.5;
+  } else if (stakeholder.role.includes('経営') || stakeholder.role.includes('CxO')) {
+    roleMultiplier = 0.8; // 経営層は要点のみ
+  }
+  
+  const finalK = Math.ceil(Math.min(maxK, baseK * roleMultiplier));
+  
+  console.log(`Dynamic K calculation:
+    Total chunks: ${totalChunks}
+    Base K (30%): ${baseK}
+    Role multiplier: ${roleMultiplier}
+    Store limit: ${maxK}
+    Final K: ${finalK}
+  `);
+  
+  return finalK;
+};
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,28 +78,44 @@ export async function POST(request: NextRequest) {
     let contextContent = '';
 
     if (vectorStore) {
-  console.log('Found vector store, type:', vectorStore.constructor.name);
-  
-  // 型に関係なく、similaritySearchメソッドがあれば使用
-  if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
-      console.log('Searching in vector store...');
+      console.log('Found vector store, type:', vectorStore.constructor.name);
       
-      // より良い検索クエリの構築
-      const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
-      const relevantDocs = await vectorStore.similaritySearch(searchQuery, 5);
-      
-      if (relevantDocs.length > 0) {
-        console.log(`Found ${relevantDocs.length} relevant documents`);
-        // スコアでソートすることも検討
-        contextContent = relevantDocs
-          .map((doc: any) => doc.pageContent)
-          .join('\n\n---\n\n'); // セクション区切りを追加
-      } else {
-        console.log('No relevant documents found');
-        // ファイル全体を使用する前に警告
-        contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
+      // 型に関係なく、similaritySearchメソッドがあれば使用
+      if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
+        console.log('Searching in vector store...');
+        
+        try {
+          // 統計情報を取得
+          const stats = await VectorStoreFactory.getVectorStoreStats(
+            vectorStore, 
+            stakeholder.id
+          );
+          console.log('Vector store stats:', stats);
+          
+          // 動的にKを決定
+          const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+          
+          // 検索クエリの構築
+          const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
+          console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+          
+          const relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+          
+          if (relevantDocs.length > 0) {
+            console.log(`Found ${relevantDocs.length} relevant documents`);
+            contextContent = relevantDocs
+              .map((doc: any) => doc.pageContent)
+              .join('\n\n---\n\n');
+          } else {
+            console.log('No relevant documents found');
+            contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
+          }
+        } catch (error) {
+          console.error('Error during vector search:', error);
+          // フォールバック
+          contextContent = files.map(f => f.content.substring(0, 10000)).join('\n\n');
+        }
       }
-    }
     }
     else {
       console.warn('No vector store found for stakeholder:', stakeholder.id);
@@ -64,8 +123,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 文字数制限（Claudeのコンテキスト制限対策）
-    if (contextContent.length > 50000) {
-      contextContent = contextContent.substring(0, 50000) + '...(省略)';
+    const MAX_CONTEXT = stakeholder.role.includes('技術') ? 80000 : 50000;
+
+    if (contextContent.length > MAX_CONTEXT) {
+      contextContent = contextContent.substring(0, MAX_CONTEXT) + '...(省略)';
     }
 
     // レポート生成

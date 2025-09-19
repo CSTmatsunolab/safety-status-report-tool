@@ -11,6 +11,13 @@ export interface VectorStoreConfig {
   embeddings: Embeddings;
 }
 
+// ベクトルストア統計情報のインターフェース
+export interface VectorStoreStats {
+  totalDocuments: number;
+  collectionName: string;
+  storeType: string;
+}
+
 // ChromaDB直接実装のラッパー（VectorStoreインターフェースに適合）
 class ChromaVectorStoreWrapper extends VectorStore {
   private chromaStore: DirectChromaStore;
@@ -59,6 +66,25 @@ class ChromaVectorStoreWrapper extends VectorStore {
   _vectorstoreType(): string {
     return 'chromadb-direct';
   }
+
+  // 統計情報取得メソッドを追加
+  async getStats(): Promise<VectorStoreStats> {
+    try {
+      const stats = await this.chromaStore.getCollectionStats(this.collectionName);
+      return {
+        totalDocuments: stats?.count || 0,
+        collectionName: this.collectionName,
+        storeType: 'chromadb-direct'
+      };
+    } catch (error) {
+      console.error('Failed to get ChromaDB stats:', error);
+      return {
+        totalDocuments: 0,
+        collectionName: this.collectionName,
+        storeType: 'chromadb-direct'
+      };
+    }
+  }
 }
 
 export class VectorStoreFactory {
@@ -78,6 +104,51 @@ export class VectorStoreFactory {
       return this.createPineconeStoreFromDocuments(docs, embeddings, config);
     } else {
       return this.createChromaStoreFromDocuments(docs, embeddings, config);
+    }
+  }
+
+  // 統計情報取得メソッドを追加
+  static async getVectorStoreStats(
+    vectorStore: VectorStore,
+    stakeholderId: string
+  ): Promise<VectorStoreStats> {
+    const storeType = vectorStore._vectorstoreType();
+    
+    switch (storeType) {
+      case 'chromadb-direct':
+        // ChromaVectorStoreWrapperにgetStats()メソッドを追加する必要がある
+        const chromaWrapper = vectorStore as ChromaVectorStoreWrapper;
+        return await chromaWrapper.getStats();
+        
+      case 'pinecone':
+        // Pineconeの場合
+        const pinecone = new Pinecone({
+          apiKey: process.env.PINECONE_API_KEY!,
+        });
+        const indexName = process.env.PINECONE_INDEX_NAME || 'ssr-index';
+        const index = pinecone.index(indexName);
+        const stats = await index.describeIndexStats();
+        
+        return {
+          totalDocuments: stats.namespaces?.[stakeholderId]?.recordCount || 0,
+          collectionName: stakeholderId,
+          storeType: 'pinecone'
+        };
+        
+      case 'memory':
+        // メモリストアの場合（概算）
+        return {
+          totalDocuments: 20,
+          collectionName: `ssr_${stakeholderId}`,
+          storeType: 'memory'
+        };
+        
+      default:
+        return {
+          totalDocuments: 10,
+          collectionName: 'unknown',
+          storeType: 'unknown'
+        };
     }
   }
 
@@ -179,11 +250,11 @@ export class VectorStoreFactory {
       
       // 既存のドキュメントをクリア（オプション）
       if (process.env.CLEAR_VECTOR_STORE === 'true') {
-          try {
-            await pineconeIndex.namespace(config.stakeholderId).deleteAll();
-          } catch (error) {
-            console.log('Namespace might not exist yet, continuing...');
-          }
+        try {
+          await pineconeIndex.namespace(config.stakeholderId).deleteAll();
+        } catch (error) {
+          console.log('Namespace might not exist yet, continuing...');
+        }
       }
       
       const vectorStore = await PineconeStore.fromDocuments(docs, embeddings, {

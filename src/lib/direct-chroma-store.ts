@@ -12,13 +12,17 @@ export class DirectChromaStore {
   private embeddings: Embeddings;
   
   constructor(embeddings: Embeddings, config?: DirectChromaConfig) {
-    this.client = new ChromaClient({
-      path: config?.url || process.env.CHROMA_URL || 'http://localhost:8000'
-    });
-    
-    // エンベディング用（OpenAIまたはダミー）
-    this.embeddings = embeddings;
-  }
+  const url = config?.url || process.env.CHROMA_URL || 'http://localhost:8000';
+  const parsedUrl = new URL(url);
+  
+  this.client = new ChromaClient({
+    host: parsedUrl.hostname,
+    port: parseInt(parsedUrl.port || '8000'),
+    ssl: parsedUrl.protocol === 'https:'
+  });
+  
+  this.embeddings = embeddings;
+}
   
   /**
    * コレクションの作成または取得
@@ -174,6 +178,25 @@ export class DirectChromaStore {
     } catch (error) {
       console.error('Failed to list collections:', error);
       return [];
+    }
+  }
+
+/**
+ * コレクションの統計情報を取得
+ */
+  async getCollectionStats(collectionName: string): Promise<any> {
+    try {
+      const collection = await this.client.getCollection({ name: collectionName });
+      const count = await collection.count();
+      
+      return {
+        name: collectionName,
+        count: count,
+        metadata: collection.metadata
+      };
+    } catch (error) {
+      console.error('Failed to get collection stats:', error);
+      return { count: 0 };
     }
   }
 }
