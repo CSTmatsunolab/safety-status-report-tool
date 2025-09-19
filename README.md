@@ -1,10 +1,12 @@
 # Safety Status Report (SSR) 自動生成ツール
 
-GSNファイルや議事録などのドキュメントから、AIを活用してステークホルダー別のSafety Status Report（安全性状況報告書）を自動生成するNext.jsアプリケーションです。
+GSNファイルや議事録などのドキュメントから、AIとRAG（Retrieval-Augmented Generation）を活用してステークホルダー別のSafety Status Report（安全性状況報告書）を自動生成するNext.jsアプリケーションです。
 
 ## 主な機能
 
 - **ファイルアップロード**: PDF、テキスト、CSV、Excel（xls/xlsx）など多様な形式に対応
+- **RAG機能**: 大量のドキュメントから関連情報を効率的に抽出
+- **動的な情報抽出**: ドキュメント量とステークホルダーに応じた最適な情報量の調整
 - **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
 - **ステークホルダー管理**: ステークホルダーの追加・編集・削除機能
 - **AI活用**: Claude APIを使用した高品質なレポート作成
@@ -18,6 +20,8 @@ GSNファイルや議事録などのドキュメントから、AIを活用して
 - Node.js 18.0.0以上
 - npm または yarn
 - Anthropic Claude APIキー
+- OpenAI APIキー（エンベディング用）
+- ChromaDB（ローカルインストール）または Pinecone APIキー
 
 ### インストール手順
 
@@ -36,15 +40,33 @@ GSNファイルや議事録などのドキュメントから、AIを活用して
    
    プロジェクトルートに`.env.local`ファイルを作成し、以下を追加：
    ```bash
+   # 必須
    ANTHROPIC_API_KEY=your_claude_api_key_here
+   OPENAI_API_KEY=your_openai_api_key_here
+   
+   # ベクトルストア設定
+   VECTOR_STORE=chromadb または 'pinecone', 'memory'
+   
+   # ChromaDB使用時（デフォルト）
+   CHROMA_URL=http://localhost:8000
+   
+   # Pinecone使用時
+   PINECONE_API_KEY=your_pinecone_api_key
+   PINECONE_INDEX_NAME=ssr-index
    ```
 
-4. **開発サーバーの起動**
+4. **ChromaDBの起動（ChromaDB使用時）**
+   ```bash
+   # 別ターミナルでChromaDBを起動
+   docker run -p 8000:8000 chromadb/chroma
+   ```
+
+5. **開発サーバーの起動**
    ```bash
    npm run dev
    ```
 
-5. **ブラウザでアクセス**
+6. **ブラウザでアクセス**
    
    [http://localhost:3000](http://localhost:3000) を開く
 
@@ -64,18 +86,34 @@ npm start
 
 1. **ドキュメントのアップロード**
    - GSNファイル、議事録、仕様書などをドラッグ&ドロップまたは選択してアップロード
+   - 複数ファイルの同時アップロードに対応
 
 2. **ステークホルダーの選択**
    - デフォルトまたはカスタムステークホルダーから対象を選択
 
-3. **レポート生成**
-   - 「レポートを生成」ボタンをクリック
-   - AIが選択されたステークホルダー向けにカスタマイズされたSSRを自動生成
+3. **ナレッジベース構築（自動）**
+   - アップロードされたファイルが自動的にチャンク分割され、ベクトルストアに保存
 
-4. **レポートの編集・出力**
+4. **レポート生成**
+   - 「レポートを生成」ボタンをクリック
+   - RAGが関連情報を抽出し、AIがステークホルダー向けにカスタマイズされたSSRを生成
+
+5. **レポートの編集・出力**
    - 生成されたレポートをプレビュー画面で確認
    - 必要に応じて編集
    - PDF、HTML、Word（docx）形式でダウンロード
+
+### RAG機能の詳細
+
+#### 動的な情報抽出
+- チャンク総数の30%を基準に、関連情報を動的に抽出
+- 技術者向けは1.5倍、経営層向けは0.8倍に調整
+- ベクトルストアの種類に応じた上限設定（ChromaDB: 30、Pinecone: 50、メモリ: 20）
+
+#### ベクトルストアの選択
+- **ChromaDB**（デフォルト）: ローカル環境で動作、セットアップが簡単
+- **Pinecone**: クラウドベース、大規模データに最適
+- **メモリ**: 開発・テスト用、永続化なし
 
 ### ステークホルダー管理
 
@@ -117,12 +155,14 @@ safety-status-report-tool/
 ├── src/
 │   ├── app/
 │   │   ├── api/
+│   │   │   ├── build-knowledge-base/
+│   │   │   │   └── route.ts         # ナレッジベース構築API
 │   │   │   ├── generate-report/
-│   │   │   │   └── route.ts         # レポート生成API
+│   │   │   │   └── route.ts         # レポート生成API（RAG対応）
 │   │   │   ├── export-html/
-│   │   │   │   └── route.ts         # html出力API
+│   │   │   │   └── route.ts         # HTML出力API
 │   │   │   ├── export-docx/
-│   │   │   │   └── route.ts         # docx出力API
+│   │   │   │   └── route.ts         # Word出力API
 │   │   │   ├── export-pdf/
 │   │   │   │   └── route.ts         # PDF出力API
 │   │   │   ├── pdf-extract/
@@ -145,7 +185,9 @@ safety-status-report-tool/
 │   │
 │   ├── lib/
 │   │   ├── stakeholders.ts          # ステークホルダー管理ロジック
-│   │   ├── report-generator.ts      # レポート生成ロジック
+│   │   ├── vector-store.ts          # ベクトルストア管理
+│   │   ├── direct-chroma-store.ts   # ChromaDB直接実装
+│   │   ├── embeddings.ts            # エンベディング設定
 │   │   └── pdf-exporter.ts          # PDF出力処理
 │   │
 │   └── types/
@@ -161,112 +203,50 @@ safety-status-report-tool/
 └── README.md
 ```
 
-## フォルダおよびファイルの説明
-
-### `/src/app/api/` - APIエンドポイント
-
-- **`generate-report/route.ts`**: アップロードされたドキュメントと選択されたステークホルダー情報を基に、Claude APIを使用してSSRを生成
-- **`export-html/route.ts`**: 生成されたレポートをHTML形式でエクスポート
-- **`export-docx/route.ts`**: 生成されたレポートをWord（docx）形式に変換
-- **`export-pdf/route.ts`**: 生成されたレポートをPuppeteerを使用してPDF形式に変換
-- **`pdf-extract/route.ts`**: PDFファイルからテキストを抽出（pdfjs-dist使用）
-- **`excel-extract/route.ts`**: ExcelファイルからテキストをCSV形式で抽出（xlsx使用）（pdf-parseライブラリ使用）
-
-### `/src/app/components/` - UIコンポーネント
-
-- **`FileUpload.tsx`**: ドラッグ&ドロップ対応のファイルアップロードコンポーネント。PDFの場合は自動的にテキスト抽出
-- **`StakeholderSelect.tsx`**: デフォルトおよびカスタムステークホルダーから選択するUI
-- **`ReportPreview.tsx`**: 生成されたレポートの表示とPDF出力機能
-- **`ReportEditor.tsx`**: レポートをセクションごとに編集できるリッチエディタ
-
-### `/src/app/stakeholder-settings/` - ステークホルダー設定ページ
-
-- **`page.tsx`**: ステークホルダーの追加・編集・削除機能を提供するメインページ。ローカルストレージを使用してカスタムステークホルダー情報を永続化
-
-### `/src/lib/` - ビジネスロジック
-
-- **`stakeholders.ts`**: ステークホルダー管理のコアロジック
-  - デフォルトステークホルダーの定義
-  - カスタムステークホルダーの追加・更新・削除処理
-  - ローカルストレージとの同期
-- **`report-generator.ts`**: レトリック戦略の決定とレポート生成のコアロジック
-- **`pdf-exporter.ts`**: HTMLからPDFへの変換処理、日本語フォント対応
-
-### `/src/types/` - 型定義
-
-- **`index.ts`**: アプリケーション全体で使用する型定義
-  - `UploadedFile`: アップロードファイル情報
-  - `Stakeholder`: ステークホルダー情報（デフォルト/カスタムフラグを含む）
-  - `Report`: 生成レポート情報
-
 ## 技術スタック
 
 - **フレームワーク**: Next.js 14 (App Router)
 - **言語**: TypeScript
 - **スタイリング**: Tailwind CSS
-- **AI**: Anthropic Claude API (Claude 3 Haiku)
+- **AI/LLM**: 
+  - Anthropic Claude API (Claude 3 Haiku) - レポート生成
+  - OpenAI API (text-embedding-3-small) - エンベディング
+- **RAG/ベクトルストア**:
+  - ChromaDB（デフォルト）
+  - Pinecone（オプション）
+  - LangChain - ベクトルストア抽象化
 - **ファイル処理**:
   - PDF生成: Puppeteer
-  - PDF抽出: pdfjs-dist
+  - PDF抽出: pdf-parse-new
   - Excel処理: xlsx
   - Word生成: docx
 - **UI**: React 18
-- **データ永続化**: ローカルストレージ（カスタムステークホルダー用）
-- **開発ツール**: Turbopack（高速開発サーバー）
-
-## カスタマイズ
-
-### プログラマティックなステークホルダーの追加
-
-コード内でデフォルトステークホルダーを追加する場合は、`src/lib/stakeholders.ts` を編集します：
-
-```typescript
-export const PREDEFINED_STAKEHOLDERS: Stakeholder[] = [
-  {
-    id: 'new-stakeholder',
-    role: '新しい役職名',
-    concerns: ['関心事1', '関心事2', '関心事3'],
-    isDefault: true  // デフォルトステークホルダーとして設定
-  },
-  // ...
-];
-```
-
-### UIを使用したステークホルダーの追加
-
-アプリケーション内の「ステークホルダー設定」ページ（`/stakeholder-settings`）から、GUIを使用してステークホルダーを追加・編集・削除できます。この方法で追加されたステークホルダーは、ブラウザのローカルストレージに保存されます。
-
-### レポートフォーマットの変更
-
-`src/app/api/generate-report/route.ts` のプロンプトを編集して、レポートの構成や内容をカスタマイズできます。
+- **データ永続化**: 
+  - ローカルストレージ（カスタムステークホルダー用）
+  - ベクトルストア（ドキュメント用）
 
 ## トラブルシューティング
 
-### Excelファイルが読み込めない場合
-- ファイル形式が.xlsまたは.xlsxであることを確認
-- 非常に大きなファイルの場合、処理に時間がかかる可能性があります
-- 破損したExcelファイルは読み込めません
+### ChromaDB接続エラー
+- ChromaDBが起動しているか確認（`docker ps`）
+- ポート8000が使用可能か確認
+- `CHROMA_URL`環境変数が正しく設定されているか確認
 
-### 出力形式の選択
-- **PDF**: 印刷や配布に最適。日本語フォント対応
-- **HTML**: Web公開やブラウザでの閲覧に適している
-- **Word（docx）**: 編集や共同作業が必要な場合に便利
+### エンベディングエラー
+- OpenAI APIキーが有効か確認
+- APIの利用制限に達していないか確認
+
+### 大きなファイルの処理
+- ファイルは1000文字ごとのチャンクに分割されます
+- 非常に大きなファイルは処理に時間がかかる場合があります
+- コンテキスト制限により、技術者向けは80,000文字、その他は50,000文字まで
 
 ### レポート生成が遅い場合
-- 大きなファイルは自動的に文字数制限（50,000文字）が適用されます
+- ベクトルストアの検索に時間がかかっている可能性があります
+- ChromaDBからPineconeへの切り替えを検討してください
 - Claude APIの応答が遅い場合は、しばらく待つか再試行してください
-
-### 環境変数エラー
-- `.env.local` ファイルが正しく作成されているか確認
-- APIキーが有効であることを確認
 
 ### カスタムステークホルダーが表示されない場合
 - ブラウザのローカルストレージをクリアして再度追加
 - プライベートブラウジングモードでは永続化されません
 - 異なるブラウザ間ではステークホルダー情報は共有されません
-
-## 今後の機能拡張予定
-
-- ステークホルダー情報のエクスポート/インポート機能
-- チーム間でのステークホルダー設定の共有機能
-- ステークホルダーのグループ化とテンプレート機能
