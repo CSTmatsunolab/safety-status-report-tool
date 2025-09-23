@@ -6,6 +6,7 @@ export interface UploadedFile {
   type: 'gsn' | 'minutes' | 'other';
   content: string;
   uploadedAt: Date;
+  metadata?: FileMetadata;
 }
 
 export interface Stakeholder {
@@ -31,13 +32,33 @@ export interface Report {
   updatedAt: Date;
 }
 
-export interface GenerateReportRequest {
-  files: UploadedFile[];
-  stakeholderId: string;
-  analysisResult: AnalysisResult;
+export interface FileMetadata {
+  originalType: string;      // 元のMIMEタイプ
+  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'failed'; // 抽出方法
+  size: number;              // ファイルサイズ
+  confidence?: number;       // OCR信頼度（0-100）
+  service?: string;          // 使用したOCRサービス
+  //structured?: GSNStructure; // GSNの構造化データ
 }
 
-export interface ExportOptions {
-  format: 'pdf' | 'html';
-  includeMetadata: boolean;
+/*  GSN関連の型 - もしGSN図を構造的に解析する機能を追加する場合に使用
+    現在未使用のため，コメントアウト
+export interface GSNStructure {
+  elements: GSNElement[];
+  relationships: GSNRelationship[];
 }
+
+export interface GSNElement {
+  id: string;
+  type: 'Goal' | 'Strategy' | 'Solution' | 'Context' | 'Justification';
+  content: string;
+  position: { x: number; y: number };
+  confidence: number;
+}
+
+export interface GSNRelationship {
+  from: string;
+  to: string;
+  type: 'supports' | 'in-context-of' | 'justified-by';
+}
+*/

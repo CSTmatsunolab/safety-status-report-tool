@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiFile, FiX } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 
 interface FileUploadProps {
@@ -11,12 +11,48 @@ interface FileUploadProps {
   onRemove: (id: string) => void;
 }
 
-// PDFをテキストに変換する関数
+// 画像ファイルからテキストを抽出する関数（Google Cloud Vision使用）
+async function extractTextFromImage(file: File): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch('/api/google-vision-ocr', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`OCR failed: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log(`Google Cloud Vision OCR completed: ${file.name}`);
+      return result.text || '';
+    }
+    
+    // エラーメッセージがある場合
+    if (result.message) {
+      console.error('OCR error:', result.message);
+    }
+    
+    return '';
+  } catch (error) {
+    console.error('Image OCR error:', error);
+    return '';
+  }
+}
+
+// PDFをテキストに変換する関数（OCR対応）
+// PDFをテキストに変換する関数（Google Cloud Vision OCR対応）
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
     const formData = new FormData();
     formData.append('file', file);
     
+    // Google Cloud Vision対応のPDF処理
     const response = await fetch('/api/pdf-extract', {
       method: 'POST',
       body: formData,
@@ -28,8 +64,20 @@ async function extractTextFromPDF(file: File): Promise<string> {
       throw new Error(`PDF extraction failed: ${response.status}`);
     }
     
-    const { text } = await response.json();
-    return text || '';
+    const result = await response.json();
+    console.log(`PDF extracted using method: ${result.method}`);
+    
+    // 処理結果に応じたメッセージ
+    if (result.method === 'google-cloud-vision-pdf' && result.success) {
+      console.log('Google Cloud Vision APIでOCR処理完了');
+    } else if (result.requiresOcr && result.message) {
+      // 非同期でアラートを表示（処理をブロックしない）
+      setTimeout(() => {
+        alert(`${file.name}:\n\n${result.message}`);
+      }, 100);
+    }
+    
+    return result.text || '';
   } catch (error) {
     console.error('PDF extraction error:', error);
     return '';
@@ -61,63 +109,90 @@ async function extractTextFromExcel(file: File): Promise<string> {
 
 export default function FileUpload({ files, onUpload, onRemove }: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStatus, setProcessingStatus] = useState<string>('');
   
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsProcessing(true);
     try {
-      const newFiles: UploadedFile[] = await Promise.all(
-        acceptedFiles.map(async (file) => {
-          let content = '';
-          
-          // ファイルタイプに応じて適切な処理を行う
-          if (file.type === 'application/pdf') {
-            // PDFファイルの場合
-            console.log(`Extracting text from PDF: ${file.name}`);
-            content = await extractTextFromPDF(file);
-          } else if (
-            file.type === 'application/vnd.ms-excel' || 
-            file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-            file.name.endsWith('.xls') || 
-            file.name.endsWith('.xlsx')
-          ) {
-            // Excelファイルの場合
-            console.log(`Extracting text from Excel: ${file.name}`);
-            content = await extractTextFromExcel(file);
-          } else {
-            // テキスト・CSVファイルは直接読み込む
-            try {
-              content = await file.text();
-            } catch (error) {
-              console.log(`Could not read file ${file.name} as text, using empty content`);
-              content = '';
-            }
+      const newFiles: UploadedFile[] = [];
+      
+      for (let i = 0; i < acceptedFiles.length; i++) {
+        const file = acceptedFiles[i];
+        setProcessingStatus(`処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`);
+        
+        let content = '';
+        let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'failed' = 'text';
+        
+        // ファイルタイプに応じて適切な処理を行う
+        if (file.type === 'application/pdf') {
+          console.log(`Extracting text from PDF: ${file.name}`);
+          content = await extractTextFromPDF(file);
+          extractionMethod = content.length > 0 ? 'pdf' : 'failed';
+        } else if (
+          file.type.startsWith('image/') ||
+          /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(file.name)
+        ) {
+          // 画像ファイルの場合
+          console.log(`Extracting text from image: ${file.name}`);
+          content = await extractTextFromImage(file);
+          extractionMethod = 'ocr';
+        } else if (
+          file.type === 'application/vnd.ms-excel' || 
+          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.name.endsWith('.xls') || 
+          file.name.endsWith('.xlsx')
+        ) {
+          console.log(`Extracting text from Excel: ${file.name}`);
+          content = await extractTextFromExcel(file);
+          extractionMethod = 'excel';
+        } else {
+          // テキスト・CSVファイルは直接読み込む
+          try {
+            content = await file.text();
+            extractionMethod = 'text';
+          } catch (error) {
+            console.log(`Could not read file ${file.name} as text`);
+            extractionMethod = 'failed';
           }
-          
-          console.log(`File: ${file.name}, Type: ${file.type}, Content length: ${content.length}`);
-          if (content.length > 0) {
-            console.log('First 500 chars:', content.substring(0, 500));
+        }
+        
+        console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
+
+        // Show first 500 characters of extracted text
+        if (content.length > 0) {
+          console.log(`Extracted text (first 500 chars): ${file.name}`);
+          console.log(content.substring(0, 500));
+          if (content.length > 500) {
+            console.log('...(truncated)');
           }
-          
-          // ファイル名からタイプを判定
-          const type = file.name.includes('GSN') ? 'gsn' : 
-                       file.name.includes('議事録') ? 'minutes' : 'other';
-          
-          return {
-            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            name: file.name,
-            type,
-            content,
-            uploadedAt: new Date(),
-          };
-        })
-      );
+        }
+
+        // ファイル名からタイプを判定
+        const type = file.name.includes('GSN') ? 'gsn' : 
+                     file.name.includes('議事録') ? 'minutes' : 'other';
+        
+        newFiles.push({
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          name: file.name,
+          type,
+          content,
+          uploadedAt: new Date(),
+          metadata: {
+            originalType: file.type,
+            extractionMethod,
+            size: file.size
+          }
+        });
+      }
       
       onUpload(newFiles);
+      setProcessingStatus('');
     } catch (error) {
       console.error('File processing error:', error);
       alert('ファイルの処理中にエラーが発生しました。');
     } finally {
       setIsProcessing(false);
+      setProcessingStatus('');
     }
   }, [onUpload]);
 
@@ -128,12 +203,31 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
       'application/pdf': ['.pdf'],
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
     },
     multiple: true,
   });
 
-  const removeFile = (id: string) => {
-    onRemove(id);
+  const getFileIcon = (file: UploadedFile) => {
+    const metadata = file.metadata as any;
+    if (metadata?.originalType?.startsWith('image/')) {
+      return <FiImage className="text-purple-500" />;
+    }
+    return <FiFile className="text-gray-500" />;
+  };
+
+  const getExtractionBadge = (file: UploadedFile) => {
+    const metadata = file.metadata as any;
+    const method = metadata?.extractionMethod;
+    
+    if (method === 'ocr') {
+      return <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">OCR</span>;
+    } else if (method === 'pdf') {
+      return <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">PDF</span>;
+    } else if (method === 'excel') {
+      return <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Excel</span>;
+    }
+    return null;
   };
 
   return (
@@ -149,8 +243,11 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
         {isProcessing ? (
           <div>
             <p className="text-gray-600 mb-2">ファイルを処理中...</p>
-            <p className="text-sm text-gray-500">
-              PDFやExcelファイルの場合、処理に時間がかかることがあります
+            {processingStatus && (
+              <p className="text-sm text-blue-600">{processingStatus}</p>
+            )}
+            <p className="text-sm text-gray-500 mt-2">
+              画像やPDFのOCR処理には時間がかかる場合があります
             </p>
           </div>
         ) : isDragActive ? (
@@ -161,7 +258,11 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
               ファイルをドラッグ＆ドロップ、またはクリックして選択
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              対応形式: GSNファイル、議事録 (txt, csv, pdf, xls, xlsx)
+              対応形式: テキスト、CSV、PDF、Excel、画像 (JPG, PNG等)
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              ※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します<br/>
+              ※ 画像の場合はPDFよりも画像ファイルの方が精度が高くなる可能性があります
             </p>
           </div>
         )}
@@ -176,8 +277,8 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
               className="flex items-center justify-between bg-gray-50 p-3 rounded-md"
             >
               <div className="flex items-center space-x-3">
-                <FiFile className="text-gray-500" />
-                <div>
+                {getFileIcon(file)}
+                <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{file.name}</p>
                   <p className="text-xs text-gray-500">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
@@ -188,20 +289,80 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
                       </span>
                     ) : (
                       <span className="ml-2 text-red-500">
-                        (読み込みエラー)
+                        (テキスト抽出不可 - 画像形式での再アップロードを推奨)
                       </span>
                     )}
                   </p>
                 </div>
+                {getExtractionBadge(file)}
               </div>
               <button
-                onClick={() => removeFile(file.id)}
-                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                onClick={() => onRemove(file.id)}
+                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 ml-2"
               >
                 <FiX size={18} />
               </button>
             </div>
           ))}
+          
+          {/* 画像ベースPDFの警告メッセージ */}
+          {files.some(f => f.content.length === 0) && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-800 font-medium mb-2">
+                ⚠️ 一部のファイルからテキストを抽出できませんでした
+              </p>
+              <p className="text-xs text-yellow-700 mb-2">
+                画像ベースのファイルの可能性があります。以下の方法をお試しください：
+              </p>
+              <ul className="text-xs text-yellow-700 list-disc list-inside space-y-1">
+                <li>PDFを画像（PNG/JPG）として保存し、再アップロード</li>
+                <li>Google DriveでPDFを開き、Googleドキュメントに変換</li>
+                <li>Adobe AcrobatなどでOCR処理後、テキストPDFとして保存</li>
+              </ul>
+              
+              {/* GSNファイル専用の案内 */}
+              {files.some(f => f.name.includes('GSN') && f.content.length === 0) && (
+                <div className="mt-3 pt-3 border-t border-yellow-300">
+                  <p className="text-sm text-yellow-800 font-medium mb-2">
+                    📋 GSN図の場合の推奨方法：
+                  </p>
+                  <ol className="text-xs text-yellow-700 list-decimal list-inside space-y-1">
+                    <li>GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力</li>
+                    <li>
+                      フォーマット例：
+                      <pre className="mt-1 p-2 bg-yellow-100 rounded text-xs overflow-x-auto">
+{`G1: 実証実験期間中、安全に特定運行ができる
+→ S1
+
+S1: システム安全と運行時の残存リスク制御に分けた議論
+→ G2, G3`}
+                      </pre>
+                    </li>
+                    <li>作成したテキストファイルをアップロード</li>
+                  </ol>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      alert('GSNテキスト形式の詳細ガイド:\n\n' +
+                        '1. 各要素を「ID: 内容」の形式で記述\n' +
+                        '2. 接続は「→ 接続先ID」で表現\n' +
+                        '3. 複数接続は「→ ID1, ID2」\n\n' +
+                        '要素タイプ:\n' +
+                        'G: Goal（ゴール）\n' +
+                        'S: Strategy（戦略）\n' +
+                        'C: Context（コンテキスト）\n' +
+                        'Sn: Solution（ソリューション）'
+                      );
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 underline"
+                  >
+                    詳細なフォーマットガイドを見る
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
