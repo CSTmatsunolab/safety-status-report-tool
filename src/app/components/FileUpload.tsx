@@ -1,9 +1,11 @@
+// src/app/components/FileUpload.tsx
 'use client';
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
+import { PREVIEW_LENGTH, IMAGE_FILE_EXTENSIONS } from '@/lib/config/constants';
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -45,7 +47,6 @@ async function extractTextFromImage(file: File): Promise<string> {
   }
 }
 
-// PDFをテキストに変換する関数（OCR対応）
 // PDFをテキストに変換する関数（Google Cloud Vision OCR対応）
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
@@ -68,7 +69,7 @@ async function extractTextFromPDF(file: File): Promise<string> {
     console.log(`PDF extracted using method: ${result.method}`);
     
     // 処理結果に応じたメッセージ
-    if (result.method === 'google-cloud-vision-pdf' && result.success) {
+    if (result.method === 'google-cloud-vision' && result.success) {
       console.log('Google Cloud Vision APIでOCR処理完了');
     } else if (result.requiresOcr && result.message) {
       // 非同期でアラートを表示（処理をブロックしない）
@@ -128,10 +129,7 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
           console.log(`Extracting text from PDF: ${file.name}`);
           content = await extractTextFromPDF(file);
           extractionMethod = content.length > 0 ? 'pdf' : 'failed';
-        } else if (
-          file.type.startsWith('image/') ||
-          /\.(jpg|jpeg|png|gif|bmp|tiff)$/i.test(file.name)
-        ) {
+        } else if (file.type.startsWith('image/')) {
           // 画像ファイルの場合
           console.log(`Extracting text from image: ${file.name}`);
           content = await extractTextFromImage(file);
@@ -158,11 +156,11 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
         
         console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
 
-        // Show first 500 characters of extracted text
+        // Show preview of extracted text
         if (content.length > 0) {
-          console.log(`Extracted text (first 500 chars): ${file.name}`);
-          console.log(content.substring(0, 500));
-          if (content.length > 500) {
+          console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
+          console.log(content.substring(0, PREVIEW_LENGTH));
+          if (content.length > PREVIEW_LENGTH) {
             console.log('...(truncated)');
           }
         }

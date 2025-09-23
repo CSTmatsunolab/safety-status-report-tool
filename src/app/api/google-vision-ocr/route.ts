@@ -1,5 +1,9 @@
+// src/app/api/google-vision-ocr/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getVisionClient } from '@/lib/google-cloud-auth';
+import { processGSNText } from '@/lib/text-processing';
+import { handleVisionAPIError } from '@/lib/vision-api-utils';
+import { PREVIEW_LENGTH } from '@/lib/config/constants';
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,11 +56,11 @@ export async function POST(request: NextRequest) {
     
     console.log(`OCR完了: ${file.name}, 信頼度: ${averageConfidence}%, 文字数: ${fullText.length}`);
     
-    // 最初の500文字を表示
+    // プレビューの表示
     if (fullText.length > 0) {
-      console.log(`抽出されたテキスト（最初の500文字）: ${file.name}`);
-      console.log(fullText.substring(0, 500));
-      if (fullText.length > 500) {
+      console.log(`抽出されたテキスト（最初の${PREVIEW_LENGTH}文字）: ${file.name}`);
+      console.log(fullText.substring(0, PREVIEW_LENGTH));
+      if (fullText.length > PREVIEW_LENGTH) {
         console.log('...(以下省略)');
       }
     }
@@ -87,45 +91,38 @@ export async function POST(request: NextRequest) {
     });
     
   } catch (error: any) {
-    console.error('OCRエラー:', error);
+    // 共通のエラーハンドラーを使用
+    const errorResponse = handleVisionAPIError(error, request.headers.get('x-filename') || 'unknown');
     
-    // エラーの種類に応じたメッセージ
-    let errorMessage = 'OCR処理中にエラーが発生しました';
+    // 日本語メッセージへの変換マッピング
+    const messageMap: { [key: string]: string } = {
+      'OCR quota exceeded': 'APIの利用制限に達しました。しばらく待ってから再試行してください。',
+      'Authentication failed': 'Google Cloud Vision APIの認証エラー。APIキーを確認してください。',
+      'Invalid file format': '画像フォーマットがサポートされていません。JPG、PNG、GIF、BMPを使用してください。',
+      'Vision API error': 'OCR処理中にエラーが発生しました'
+    };
     
-    if (error.code === 7 || error.message?.includes('UNAUTHENTICATED')) {
-      errorMessage = 'Google Cloud Vision APIの認証エラー。APIキーを確認してください。';
-    } else if (error.code === 8 || error.message?.includes('quota')) {
-      errorMessage = 'APIの利用制限に達しました。しばらく待ってから再試行してください。';
-    } else if (error.code === 3 && error.message?.includes('size')) {
-      errorMessage = 'ファイルサイズが大きすぎます（10MB以下にしてください）。';
-    } else if (error.code === 3) {
-      errorMessage = '画像フォーマットがサポートされていません。JPG、PNG、GIF、BMPを使用してください。';
+    // サイズエラーの特別な処理
+    if (error.code === 3 && error.message?.includes('size')) {
+      return NextResponse.json(
+        { 
+          error: 'ファイルサイズが大きすぎます（10MB以下にしてください）。',
+          details: error.message,
+          success: false
+        },
+        { status: 500 }
+      );
     }
+    
+    const japaneseMessage = messageMap[errorResponse.error] || errorResponse.error;
     
     return NextResponse.json(
       { 
-        error: errorMessage,
-        details: error.message,
+        error: japaneseMessage,
+        details: errorResponse.details || error.message,
         success: false
       },
       { status: 500 }
     );
   }
-}
-
-// GSNテキストの後処理
-function processGSNText(text: string): string {
-  let processed = text;
-  
-  // GSN要素の整形
-  processed = processed.replace(/([GCSJH]\d+)\s*[:：]\s*/g, '\n\n$1: ');
-  
-  // 矢印の正規化
-  processed = processed.replace(/[-－ー→]/g, '→');
-  
-  // 余分な空白の除去
-  processed = processed.replace(/\s+/g, ' ');
-  processed = processed.replace(/\n\s*\n\s*\n/g, '\n\n');
-  
-  return processed.trim();
 }
