@@ -7,6 +7,7 @@ export interface UploadedFile {
   content: string;
   uploadedAt: Date;
   metadata?: FileMetadata;
+  includeFullText?: boolean;
 }
 
 export interface Stakeholder {

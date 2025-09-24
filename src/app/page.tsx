@@ -36,6 +36,16 @@ export default function Home() {
     // ファイルが削除されたら知識ベースの状態をリセット
     setKnowledgeBaseStatus('idle');
   };
+  
+  const handleToggleFullText = (fileId: string, includeFullText: boolean) => {
+  setFiles(prev =>  // setUploadedFilesではなくsetFilesを使用
+    prev.map(file => 
+      file.id === fileId 
+        ? { ...file, includeFullText } 
+        : file
+      )
+    );
+  };
 
   // 知識ベースを構築する関数
   const buildKnowledgeBase = async () => {
@@ -70,7 +80,7 @@ export default function Home() {
     }
   };
 
-  const handleGenerateReport = async () => {
+const handleGenerateReport = async () => {
     if (!selectedStakeholder || files.length === 0) return;
     
     // 知識ベースが構築されていない場合は、先に構築
@@ -82,12 +92,18 @@ export default function Home() {
     
     setIsGenerating(true);
     try {
+      // 全文使用するファイルのIDを抽出（ここを追加）
+      const fullTextFileIds = files
+        .filter(file => file.includeFullText)
+        .map(file => file.id);
+      
       const response = await fetch('/api/generate-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           files,
           stakeholder: selectedStakeholder,
+          fullTextFileIds  // ここを追加
         }),
       });
       
@@ -137,6 +153,7 @@ export default function Home() {
               <FileUpload 
                 onUpload={handleFileUpload} 
                 onRemove={handleFileRemove}
+                onToggleFullText={handleToggleFullText}
                 files={files} 
               />
             </div>

@@ -11,6 +11,7 @@ interface FileUploadProps {
   files: UploadedFile[];
   onUpload: (files: UploadedFile[]) => void;
   onRemove: (id: string) => void;
+  onToggleFullText: (id: string, includeFullText: boolean) => void;
 }
 
 // 画像ファイルからテキストを抽出する関数（Google Cloud Vision使用）
@@ -108,7 +109,7 @@ async function extractTextFromExcel(file: File): Promise<string> {
   }
 }
 
-export default function FileUpload({ files, onUpload, onRemove }: FileUploadProps) {
+export default function FileUpload({ files, onUpload, onRemove, onToggleFullText}: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
   
@@ -175,6 +176,7 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
           type,
           content,
           uploadedAt: new Date(),
+          includeFullText: false,
           metadata: {
             originalType: file.type,
             extractionMethod,
@@ -294,12 +296,26 @@ export default function FileUpload({ files, onUpload, onRemove }: FileUploadProp
                 </div>
                 {getExtractionBadge(file)}
               </div>
-              <button
-                onClick={() => onRemove(file.id)}
-                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 ml-2"
-              >
-                <FiX size={18} />
-              </button>
+                <div className="flex items-center space-x-2">
+                  {file.content.length > 0 && (
+                    <label className="flex items-center cursor-pointer mr-2">
+                      <input
+                        type="checkbox"
+                        checked={file.includeFullText || false}
+                        onChange={(e) => onToggleFullText(file.id, e.target.checked)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">全文使用</span>
+                    </label>
+                  )}
+                  
+                  <button
+                    onClick={() => onRemove(file.id)}
+                    className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
+                  >
+                    <FiX size={18} />
+                  </button>
+              </div>
             </div>
           ))}
           
