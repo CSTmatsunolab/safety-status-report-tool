@@ -109,6 +109,35 @@ async function extractTextFromExcel(file: File): Promise<string> {
   }
 }
 
+// Wordをテキストに変換する関数
+async function extractTextFromDocx(file: File): Promise<string> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch('/api/docx-extract', {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      throw new Error(`DOCX extraction failed: ${response.status}`);
+    }
+    
+    const { text, messages } = await response.json();
+    
+    // 警告メッセージがある場合はコンソールに表示
+    if (messages && messages.length > 0) {
+      console.log(`DOCX extraction warnings for ${file.name}:`, messages);
+    }
+    
+    return text || '';
+  } catch (error) {
+    console.error('DOCX extraction error:', error);
+    return '';
+  }
+}
+
 export default function FileUpload({ files, onUpload, onRemove, onToggleFullText}: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string>('');
@@ -123,7 +152,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         setProcessingStatus(`処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`);
         
         let content = '';
-        let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'failed' = 'text';
+        let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
         
         // ファイルタイプに応じて適切な処理を行う
         if (file.type === 'application/pdf') {
@@ -144,6 +173,14 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
           console.log(`Extracting text from Excel: ${file.name}`);
           content = await extractTextFromExcel(file);
           extractionMethod = 'excel';
+        } else if (
+          file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          file.name.endsWith('.docx')
+        ) {
+          // DOCXファイルの処理を追加
+          console.log(`Extracting text from DOCX: ${file.name}`);
+          content = await extractTextFromDocx(file);
+          extractionMethod = 'docx';
         } else {
           // テキスト・CSVファイルは直接読み込む
           try {
@@ -203,6 +240,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
       'application/pdf': ['.pdf'],
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
     },
     multiple: true,
@@ -226,6 +264,8 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
       return <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">PDF</span>;
     } else if (method === 'excel') {
       return <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Excel</span>;
+    }else if (method === 'docx') {
+    return <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Word</span>;
     }
     return null;
   };
@@ -258,7 +298,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
               ファイルをドラッグ＆ドロップ、またはクリックして選択
             </p>
             <p className="text-sm text-gray-500 mt-2">
-              対応形式: テキスト、CSV、PDF、Excel、画像 (JPG, PNG等)
+              対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNG等)
             </p>
             <p className="text-xs text-gray-400 mt-1">
               ※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します<br/>

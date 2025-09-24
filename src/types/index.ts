@@ -35,7 +35,7 @@ export interface Report {
 
 export interface FileMetadata {
   originalType: string;      // 元のMIMEタイプ
-  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'failed'; // 抽出方法
+  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed'; // 抽出方法
   size: number;              // ファイルサイズ
   confidence?: number;       // OCR信頼度（0-100）
   service?: string;          // 使用したOCRサービス
