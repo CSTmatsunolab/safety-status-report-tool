@@ -248,15 +248,6 @@ export class VectorStoreFactory {
       const indexName = process.env.PINECONE_INDEX_NAME || 'ssr-index';
       const pineconeIndex = pinecone.index(indexName);
       
-      // 既存のドキュメントをクリア（オプション）
-      if (process.env.CLEAR_VECTOR_STORE === 'true') {
-        try {
-          await pineconeIndex.namespace(config.stakeholderId).deleteAll();
-        } catch (error) {
-          console.log('Namespace might not exist yet, continuing...');
-        }
-      }
-      
       const vectorStore = await PineconeStore.fromDocuments(docs, embeddings, {
         pineconeIndex,
         namespace: config.stakeholderId,

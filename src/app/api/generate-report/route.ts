@@ -18,8 +18,39 @@ const getDynamicK = (
   stakeholder: Stakeholder,
   storeType: string
 ): number => {
-  // ベース値：チャンク数の30%
+  // ベース値
   let baseK = Math.ceil(totalChunks * 0.3);
+  
+  // ステークホルダーIDベースの判定（より確実）
+  let roleMultiplier = 1.0;
+  
+  // IDベースの判定
+  switch(stakeholder.id) {
+    case 'technical-fellows':
+    case 'architect':
+    case 'r-and-d':
+      roleMultiplier = 1.2;
+      break;
+    case 'cxo':
+    case 'business':
+      roleMultiplier = 0.7;
+      break;
+    case 'product':
+      roleMultiplier = 1.0;
+      break;
+  }
+  
+  // カスタムステークホルダー用のフォールバック
+  if (stakeholder.id.startsWith('custom_')) {
+    const role = stakeholder.role.toLowerCase();
+    if (role.includes('技術') || role.includes('開発') || 
+        role.includes('エンジニア') || role.includes('アーキテクト')) {
+      roleMultiplier = 1.2;
+    } else if (role.includes('経営') || role.includes('社長') || 
+               role.includes('cxo') || role.includes('役員')) {
+      roleMultiplier = 0.7;
+    }
+  }
   
   // ストアタイプ別の上限
   const limits: Record<string, number> = {
@@ -29,25 +60,7 @@ const getDynamicK = (
   };
   
   const maxK = limits[storeType] || 20;
-  baseK = Math.min(maxK, Math.max(5, baseK));
-  
-  // 役職による調整
-  let roleMultiplier = 1.0;
-  if (stakeholder.role.includes('技術') || stakeholder.role.includes('エンジニア')) {
-    roleMultiplier = 1.5;
-  } else if (stakeholder.role.includes('経営') || stakeholder.role.includes('CxO')) {
-    roleMultiplier = 0.8; // 経営層は要点のみ
-  }
-  
-  const finalK = Math.ceil(Math.min(maxK, baseK * roleMultiplier));
-  
-  console.log(`Dynamic K calculation:
-    Total chunks: ${totalChunks}
-    Base K (30%): ${baseK}
-    Role multiplier: ${roleMultiplier}
-    Store limit: ${maxK}
-    Final K: ${finalK}
-  `);
+  const finalK = Math.ceil(Math.min(maxK, Math.max(5, baseK * roleMultiplier)));
   
   return finalK;
 };
