@@ -81,32 +81,28 @@ export default function Home() {
   };
 
 const handleGenerateReport = async () => {
-    if (!selectedStakeholder || files.length === 0) return;
-    
-    // 知識ベースが構築されていない場合は、先に構築
-    if (knowledgeBaseStatus !== 'ready') {
-      await buildKnowledgeBase();
-      // エラーが発生した場合は処理を中断
-      if (knowledgeBaseStatus === 'error') return;
-    }
-    
-    setIsGenerating(true);
-    try {
-      // 全文使用するファイルのIDを抽出（ここを追加）
-      const fullTextFileIds = files
-        .filter(file => file.includeFullText)
-        .map(file => file.id);
-      
-      const response = await fetch('/api/generate-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          files,
-          stakeholder: selectedStakeholder,
-          fullTextFileIds  // ここを追加
-        }),
-      });
-      
+  if (!selectedStakeholder) return;
+  
+  // ファイルがある場合のみナレッジベース構築
+  if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
+    await buildKnowledgeBase();
+    if (knowledgeBaseStatus === 'error') return;
+  }
+  
+  setIsGenerating(true);
+  try {
+    const response = await fetch('/api/generate-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        files: files,  // 空配列でもOK
+        stakeholder: selectedStakeholder,
+        fullTextFileIds: files
+          .filter(file => file.includeFullText)
+          .map(file => file.id)
+      }),
+    });
+
       if (!response.ok) {
         throw new Error('レポート生成に失敗しました');
       }
@@ -212,7 +208,7 @@ const handleGenerateReport = async () => {
               
               <button
                 onClick={handleGenerateReport}
-                disabled={!selectedStakeholder || files.length === 0 || isGenerating || isKnowledgeBaseBuilding}
+                disabled={!selectedStakeholder || isGenerating}
                 className="mt-4 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {isGenerating ? 'レポート生成中...' : 'レポートを生成'}

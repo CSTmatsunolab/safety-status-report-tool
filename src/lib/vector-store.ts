@@ -254,6 +254,7 @@ export class VectorStoreFactory {
       });
       
       console.log('Pinecone store created successfully');
+      await new Promise(resolve => setTimeout(resolve, 2000));
       return vectorStore;
       
     } catch (error) {

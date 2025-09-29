@@ -64,7 +64,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
    # ベクトルストア設定
    VECTOR_STORE=chromadb # または 'pinecone', 'memory'
    
-   # ChromaDB使用時（デフォルト）
+   # ChromaDB使用時
    CHROMA_URL=http://localhost:8000
    
    # Pinecone使用時
