@@ -107,6 +107,63 @@ export class VectorStoreFactory {
     }
   }
 
+  static async getExistingStore(
+    embeddings: Embeddings,
+    stakeholderId: string
+  ): Promise<VectorStore | null> {
+    const vectorStoreType = process.env.VECTOR_STORE || 'chromadb';
+    
+    if (vectorStoreType === 'pinecone') {
+      try {
+        const pinecone = new Pinecone({
+          apiKey: process.env.PINECONE_API_KEY!,
+        });
+        
+        const indexName = process.env.PINECONE_INDEX_NAME || 'ssr-index';
+        const pineconeIndex = pinecone.index(indexName);
+        
+        return await PineconeStore.fromExistingIndex(
+          embeddings,
+          {
+            pineconeIndex,
+            namespace: stakeholderId,
+          }
+        );
+      } catch (error) {
+        console.error('Failed to connect to existing Pinecone store:', error);
+        return null;
+      }
+    }
+    
+    // ChromaDBの場合
+    if (vectorStoreType === 'chromadb') {
+      try {
+        if (!this.chromaClient) {
+          this.chromaClient = new DirectChromaStore(embeddings);
+          const isConnected = await this.chromaClient.testConnection();
+          if (!isConnected) {
+            return null;
+          }
+        }
+        
+        const collectionName = `ssr_${stakeholderId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        
+        return new ChromaVectorStoreWrapper(
+          embeddings,
+          collectionName,
+          this.chromaClient
+        );
+      } catch (error) {
+        console.error('Failed to connect to ChromaDB:', error);
+        return null;
+      }
+    }
+    
+    // メモリストアの場合
+    const storeKey = `ssr_${stakeholderId}`;
+    return this.memoryStores.get(storeKey) || null;
+  }
+
   // 統計情報取得メソッドを追加
   static async getVectorStoreStats(
     vectorStore: VectorStore,

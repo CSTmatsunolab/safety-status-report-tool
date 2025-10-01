@@ -102,8 +102,10 @@ function getStrategyGuidelines(strategy: RhetoricStrategy): string {
 - 論理的な流れを重視
 - 因果関係を明確に示す
 - 段階的な説明を心がける
-- 技術的な正確性を保つ`,
-    
+- 技術的な正確性を保つ
+- 具体的な数値やデータで裏付ける
+- 測定可能な指標を提示`,
+
     [RhetoricStrategy.AUTHORITY_BASED]: `
 - 業界標準や規格を引用
 - 専門家の意見を参照
@@ -262,37 +264,83 @@ export async function POST(request: NextRequest) {
 
     const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
     const vectorStore = globalStores.get(storeKey);
-    let contextContent = '';
 
-    // RAG検索（ベクトルストアが存在すれば実行）
-    if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
-      console.log('Found vector store, searching...');
-      
+    let contextContent = '';
+    const vectorStoreType = process.env.VECTOR_STORE || 'memory';
+
+    // ベクターストアタイプに基づいて処理
+    if (vectorStoreType === 'pinecone' || vectorStoreType === 'chromadb') {
+      // 永続ストア（Pinecone/ChromaDB）の場合
       try {
-          // 統計情報を取得
-        const stats = await VectorStoreFactory.getVectorStoreStats(
-          vectorStore, 
+        const { createEmbeddings } = await import('@/lib/embeddings');
+        const embeddings = createEmbeddings();
+        
+        // VectorStoreFactoryを使って既存のインデックスから取得
+        const vectorStore = await VectorStoreFactory.getExistingStore(
+          embeddings,
           stakeholder.id
         );
-          console.log('Vector store stats:', stats);
         
-        if (stats.totalDocuments > 0) {
-          const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
-          const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
-          console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+        if (vectorStore) {
+          const stats = await VectorStoreFactory.getVectorStoreStats(
+            vectorStore, 
+            stakeholder.id
+          );
           
-          const relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+          console.log('Vector store stats:', stats);
           
-          if (relevantDocs.length > 0) {
-            console.log(`Found ${relevantDocs.length} relevant documents from RAG`);
-            contextContent = '=== RAG抽出内容 ===\n\n' + 
-              relevantDocs
-                .map((doc: any) => doc.pageContent)
-                .join('\n\n---\n\n');
+          if (stats.totalDocuments > 0) {
+            const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+            const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
+            console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+            
+            const relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+            
+            if (relevantDocs.length > 0) {
+              console.log(`Found ${relevantDocs.length} relevant documents from RAG`);
+              contextContent = '=== RAG抽出内容 ===\n\n' + 
+                relevantDocs
+                  .map((doc: any) => doc.pageContent)
+                  .join('\n\n---\n\n');
+            }
           }
         }
       } catch (error) {
-        console.error('Error during vector search:', error);
+        console.error('Vector store error:', error);
+      }
+    } else {
+      // メモリストアの場合
+      const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
+      const vectorStore = globalStores.get(storeKey);
+      
+      if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
+        console.log('Found memory store, searching...');
+        
+        try {
+          const stats = await VectorStoreFactory.getVectorStoreStats(
+            vectorStore, 
+            stakeholder.id
+          );
+          console.log('Vector store stats:', stats);
+          
+          if (stats.totalDocuments > 0) {
+            const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+            const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
+            console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+            
+            const relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+            
+            if (relevantDocs.length > 0) {
+              console.log(`Found ${relevantDocs.length} relevant documents from RAG`);
+              contextContent = '=== RAG抽出内容 ===\n\n' + 
+                relevantDocs
+                  .map((doc: any) => doc.pageContent)
+                  .join('\n\n---\n\n');
+            }
+          }
+        } catch (error) {
+          console.error('Error during vector search:', error);
+        }
       }
     }
 
@@ -355,6 +403,12 @@ export async function POST(request: NextRequest) {
 - データと事実に基づいた客観的な分析を提供
 - 具体的で実行可能な推奨事項を含める
 - **文体は「である調」で統一すること（例：～である、～する、～となる）**
+- **GSNファイルが提供されている場合**:
+  - 各Goal（G）ノードに対して、その目標が達成されているかを評価する
+  - Strategy（S）ノードの妥当性と実効性を検証する
+  - Solution（Sn）やContext（C）が適切に裏付けとなっているか確認する
+  - 未達成または不十分なノードがある場合、そのギャップと対策を明記する
+  - GSN構造全体の論理的整合性を評価する
 
 ${strategy}の特徴を活かしてください：
 ${strategyGuidelines}
