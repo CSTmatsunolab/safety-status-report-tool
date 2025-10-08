@@ -7,6 +7,9 @@ import ReportPreview from './components/ReportPreview';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader } from 'react-icons/fi';
+import ReportStructureSelector from './components/ReportStructureSelector';
+import { ReportStructureTemplate } from '@/types';
+import { getRecommendedStructure } from '@/lib/report-structures';
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -16,12 +19,21 @@ export default function Home() {
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>(PREDEFINED_STAKEHOLDERS);
   const [isKnowledgeBaseBuilding, setIsKnowledgeBaseBuilding] = useState(false);
   const [knowledgeBaseStatus, setKnowledgeBaseStatus] = useState<'idle' | 'building' | 'ready' | 'error'>('idle');
+  const [selectedStructure, setSelectedStructure] = useState<ReportStructureTemplate | null>(null);
+  const [recommendedStructureId, setRecommendedStructureId] = useState<string>('');
+  const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
 
   useEffect(() => {
     // カスタムステークホルダーを読み込む
     const saved = localStorage.getItem('customStakeholders');
     if (saved) {
       setStakeholders(JSON.parse(saved));
+    }
+
+    // カスタム構成を読み込む（新規追加）
+    const savedStructures = localStorage.getItem('customReportStructures');
+    if (savedStructures) {
+      setCustomStructures(JSON.parse(savedStructures));
     }
   }, []);
 
@@ -38,13 +50,31 @@ export default function Home() {
   };
   
   const handleToggleFullText = (fileId: string, includeFullText: boolean) => {
-  setFiles(prev =>  // setUploadedFilesではなくsetFilesを使用
+  setFiles(prev =>
     prev.map(file => 
       file.id === fileId 
         ? { ...file, includeFullText } 
         : file
       )
     );
+  };
+
+  // カスタム構成を追加する関数
+  const handleAddCustomStructure = (structure: ReportStructureTemplate) => {
+    const updatedStructures = [...customStructures, structure];
+    setCustomStructures(updatedStructures);
+    localStorage.setItem('customReportStructures', JSON.stringify(updatedStructures));
+  };
+
+  const handleDeleteCustomStructure = (structureId: string) => {
+    const updatedStructures = customStructures.filter(s => s.id !== structureId);
+    setCustomStructures(updatedStructures);
+    localStorage.setItem('customReportStructures', JSON.stringify(updatedStructures));
+    
+    // 削除された構成が選択されていた場合はクリア
+    if (selectedStructure?.id === structureId) {
+      setSelectedStructure(null);
+    }
   };
 
   // 知識ベースを構築する関数
@@ -80,47 +110,50 @@ export default function Home() {
     }
   };
 
-const handleGenerateReport = async () => {
-  if (!selectedStakeholder) return;
-  
-  // ファイルがある場合のみナレッジベース構築
-  if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
-    await buildKnowledgeBase();
-    if (knowledgeBaseStatus === 'error') return;
-  }
-  
-  setIsGenerating(true);
-  try {
-    const response = await fetch('/api/generate-report', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        files: files,  // 空配列でもOK
-        stakeholder: selectedStakeholder,
-        fullTextFileIds: files
-          .filter(file => file.includeFullText)
-          .map(file => file.id)
-      }),
-    });
-
-      if (!response.ok) {
-        throw new Error('レポート生成に失敗しました');
-      }
-      
-      const report = await response.json();
-      setGeneratedReport(report);
-    } catch (error) {
-      console.error('Report generation failed:', error);
-      alert('レポート生成に失敗しました。');
-    } finally {
-      setIsGenerating(false);
+  const handleGenerateReport = async () => {
+    if (!selectedStakeholder || !selectedStructure) return;
+    // ファイルがある場合のみナレッジベース構築
+    if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
+      await buildKnowledgeBase();
+      if (knowledgeBaseStatus === 'error') return;
     }
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/generate-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: files,  // 空配列でもOK
+          stakeholder: selectedStakeholder,
+          fullTextFileIds: files
+            .filter(file => file.includeFullText)
+            .map(file => file.id),
+          reportStructure: selectedStructure
+        }),
+      });
+
+        if (!response.ok) {
+          throw new Error('レポート生成に失敗しました');
+        }
+        
+        const report = await response.json();
+        setGeneratedReport(report);
+      } catch (error) {
+        console.error('Report generation failed:', error);
+        alert('レポート生成に失敗しました。');
+      } finally {
+        setIsGenerating(false);
+      }
   };
 
-  // ステークホルダーが変更されたら知識ベースの状態をリセット
   const handleStakeholderSelect = (stakeholder: Stakeholder) => {
     setSelectedStakeholder(stakeholder);
     setKnowledgeBaseStatus('idle');
+    
+    // 推奨構成を取得して設定
+    const recommended = getRecommendedStructure(stakeholder.id, files);
+    setRecommendedStructureId(recommended.id);
+    setSelectedStructure(recommended); // 自動選択
   };
 
   return (
@@ -157,7 +190,7 @@ const handleGenerateReport = async () => {
             {/* ステークホルダー選択 */}
             <div className="bg-white rounded-lg shadow p-6">
               <h2 className={`text-xl font-semibold mb-4 ${selectedStakeholder ? 'text-gray-900' : 'text-gray-400'}`}>
-                2. ステークホルダー選択
+                2. ステークホルダー選択<span className="text-red-500">*</span>
               </h2>
               <StakeholderSelect
                 stakeholders={stakeholders}
@@ -205,15 +238,31 @@ const handleGenerateReport = async () => {
                   </p>
                 </div>
               )}
-              
-              <button
+            </div>
+
+            {/* レポート構成選択 */}
+            {selectedStakeholder && (
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className={`text-xl font-semibold mb-4 ${selectedStructure ? 'text-gray-900' : 'text-gray-400'}`}>
+                  3. レポート構成を選択
+                </h2>
+                <ReportStructureSelector
+                  selectedStructure={selectedStructure}
+                  onSelect={setSelectedStructure}
+                  recommendedStructureId={recommendedStructureId}
+                  customStructures={customStructures}
+                  onAddCustomStructure={handleAddCustomStructure}
+                  onDeleteCustomStructure={handleDeleteCustomStructure}
+                />
+              </div>
+            )}
+            <button
                 onClick={handleGenerateReport}
-                disabled={!selectedStakeholder || isGenerating}
-                className="mt-4 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                disabled={!selectedStakeholder || !selectedStructure || isGenerating || isKnowledgeBaseBuilding}
+                className="mt-8 w-full bg-green-600 text-white py-6 px-10 text-xl font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-green-700 transition-all duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
                 {isGenerating ? 'レポート生成中...' : 'レポートを生成'}
-              </button>
-            </div>
+            </button>
           </div>
           
           {/* 右側：プレビューセクション */}

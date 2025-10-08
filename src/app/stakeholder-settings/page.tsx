@@ -8,11 +8,12 @@ import { FiPlus, FiEdit2, FiTrash2, FiSave, FiX } from 'react-icons/fi';
 
 export default function StakeholderSettings() {
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [newStakeholder, setNewStakeholder] = useState({
+    id: '',
     role: '',
     concerns: ['']
   });
+  const [idError, setIdError] = useState('');
 
   useEffect(() => {
     // ローカルストレージから保存されたステークホルダーを読み込む
@@ -28,17 +29,60 @@ export default function StakeholderSettings() {
     localStorage.setItem('customStakeholders', JSON.stringify(data));
   };
 
+  // ID検証関数（大文字小文字を区別）
+  const validateId = (id: string): string => {
+    if (!id.trim()) {
+      return 'IDを入力してください';
+    }
+    if (!/^[a-zA-Z0-9-_]+$/.test(id)) {
+      return '英字、数字、ハイフン(-)、アンダースコア(_)のみ使用できます';
+    }
+    if (id.length < 3) {
+      return 'IDは3文字以上にしてください';
+    }
+    if (id.length > 30) {
+      return 'IDは30文字以内にしてください';
+    }
+    
+    // Pineconeは大文字小文字を区別するため、そのままチェック
+    const fullId = `custom_${id}`;
+    
+    if (stakeholders.some(s => s.id === fullId)) {
+      return 'このIDは既に使用されています';
+    }
+    
+    // デフォルトIDとの衝突チェック（念のため大文字小文字を無視）
+    if (PREDEFINED_STAKEHOLDERS.some(s => s.id.toLowerCase() === id.toLowerCase())) {
+      return 'このIDはシステムで予約されています';
+    }
+    
+    return '';
+  };
+
+  const handleIdChange = (value: string) => {
+    setNewStakeholder({ ...newStakeholder, id: value });
+    setIdError(validateId(value));
+  };
+
   const addStakeholder = () => {
+    // ID検証
+    const error = validateId(newStakeholder.id);
+    if (error) {
+      setIdError(error);
+      return;
+    }
+
     if (newStakeholder.role.trim()) {
       const stakeholder: Stakeholder = {
-        id: `custom_${Date.now()}`,
+        id: `custom_${newStakeholder.id}`, // 大文字小文字をそのまま保持
         role: newStakeholder.role,
         concerns: newStakeholder.concerns.filter(c => c.trim())
       };
       const updated = [...stakeholders, stakeholder];
       setStakeholders(updated);
       saveToLocalStorage(updated);
-      setNewStakeholder({ role: '', concerns: [''] });
+      setNewStakeholder({ id: '', role: '', concerns: [''] });
+      setIdError('');
     }
   };
 
@@ -68,6 +112,9 @@ export default function StakeholderSettings() {
     setNewStakeholder({ ...newStakeholder, concerns: updatedConcerns });
   };
 
+  // カスタムステークホルダーのみを抽出
+  const customStakeholders = stakeholders.filter(s => s.id.startsWith('custom_'));
+
   return (
     <main className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-4xl mx-auto">
@@ -82,7 +129,29 @@ export default function StakeholderSettings() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">
-                役職・部門名
+                ID <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newStakeholder.id}
+                onChange={(e) => handleIdChange(e.target.value)}
+                className={`w-full px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 ${
+                  idError ? 'border-red-500' : ''
+                }`}
+                placeholder="例: QA-Team, Security-Dept, KEIEI-KIKAKU"
+                maxLength={30}
+              />
+              {idError && (
+                <p className="mt-1 text-sm text-red-600">{idError}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                で識別するためのID。大文字小文字は区別されます。
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                役職・部門名 <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -126,7 +195,8 @@ export default function StakeholderSettings() {
 
             <button
               onClick={addStakeholder}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              disabled={!newStakeholder.id || !newStakeholder.role.trim() || !!idError}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               <FiPlus className="mr-2" />
               追加
@@ -138,29 +208,65 @@ export default function StakeholderSettings() {
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">登録済みステークホルダー</h2>
           
-          <div className="space-y-4">
-            {stakeholders.map((stakeholder) => (
-              <div key={stakeholder.id} className="border rounded-lg p-4">
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 text-lg">{stakeholder.role}</h3>
-                    <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
-                      {stakeholder.concerns.map((concern, index) => (
-                        <li key={index}>{concern}</li>
-                      ))}
-                    </ul>
+          <div className="space-y-6">
+            {/* デフォルトステークホルダー */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">
+                デフォルトステークホルダー
+              </h3>
+              <div className="space-y-3">
+                {PREDEFINED_STAKEHOLDERS.map((stakeholder) => (
+                  <div key={stakeholder.id} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-gray-900 text-lg">{stakeholder.role}</h3>
+                        <p className="text-xs text-gray-500 mb-2">ID: {stakeholder.id}</p>
+                        <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
+                          {stakeholder.concerns.map((concern, index) => (
+                            <li key={index}>{concern}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <span className="text-xs text-gray-400 bg-gray-200 px-2 py-1 rounded">
+                        システム定義
+                      </span>
+                    </div>
                   </div>
-                  {!PREDEFINED_STAKEHOLDERS.some(ps => ps.id === stakeholder.id) && (
-                    <button
-                      onClick={() => deleteStakeholder(stakeholder.id)}
-                      className="ml-4 p-2 text-red-500 hover:bg-red-50 rounded"
-                    >
-                      <FiTrash2 />
-                    </button>
-                  )}
+                ))}
+              </div>
+            </div>
+
+            {/* カスタムステークホルダー */}
+            {customStakeholders.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">
+                  カスタムステークホルダー
+                </h3>
+                <div className="space-y-3">
+                  {customStakeholders.map((stakeholder) => (
+                    <div key={stakeholder.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900 text-lg">{stakeholder.role}</h3>
+                          <p className="text-xs text-gray-500 mb-2">ID: {stakeholder.id}</p>
+                          <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
+                            {stakeholder.concerns.map((concern, index) => (
+                              <li key={index}>{concern}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <button
+                          onClick={() => deleteStakeholder(stakeholder.id)}
+                          className="ml-4 p-2 text-red-500 hover:bg-red-50 rounded"
+                        >
+                          <FiTrash2 />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
 

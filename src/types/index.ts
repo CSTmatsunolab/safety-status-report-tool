@@ -33,6 +33,14 @@ export interface Report {
   updatedAt: Date;
 }
 
+export interface ReportStructureTemplate {
+  id: string;
+  name: string;
+  description: string;
+  sections: string[];
+  recommendedFor?: string[];
+}
+
 export interface FileMetadata {
   originalType: string;      // 元のMIMEタイプ
   extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed'; // 抽出方法

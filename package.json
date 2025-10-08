@@ -15,6 +15,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
     "@google-cloud/vision": "^5.3.3",
+    "@hello-pangea/dnd": "^18.0.1",
     "@langchain/community": "^0.0.50",
     "@langchain/core": "^0.3.77",
     "@langchain/openai": "^0.0.30",

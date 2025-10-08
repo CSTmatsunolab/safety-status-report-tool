@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { UploadedFile, Stakeholder, Report } from '@/types';
+import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
-
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
@@ -175,8 +174,6 @@ function determineReportStructure(
       ];
   }
 }
-
-//改良版のレトリック戦略決定
  
 function determineAdvancedRhetoricStrategy(stakeholder: Stakeholder): RhetoricStrategy {
   const role = stakeholder.role.toLowerCase();
@@ -242,8 +239,12 @@ function getRhetoricStrategyDisplayName(strategy: RhetoricStrategy, stakeholder:
 
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholder }: { files: UploadedFile[]; stakeholder: Stakeholder } = 
-      await request.json();
+    const { files, stakeholder, fullTextFileIds, reportStructure }: { 
+      files: UploadedFile[]; 
+      stakeholder: Stakeholder;
+      fullTextFileIds?: string[];
+      reportStructure?: ReportStructureTemplate; // 追加
+    } = await request.json();
     
     if (!stakeholder) {
       return NextResponse.json(
@@ -373,11 +374,12 @@ export async function POST(request: NextRequest) {
 
     // 高度なレトリック戦略を決定
     const strategy = determineAdvancedRhetoricStrategy(stakeholder);
-    const reportStructure = determineReportStructure(stakeholder, strategy);
+    const reportSections = reportStructure?.sections || determineReportStructure(stakeholder, strategy);
+    const structureDescription = (reportStructure?.description ?? '').slice(0, 500);
     const strategyGuidelines = getStrategyGuidelines(strategy);
 
     console.log(`Using rhetoric strategy: ${strategy}`);
-    console.log(`Report structure: ${reportStructure.join(', ')}`);
+    console.log(`Report structure: ${reportSections.join(', ')}`);
 
     // レポート生成
     const message = await anthropic.messages.create({
@@ -409,19 +411,20 @@ export async function POST(request: NextRequest) {
   - Solution（Sn）やContext（C）が適切に裏付けとなっているか確認する
   - 未達成または不十分なノードがある場合、そのギャップと対策を明記する
   - GSN構造全体の論理的整合性を評価する
+- 図表を積極的に挿入して下さい．ただし，図表が挿入箇所には、以下の形式で挿入位置を示してください：
+[図表: 説明]
+例：[図表: リスクレベル別の対策状況を示す棒グラフ]
+
 
 ${strategy}の特徴を活かしてください：
 ${strategyGuidelines}
-
-図表が効果的な箇所では、以下の形式で挿入位置を示してください：
-[図表: 説明]
-例：[図表: リスクレベル別の対策状況を示す棒グラフ]
 
 提供された文書の内容:
 ${contextContent}
 
 以下の構成でSSRを作成してください：
-${reportStructure.map((section, index) => `\n${index + 1}. ${section}`).join('')}
+構成：${reportSections.map((section, index) => `\n${index + 1}. ${section}`).join('')}
+構成説明: ${structureDescription || '（説明なし）'}
 
 注意: レポートは提供された文書の内容を正確に反映し、具体的な事実とデータに基づいて作成してください。文体は必ず「である調」で統一し、「です・ます調」は使用しないこと。`
         }

@@ -146,15 +146,15 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex justify-between items-center mb-4">
+      <div className="items-center mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
           <p className="text-sm text-gray-700 mt-1">
             対象: {report.stakeholder.role} | 
             戦略: {report.rhetoricStrategy}
-          </p>
+          </p><br/>
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
             className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-md text-sm"
