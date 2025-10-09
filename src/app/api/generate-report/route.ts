@@ -2,6 +2,142 @@ import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
+///*ログ部分
+import fs from 'fs';
+import path from 'path';
+
+function saveRAGLog(data: {
+  stakeholder: Stakeholder;
+  searchQuery: string;
+  k: number;
+  totalChunks: number;
+  vectorStoreType: string;
+  relevantDocs: any[];
+  contextLength: number;
+  fullTextFiles: UploadedFile[];
+  timestamp: Date;
+}) {
+  try {
+    // ログディレクトリの作成
+    const logDir = path.join(process.cwd(), 'logs', 'rag');
+    if (!fs.existsSync(logDir)) {
+      fs.mkdirSync(logDir, { recursive: true });
+    }
+
+    // タイムスタンプ付きファイル名
+    const timestamp = data.timestamp.toISOString().replace(/:/g, '-').slice(0, -5);
+    const fileName = `rag_${data.stakeholder.id}_${timestamp}.json`;
+    const logPath = path.join(logDir, fileName);
+
+    // ログデータの構造化
+    const logData = {
+      // 基本情報
+      timestamp: data.timestamp.toISOString(),
+      stakeholder: {
+        id: data.stakeholder.id,
+        role: data.stakeholder.role,
+        concerns: data.stakeholder.concerns
+      },
+      
+      // 検索パラメータ
+      searchParams: {
+        query: data.searchQuery,
+        k: data.k,
+        totalChunks: data.totalChunks,
+        vectorStoreType: data.vectorStoreType
+      },
+      
+      // 検索結果の統計
+      statistics: {
+        documentsFound: data.relevantDocs.length,
+        totalCharacters: data.relevantDocs.reduce((sum, doc) => sum + doc.pageContent.length, 0),
+        contextLength: data.contextLength,
+        fullTextFilesCount: data.fullTextFiles.length,
+        fullTextCharacters: data.fullTextFiles.reduce((sum, file) => sum + file.content.length, 0)
+      },
+      
+      // ファイル別の統計
+      fileBreakdown: (() => {
+        const breakdown: { [key: string]: { count: number; characters: number; chunks: number[] } } = {};
+        data.relevantDocs.forEach((doc, index) => {
+          const fileName = doc.metadata?.fileName || 'Unknown';
+          if (!breakdown[fileName]) {
+            breakdown[fileName] = { count: 0, characters: 0, chunks: [] };
+          }
+          breakdown[fileName].count++;
+          breakdown[fileName].characters += doc.pageContent.length;
+          breakdown[fileName].chunks.push(doc.metadata?.chunkIndex || index);
+        });
+        return breakdown;
+      })(),
+      
+      // ドキュメントタイプ別の統計
+      documentTypes: {
+        gsn: data.relevantDocs.filter(doc => doc.metadata?.isGSN).length,
+        minutes: data.relevantDocs.filter(doc => doc.metadata?.isMinutes).length,
+        other: data.relevantDocs.filter(doc => !doc.metadata?.isGSN && !doc.metadata?.isMinutes).length
+      },
+      
+      // 検索結果の詳細（各ドキュメント）
+      documents: data.relevantDocs.map((doc, index) => ({
+        index: index + 1,
+        metadata: {
+          fileName: doc.metadata?.fileName || 'Unknown',
+          fileType: doc.metadata?.fileType || 'Unknown',
+          chunkIndex: doc.metadata?.chunkIndex,
+          totalChunks: doc.metadata?.totalChunks,
+          isGSN: doc.metadata?.isGSN || false,
+          isMinutes: doc.metadata?.isMinutes || false,
+          distance: doc.metadata?.distance,
+          score: doc.metadata?.score
+        },
+        contentPreview: doc.pageContent.substring(0, 500),
+        contentLength: doc.pageContent.length,
+        // GSN要素の抽出（もしあれば）
+        gsnElements: extractGSNElements(doc.pageContent)
+      })),
+      
+      // 全文使用ファイルの情報
+      fullTextFiles: data.fullTextFiles.map(file => ({
+        name: file.name,
+        type: file.type,
+        contentLength: file.content.length,
+        contentPreview: file.content.substring(0, 300)
+      }))
+    };
+
+    // JSONファイルとして保存
+    fs.writeFileSync(logPath, JSON.stringify(logData, null, 2), 'utf-8');
+    
+    // サマリーログも作成（簡易版）
+    const summaryPath = path.join(logDir, 'summary.jsonl');
+    const summaryLine = JSON.stringify({
+      timestamp: data.timestamp.toISOString(),
+      stakeholder: data.stakeholder.id,
+      documentsFound: data.relevantDocs.length,
+      contextLength: data.contextLength,
+      logFile: fileName
+    }) + '\n';
+    
+    fs.appendFileSync(summaryPath, summaryLine, 'utf-8');
+    
+    console.log(`✅ RAG検索結果を保存しました: ${logPath}`);
+    console.log(`📊 サマリー: ${data.relevantDocs.length}件のドキュメント, ${data.contextLength.toLocaleString()}文字`);
+    
+    return logPath;
+  } catch (error) {
+    console.error('❌ ログファイルの保存に失敗:', error);
+    return null;
+  }
+}
+
+// GSN要素を抽出するヘルパー関数
+function extractGSNElements(text: string): string[] {
+  const gsnPattern = /\b([GgSsCcJj]\d+)\b/g;
+  const matches = text.match(gsnPattern);
+  return matches ? [...new Set(matches)] : [];
+}
+//*/
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
@@ -303,6 +439,19 @@ export async function POST(request: NextRequest) {
                 relevantDocs
                   .map((doc: any) => doc.pageContent)
                   .join('\n\n---\n\n');
+///*ログ部分
+              const logPath = saveRAGLog({
+                stakeholder,
+                searchQuery,
+                k,
+                totalChunks: stats.totalDocuments,
+                vectorStoreType: stats.storeType,
+                relevantDocs,
+                contextLength: contextContent.length,
+                fullTextFiles,
+                timestamp: new Date()
+              });
+//*/
             }
           }
         }
@@ -337,6 +486,20 @@ export async function POST(request: NextRequest) {
                 relevantDocs
                   .map((doc: any) => doc.pageContent)
                   .join('\n\n---\n\n');
+
+///*ログ部分
+              const logPath = saveRAGLog({
+                stakeholder,
+                searchQuery,
+                k,
+                totalChunks: stats.totalDocuments,
+                vectorStoreType: stats.storeType,
+                relevantDocs,
+                contextLength: contextContent.length,
+                fullTextFiles,
+                timestamp: new Date()
+              });
+//*/
             }
           }
         } catch (error) {
@@ -405,15 +568,57 @@ export async function POST(request: NextRequest) {
 - データと事実に基づいた客観的な分析を提供
 - 具体的で実行可能な推奨事項を含める
 - **文体は「である調」で統一すること（例：～である、～する、～となる）**
+
+## 提供文書の活用原則
+- 提供されたすべての文書から関連情報を漏れなく抽出し、優先的に使用すること
+- 特に以下の要素を確実に取り込むこと:
+  * 数値データ（統計値、測定値、発生件数、確率、パーセンテージなど）
+  * 固有名詞（システム名、地名、組織名、規格名など）
+  * 時系列情報（日付、期間、推移、変化傾向など）
+  * リスクと対策の対応関係
+
+## 構造化された内容の分析
 - **GSNファイルが提供されている場合**:
   - 各Goal（G）ノードに対して、その目標が達成されているかを評価する
   - Strategy（S）ノードの妥当性と実効性を検証する
   - Solution（Sn）やContext（C）が適切に裏付けとなっているか確認する
   - 未達成または不十分なノードがある場合、そのギャップと対策を明記する
   - GSN構造全体の論理的整合性を評価する
-- 図表を積極的に挿入して下さい．ただし，図表が挿入箇所には、以下の形式で挿入位置を示してください：
-[図表: 説明]
-例：[図表: リスクレベル別の対策状況を示す棒グラフ]
+- **その他の構造化文書（フローチャート、階層構造など）が提供されている場合**:
+  - その構造を理解し、要素間の関係性をレポートに反映させる
+  - 構造の完全性と妥当性について評価する
+
+## エビデンスベースの記述
+- すべての主張は提供文書のエビデンスに基づくこと
+- 文書に記載のない情報は「文書に記載なし」と明記し、推測や仮定値を作成しないこと
+- 重要な数値や統計データは必ず原文から正確に引用すること
+
+## リスク分析の徹底
+- 識別されたすべてのリスクを漏れなく抽出し、以下の観点で整理:
+  * リスクの具体的内容と発生メカニズム
+  * 発生確率や影響度（文書に記載がある場合）
+  * 実施済み/計画中の対策
+  * 残存リスクとその受容可能性
+
+## 図表の取り扱い
+- 図表を積極的に挿入し、以下の形式で挿入位置を示す：
+  [図表: 説明]
+  例：[図表: リスクレベル別の対策状況を示す棒グラフ]
+- 図表で示すべきデータがある場合、その主要な数値を本文でも言及すること
+- グラフの傾向（上昇/下降/横ばい等）を文章で説明すること
+
+## 定量的情報の優先
+- 「多い」「少ない」等の定性表現より、具体的な数値を使用すること
+- 統計的分析結果（信頼区間、標準偏差等）がある場合、その意味を解説すること
+- 時系列データは変化の傾向と転換点を明確に記述すること
+
+## 完全性と正確性の確保
+- 提供文書の重要情報を網羅的に活用すること
+- 特に以下は必ず含めること:
+  * 安全性評価の結果と根拠
+  * 未解決課題と制限事項
+  * 前提条件と適用範囲
+  * 改善提案と今後の方向性
 
 
 ${strategy}の特徴を活かしてください：

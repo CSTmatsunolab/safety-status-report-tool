@@ -25,10 +25,10 @@ export async function POST(request: NextRequest) {
     console.log('Processing files:', files.length);
     console.log('Using vector store:', process.env.VECTOR_STORE || 'chromadb');
 
-    // エンベディングモデルの初期化（OpenAI text-embedding-3-small）
+    // エンベディングモデルの初期化
     const embeddings = createEmbeddings();
 
-    // テキストスプリッターの設定（日本語対応）
+    // テキストスプリッターの設定
     const textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 1000,
       chunkOverlap: 200,
@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
     const documents: Document[] = [];
     
     for (const file of files) {
+      // 全文使用ファイルはスキップ
+      if (file.includeFullText) {
+        console.log(`Skipping vector store for full-text file: ${file.name}`);
+        continue;
+      }
+      
       if (file.content && file.content.length > 0) {
         // テキストをチャンクに分割
         const chunks = await textSplitter.createDocuments(
@@ -67,6 +73,19 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Created document chunks:', documents.length);
+    
+    // チャンクが0の場合の処理
+    if (documents.length === 0) {
+      console.log('No documents to store in vector database (all files are full-text)');
+      
+      // 空のベクトルストアを作成せず、成功レスポンスを返す
+      return NextResponse.json({
+        success: true,
+        documentCount: 0,
+        vectorStore: 'none',
+        message: 'All files are set to full-text mode, skipping vector store'
+      });
+    }
 
     // ベクトルストアにドキュメントを保存
     const vectorStore = await VectorStoreFactory.fromDocuments(

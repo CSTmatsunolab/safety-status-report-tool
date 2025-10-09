@@ -46,3 +46,7 @@ chromadb_data/
 # Google Cloud credentials
 /credentials/
 *.json
+
+# log/* */
+logs/
+*.log

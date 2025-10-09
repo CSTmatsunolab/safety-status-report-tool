@@ -11,6 +11,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - **全文使用機能**: 重要なファイルを確実にAIに渡すための全文コンテキスト使用オプション
 - **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
 - **ステークホルダー管理**: ステークホルダーの追加・編集・削除機能
+- **構成カスタマイズ機能**: レポート構成の追加・編集・削除機能
 - **レトリック戦略**: ステークホルダーに応じた説得手法（データ駆動型、論理的推論型など）の自動選択
 - **AI活用**: Claude APIを使用した高品質なレポート作成
 - **多様な出力形式**: PDF、HTML、Word（docx）形式でのダウンロード
@@ -127,14 +128,17 @@ npm start
 2. **ステークホルダーの選択**
    - デフォルトまたはカスタムステークホルダーから対象を選択
 
-3. **ナレッジベース構築（自動）**
+3. **構成の選択**
+   - 推奨構成，他ステークホルダー向け構成(非推奨)，カスタム構成から選択
+
+4. **ナレッジベース構築（自動）**
    - アップロードされたファイルが自動的にチャンク分割され、ベクトルストアに保存
 
-4. **レポート生成**
+5. **レポート生成**
    - 「レポートを生成」ボタンをクリック
    - RAGが関連情報を抽出し、AIがステークホルダー向けにカスタマイズされたSSRを生成
 
-5. **レポートの編集・出力**
+6. **レポートの編集・出力**
    - 生成されたレポートをプレビュー画面で確認
    - 必要に応じて編集
    - PDF、HTML、Word（docx）形式でダウンロード
@@ -313,7 +317,8 @@ safety-status-report-tool/
 │   │   │   ├── FileUpload.tsx       # ファイルアップロードUI
 │   │   │   ├── StakeholderSelect.tsx # ステークホルダー選択UI
 │   │   │   ├── ReportPreview.tsx    # レポートプレビュー
-│   │   │   └── ReportEditor.tsx     # レポート編集機能
+│   │   │   ├── ReportEditor.tsx     # レポート編集機能
+│   │   │   └── ReportStructureSelector.tsx  # カスタム構成機能
 │   │   │
 │   │   ├── stakeholder-settings/
 │   │   │   └── page.tsx             # ステークホルダー設定メインページ
@@ -324,15 +329,16 @@ safety-status-report-tool/
 │   │
 │   ├── lib/
 │   │   ├── config/
-│   │   │   └── constants.ts         # アプリケーション設定値
-│   │   ├── stakeholders.ts          # ステークホルダー管理ロジック
-│   │   ├── vector-store.ts          # ベクトルストア管理
-│   │   ├── direct-chroma-store.ts   # ChromaDB直接実装
-│   │   ├── embeddings.ts            # エンベディング設定
-│   │   ├── google-cloud-auth.ts     # Google Cloud認証
-│   │   ├── text-processing.ts       # テキスト処理ユーティリティ
-│   │   ├── vision-api-utils.ts      # Vision APIエラーハンドリング
-│   │   └── pdf-exporter.ts          # PDF出力処理
+│   │   │   └── constants.ts        # アプリケーション設定値
+│   │   ├── stakeholders.ts         # ステークホルダー管理ロジック
+│   │   ├── vector-store.ts         # ベクトルストア管理
+│   │   ├── direct-chroma-store.ts  # ChromaDB直接実装
+│   │   ├── embeddings.ts           # エンベディング設定
+│   │   ├── google-cloud-auth.ts    # Google Cloud認証
+│   │   ├── text-processing.ts      # テキスト処理ユーティリティ
+│   │   ├── vision-api-utils.ts     # Vision APIエラーハンドリング
+│   │   ├── pdf-exporter.ts         # PDF出力処理
+│   │   └── report-structures.ts    # PDF出力処理
 │   │
 │   └── types/
 │       └── index.ts                 # TypeScript型定義
@@ -441,18 +447,6 @@ Error: 3 INVALID_ARGUMENT: At most 5 pages in one call please.
 - ブラウザのローカルストレージをクリアして再度追加
 - プライベートブラウジングモードでは永続化されません
 - 異なるブラウザ間ではステークホルダー情報は共有されません
-
-### GSNファイルのOCR精度を上げるには
-1. **高解像度でスキャン**: 300DPI以上を推奨
-2. **鮮明な画像**: ぼやけや歪みがないことを確認
-3. **テキスト形式で作成**: 可能であれば、GSN要素を手動でテキストファイルに入力
-   ```
-   G1: 実証実験期間中、安全に特定運行ができる
-   → S1
-
-   S1: システム安全と運行時の残存リスク制御に分けた議論
-   → G2, G3
-   ```
 
 ## 制限事項
 
