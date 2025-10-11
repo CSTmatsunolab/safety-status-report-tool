@@ -6,6 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH, IMAGE_FILE_EXTENSIONS } from '@/lib/config/constants';
+import { processGSNText, validateGSNText } from '@/lib/text-processing';
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -14,8 +15,36 @@ interface FileUploadProps {
   onToggleFullText: (id: string, includeFullText: boolean) => void;
 }
 
+function isGSNFile(fileName: string, content: string): boolean {
+  // ファイル名にGSNが含まれる
+  if (fileName.toLowerCase().includes('gsn')) {
+    return true;
+  }
+  
+  // 内容にGSN要素が含まれる（G1, S1などのパターン）
+  const gsnPattern = /\b[GgSsCcEe]\d+\b/;
+  if (gsnPattern.test(content)) {
+    // GSN要素が3つ以上含まれる場合はGSNファイルと判定
+    const matches = content.match(/\b[GgSsCcEe]\d+\b/g);
+    return matches ? matches.length >= 3 : false;
+  }
+  
+  return false;
+}
+
+function needsGSNFormatting(content: string): boolean {
+  // すでに整形済みフォーマット（[Goal G1]: など）があるかチェック
+  if (content.includes('[Goal') || content.includes('[Strategy')) {
+    return false;
+  }
+  
+  // GSN要素があるが整形されていない場合
+  const hasGSNElements = /\b[GgSsCcEe]\d+\b/.test(content);
+  return hasGSNElements;
+}
+
 // 画像ファイルからテキストを抽出する関数（Google Cloud Vision使用）
-async function extractTextFromImage(file: File): Promise<string> {
+async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -33,7 +62,10 @@ async function extractTextFromImage(file: File): Promise<string> {
     
     if (result.success) {
       console.log(`Google Cloud Vision OCR completed: ${file.name}`);
-      return result.text || '';
+      return { 
+        text: result.text || '', 
+        confidence: result.confidence 
+      };
     }
     
     // エラーメッセージがある場合
@@ -41,15 +73,15 @@ async function extractTextFromImage(file: File): Promise<string> {
       console.error('OCR error:', result.message);
     }
     
-    return '';
+    return { text: '', confidence: 0 };
   } catch (error) {
     console.error('Image OCR error:', error);
-    return '';
+    return { text: '', confidence: 0 };
   }
 }
 
 // PDFをテキストに変換する関数（Google Cloud Vision OCR対応）
-async function extractTextFromPDF(file: File): Promise<string> {
+async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
@@ -79,10 +111,14 @@ async function extractTextFromPDF(file: File): Promise<string> {
       }, 100);
     }
     
-    return result.text || '';
+    return { 
+      text: result.text || '', 
+      method: result.method || 'unknown',
+      confidence: result.confidence 
+    };
   } catch (error) {
     console.error('PDF extraction error:', error);
-    return '';
+    return { text: '', method: 'failed', confidence: 0 };
   }
 }
 
@@ -153,17 +189,23 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         
         let content = '';
         let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
+        let ocrConfidence: number | undefined;
+        let gsnValidation: any = null;  
         
         // ファイルタイプに応じて適切な処理を行う
         if (file.type === 'application/pdf') {
           console.log(`Extracting text from PDF: ${file.name}`);
-          content = await extractTextFromPDF(file);
+          const result = await extractTextFromPDF(file);
+          content = result.text;
           extractionMethod = content.length > 0 ? 'pdf' : 'failed';
+          ocrConfidence = result.confidence;
         } else if (file.type.startsWith('image/')) {
           // 画像ファイルの場合
           console.log(`Extracting text from image: ${file.name}`);
-          content = await extractTextFromImage(file);
+          const result = await extractTextFromImage(file);
+          content = result.text;
           extractionMethod = 'ocr';
+          ocrConfidence = result.confidence;
         } else if (
           file.type === 'application/vnd.ms-excel' || 
           file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
@@ -177,7 +219,6 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
           file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
           file.name.endsWith('.docx')
         ) {
-          // DOCXファイルの処理を追加
           console.log(`Extracting text from DOCX: ${file.name}`);
           content = await extractTextFromDocx(file);
           extractionMethod = 'docx';
@@ -194,6 +235,28 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         
         console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
 
+        const isGSN = isGSNFile(file.name, content);
+      
+        if (isGSN && content.length > 0) {
+          console.log(`GSN file detected: ${file.name}`);
+          
+          // GSNテキストの整形が必要か判定
+          if (extractionMethod === 'ocr' || needsGSNFormatting(content)) {
+            console.log('Applying GSN formatting...');
+            const originalLength = content.length;
+            content = processGSNText(content);
+            console.log(`GSN formatting applied: ${originalLength} -> ${content.length} characters`);
+          }
+          
+          // GSN構造の妥当性チェック
+          gsnValidation = validateGSNText(content);
+          console.log('GSN validation:', gsnValidation);
+          
+          if (!gsnValidation.isValid) {
+            console.warn(`GSN validation issues for ${file.name}:`, gsnValidation.issues);
+          }
+        }
+
         // Show preview of extracted text
         if (content.length > 0) {
           console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
@@ -204,7 +267,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         }
 
         // ファイル名からタイプを判定
-        const type = file.name.includes('GSN') ? 'gsn' : 
+        const type = isGSN ? 'gsn' :
                      file.name.includes('議事録') ? 'minutes' : 'other';
         
         newFiles.push({
@@ -217,7 +280,10 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
           metadata: {
             originalType: file.type,
             extractionMethod,
-            size: file.size
+            size: file.size,
+            confidence: ocrConfidence,
+            gsnValidation: gsnValidation,
+            isGSN: isGSN
           }
         });
       }

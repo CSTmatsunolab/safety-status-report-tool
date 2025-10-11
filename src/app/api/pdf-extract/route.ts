@@ -1,7 +1,6 @@
 // src/app/api/pdf-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getVisionClient } from '@/lib/google-cloud-auth';
-import { processGSNText } from '@/lib/text-processing';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH, PREVIEW_LENGTH } from '@/lib/config/constants';
 
@@ -109,14 +108,11 @@ export async function POST(request: NextRequest) {
         });
       }
       
-      // GSNファイルの場合は整形
-      const processedText = file.name.includes('GSN') 
-        ? processGSNText(fullText) 
-        : fullText.trim();
+      const processedText = fullText.trim();  // processGSNTextを削除
       
       // OCR結果をログ
       console.log(`OCR完了: ${file.name}, 信頼度: ${averageConfidence}%, 文字数: ${processedText.length}`);
-      
+
       // プレビュー表示
       if (processedText.length > 0) {
         console.log(`抽出されたテキスト（最初の${PREVIEW_LENGTH}文字）:`);

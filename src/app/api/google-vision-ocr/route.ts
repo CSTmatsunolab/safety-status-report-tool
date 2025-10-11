@@ -1,7 +1,6 @@
 // src/app/api/google-vision-ocr/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getVisionClient } from '@/lib/google-cloud-auth';
-import { processGSNText } from '@/lib/text-processing';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
 
@@ -76,21 +75,15 @@ export async function POST(request: NextRequest) {
       });
     }
     
-    // GSNファイルの場合は特別な処理
-    let processedText = fullText;
-    if (file.name.includes('GSN')) {
-      processedText = processGSNText(fullText);
-    }
-    
     return NextResponse.json({ 
-      text: processedText,
+      text: fullText,  // processGSNTextを削除
       success: true,
       confidence: averageConfidence,
       fileName: file.name,
-      textLength: processedText.length
+      textLength: fullText.length
     });
-    
-  } catch (error: any) {
+  } 
+  catch (error: any) {
     // 共通のエラーハンドラーを使用
     const errorResponse = handleVisionAPIError(error, request.headers.get('x-filename') || 'unknown');
     

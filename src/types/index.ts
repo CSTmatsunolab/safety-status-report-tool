@@ -47,27 +47,6 @@ export interface FileMetadata {
   size: number;              // ファイルサイズ
   confidence?: number;       // OCR信頼度（0-100）
   service?: string;          // 使用したOCRサービス
-  //structured?: GSNStructure; // GSNの構造化データ
+  gsnValidation?: any;
+  isGSN?: boolean;
 }
-
-/*  GSN関連の型 - もしGSN図を構造的に解析する機能を追加する場合に使用
-    現在未使用のため，コメントアウト
-export interface GSNStructure {
-  elements: GSNElement[];
-  relationships: GSNRelationship[];
-}
-
-export interface GSNElement {
-  id: string;
-  type: 'Goal' | 'Strategy' | 'Solution' | 'Context' | 'Justification';
-  content: string;
-  position: { x: number; y: number };
-  confidence: number;
-}
-
-export interface GSNRelationship {
-  from: string;
-  to: string;
-  type: 'supports' | 'in-context-of' | 'justified-by';
-}
-*/
