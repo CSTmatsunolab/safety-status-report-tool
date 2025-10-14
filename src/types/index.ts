@@ -38,6 +38,7 @@ export interface ReportStructureTemplate {
   name: string;
   description: string;
   sections: string[];
+  gsnSections?: string[];
   recommendedFor?: string[];
 }
 

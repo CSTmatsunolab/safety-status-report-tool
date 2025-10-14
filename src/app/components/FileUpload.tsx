@@ -366,6 +366,9 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
             <p className="text-sm text-gray-500 mt-2">
               対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNG等)
             </p>
+            <p className="text-xs text-red-400 mt-1">
+              ※ GSNファイルは全文使用をONにすることを推奨します
+            </p>
             <p className="text-xs text-gray-400 mt-1">
               ※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します<br/>
               ※ 画像の場合はPDFよりも画像ファイルの方が精度が高くなる可能性があります

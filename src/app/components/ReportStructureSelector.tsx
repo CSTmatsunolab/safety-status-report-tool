@@ -2,9 +2,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FiPlus, FiCheck, FiX, FiMove, FiTrash2 } from 'react-icons/fi';
-import { ReportStructureTemplate } from '@/types';
-import { DEFAULT_REPORT_STRUCTURES } from '@/lib/report-structures';
+import { FiPlus, FiCheck, FiX, FiMove, FiTrash2, FiInfo } from 'react-icons/fi';
+import { ReportStructureTemplate, UploadedFile } from '@/types';
+import { DEFAULT_REPORT_STRUCTURES, buildFinalReportStructure } from '@/lib/report-structures';
 import { DragDropContext, Droppable, Draggable, type DropResult } from '@hello-pangea/dnd';
 
 interface ReportStructureSelectorProps {
@@ -14,6 +14,7 @@ interface ReportStructureSelectorProps {
   customStructures?: ReportStructureTemplate[];
   onAddCustomStructure?: (structure: ReportStructureTemplate) => void;
   onDeleteCustomStructure?: (structureId: string) => void;
+  files?: UploadedFile[]; // ファイル情報を追加
 }
 
 export default function ReportStructureSelector({
@@ -22,9 +23,11 @@ export default function ReportStructureSelector({
   recommendedStructureId,
   customStructures = [],
   onAddCustomStructure,
-  onDeleteCustomStructure
+  onDeleteCustomStructure,
+  files = [] // デフォルト値を設定
 }: ReportStructureSelectorProps) {
   const [showCustomModal, setShowCustomModal] = useState(false);
+  const [expandedGSNInfo, setExpandedGSNInfo] = useState<string | null>(null); // GSN情報の展開状態
   const [customStructure, setCustomStructure] = useState<ReportStructureTemplate>({
     id: 'custom',
     name: '',
@@ -41,6 +44,11 @@ export default function ReportStructureSelector({
       }
     }
   }, [recommendedStructureId, selectedStructure, onSelect]);
+
+  // GSNファイルの検出
+  const hasGSNFile = files.some(f => 
+    f.type === 'gsn' || f.name.toLowerCase().includes('gsn') || (f.metadata as any)?.isGSN
+  );
 
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -128,10 +136,90 @@ export default function ReportStructureSelector({
                 
                 <div className="flex items-start">
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">{structure.name}</h4>
+                    <h4 className="font-medium text-gray-900">
+                      {structure.name}
+                      {((structure.gsnSections && structure.gsnSections.length > 0) || 
+                        (structure.recommendedFor && structure.recommendedFor.length > 0)) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation(); 
+                            setExpandedGSNInfo(prev => {
+                              return prev === structure.id ? null : structure.id;
+                            });
+                          }}
+                          className="ml-2 text-blue-500 hover:text-blue-600 inline-flex items-center"
+                          aria-label="詳細情報を表示"
+                          title="クリックして推奨対象とGSNセクションを表示"
+                        >
+                          <FiInfo size={14} />
+                        </button>
+                      )}
+                    </h4>
                     <p className="text-sm text-gray-600 mt-1">{structure.description}</p>
+
+                    {/* クリックで展開される詳細情報（推奨対象とGSNセクションを統合） */}
+                    {expandedGSNInfo === structure.id && (
+                      <div className="mt-2 space-y-2">
+                        {/* 推奨ステークホルダー */}
+                        {structure.recommendedFor && structure.recommendedFor.length > 0 && (
+                          <div className="p-2 bg-green-50 border border-green-200 rounded text-xs">
+                            <p className="font-medium text-green-800 mb-1">
+                              推奨ステークホルダー：
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {structure.recommendedFor.map((stakeholderId) => {
+                                const displayNames: { [key: string]: string } = {
+                                  // デフォルトステークホルダー
+                                  'cxo': 'CxO/経営層',
+                                  'business': '事業部門',
+                                  'technical-fellows': '技術専門家',
+                                  'architect': 'アーキテクト',
+                                  'r-and-d': 'R&D',
+                                  'product': '製品部門',
+                                  
+                                  // 追加の推奨対象
+                                  'risk-manager': 'リスク・安全管理者',
+                                  'project-manager': 'プロジェクトマネージャー',
+                                  'qa': '品質保証部門',
+                                  'security': 'セキュリティ部門',
+                                  'compliance': 'コンプライアンス部門',
+                                  'finance': '財務部門',
+                                  'hr': '人事部門',
+                                  'marketing': 'マーケティング部門',
+                                  'sales': '営業部門',
+                                  'operations': 'オペレーション部門',
+                                  'legal': '法務部門'
+                                };
+                                return (
+                                  <span
+                                    key={stakeholderId}
+                                    className="bg-white text-green-700 px-2 py-0.5 rounded border border-green-300"
+                                  >
+                                    {displayNames[stakeholderId] || stakeholderId}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* GSNセクション */}
+                        {structure.gsnSections && structure.gsnSections.length > 0 && (
+                          <div className="p-2 bg-green-50 border border-green-200 rounded text-xs">
+                            <p className="font-medium text-green-800 mb-1">
+                              GSNファイルがある場合の追加セクション：
+                            </p>
+                            <ul className="text-green-700 space-y-1">
+                              {structure.gsnSections.map((section, idx) => (
+                                <li key={idx}>• {section}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">構成内容:</p>
+                      <p className="text-xs text-gray-500 mb-1">基本構成:</p>
                       <div className="text-xs text-gray-700">
                         {structure.sections.map((section, idx) => (
                           <span key={idx}>
@@ -213,6 +301,44 @@ export default function ReportStructureSelector({
           </div>
         </div>
 
+        {/* 最終的なレポート構成プレビュー */}
+        {selectedStructure && (
+          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+              最終的なレポート構成
+            </h4>
+            
+            <ol className="space-y-1 text-sm">
+              {buildFinalReportStructure(selectedStructure, files).map((section, idx) => (
+                <li key={idx} className="flex items-center">
+                  <span className="text-gray-500 mr-2">{idx + 1}.</span>
+                  <span className={
+                    selectedStructure.gsnSections?.includes(section)
+                      ? "text-blue-600 font-medium"
+                      : "text-gray-700"
+                  }>
+                    {section}
+                  </span>
+                  {selectedStructure.gsnSections?.includes(section) && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                      GSN分析
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+            
+            <div className="mt-3 text-xs text-gray-500">
+              章数: {buildFinalReportStructure(selectedStructure, files).length}章
+              {hasGSNFile && selectedStructure.gsnSections && (
+                <span className="ml-2 text-blue-600">
+                  （GSNセクション{selectedStructure.gsnSections.length}章を含む）
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* カスタム構成作成ボタン */}
         <div className="pt-4 border-t">
           <button
@@ -248,7 +374,7 @@ export default function ReportStructureSelector({
                   type="text"
                   value={customStructure.name}
                   onChange={(e) => setCustomStructure({ ...customStructure, name: e.target.value })}
-                  placeholder="例: 〜〜向けレポート"
+                  placeholder="例: ～～向けレポート"
                   className="w-full px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -284,8 +410,8 @@ export default function ReportStructureSelector({
                       >
                         {customStructure.sections.map((section, index) => (
                           <Draggable
-                            key={`${index}-${section}`}              // 可能なら安定IDを使う
-                            draggableId={`${index}-${section}`}      // 安定しない場合は index ベースでもOK
+                            key={`${index}-${section}`}
+                            draggableId={`${index}-${section}`}
                             index={index}
                           >
                             {(dragProvided, snapshot) => (
@@ -296,7 +422,6 @@ export default function ReportStructureSelector({
                                   snapshot.isDragging ? 'bg-gray-50' : ''
                                 }`}
                               >
-                                {/* ここをドラッグハンドルにする */}
                                 <span
                                   className="text-gray-400 mr-2 cursor-move flex items-center"
                                   {...dragProvided.dragHandleProps}
@@ -340,6 +465,12 @@ export default function ReportStructureSelector({
                 >
                   + セクションを追加
                 </button>
+              </div>
+
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-xs text-yellow-800">
+                  <strong>注意:</strong> GSNファイルがアップロードされた場合、カスタム構成でも自動的にGSN分析セクションが追加される場合があります。
+                </p>
               </div>
             </div>
 

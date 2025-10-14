@@ -9,7 +9,7 @@ import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
-import { getRecommendedStructure } from '@/lib/report-structures';
+import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -151,7 +151,10 @@ export default function Home() {
     setKnowledgeBaseStatus('idle');
     
     // 推奨構成を取得して設定
-    const recommended = getRecommendedStructure(stakeholder.id, files);
+    const recommended = getSimpleRecommendedStructure(
+      stakeholder.id, 
+      files
+    );
     setRecommendedStructureId(recommended.id);
     setSelectedStructure(recommended); // 自動選択
   };
@@ -253,6 +256,7 @@ export default function Home() {
                   customStructures={customStructures}
                   onAddCustomStructure={handleAddCustomStructure}
                   onDeleteCustomStructure={handleDeleteCustomStructure}
+                  files={files}
                 />
               </div>
             )}
