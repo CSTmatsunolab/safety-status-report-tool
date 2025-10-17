@@ -81,6 +81,7 @@ export function extractGSNElements(text: string): string[] {
 export interface RAGLogData {
   stakeholder: Stakeholder;
   searchQuery: string;
+  enhancedQueries?: string[]; 
   k: number;
   totalChunks: number;
   vectorStoreType: string;
@@ -119,6 +120,7 @@ export function saveRAGLog(data: RAGLogData): string | null {
       // 検索パラメータ
       searchParams: {
         query: data.searchQuery,
+        enhancedQueries: data.enhancedQueries,
         k: data.k,
         totalChunks: data.totalChunks,
         vectorStoreType: data.vectorStoreType

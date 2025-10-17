@@ -2,35 +2,24 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { Document } from '@langchain/core/documents'; // 追加
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
-import { 
-  getRecommendedStructure, 
-  buildFinalReportStructure 
-} from '@/lib/report-structures';
-import { 
-  determineAdvancedRhetoricStrategy, 
-  getRhetoricStrategyDisplayName 
-} from '@/lib/rhetoric-strategies';
-import { 
-  getDynamicK, 
-  saveRAGLog,
-  type RAGLogData 
-} from '@/lib/rag-utils';
+import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report-structures';
+import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
+import { getDynamicK, saveRAGLog, type RAGLogData } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
+import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer'; // 追加
 
-// グローバルストレージ（メモリストアの参照を保持）
 const globalStores = (global as any).vectorStores || new Map();
 (global as any).vectorStores = globalStores;
 
-// Anthropic APIクライアントの初期化
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-//RAG処理を実行してコンテキストを取得
-
+// 適応的なRAG検索関数
 async function performRAGSearch(
   stakeholder: Stakeholder,
   vectorStoreType: string,
@@ -40,7 +29,6 @@ async function performRAGSearch(
   let relevantDocs: any[] = [];
 
   if (vectorStoreType === 'pinecone' || vectorStoreType === 'chromadb') {
-    // 永続ストア（Pinecone/ChromaDB）の場合
     try {
       const embeddings = createEmbeddings();
       const vectorStore = await VectorStoreFactory.getExistingStore(
@@ -57,14 +45,79 @@ async function performRAGSearch(
         console.log('Vector store stats:', stats);
         
         if (stats.totalDocuments > 0) {
-          const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
-          const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
-          console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+          // 動的K値の計算
+          const targetK = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
           
-          relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+          // 現実的なK値の設定（文書総数の80%を上限）
+          const realisticK = Math.min(targetK, Math.floor(stats.totalDocuments * 0.8));
+          
+          console.log(`Target K: ${targetK}, Realistic K: ${realisticK}`);
+          
+          // クエリ拡張
+          const queryEnhancer = new CustomStakeholderQueryEnhancer();
+          const enhancedQueries = queryEnhancer.enhanceQuery(stakeholder, {
+            maxQueries: 5,
+            includeEnglish: true,
+            includeSynonyms: true,
+            includeRoleTerms: true
+          });
+          
+          const originalQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
+          console.log('Original query:', originalQuery);
+          console.log('Enhanced queries:', enhancedQueries);
+          
+          // 適応的な取得
+          const allDocs: Document[] = [];
+          const seenDocIds = new Set<string>();
+          
+          // フェーズ別の取得戦略
+          const phases = [
+            { multiplier: 1.0, description: "Initial fetch" },
+            { multiplier: 1.5, description: "Extended fetch" },
+            { multiplier: 2.0, description: "Deep fetch" }
+          ];
+          
+          for (const phase of phases) {
+            if (allDocs.length >= realisticK) break;
+            
+            const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
+            console.log(`${phase.description}: fetching ${phaseK} docs per query`);
+            
+            for (const query of enhancedQueries) {
+              if (allDocs.length >= realisticK * 1.2) break;
+              
+              try {
+                const results = await vectorStore.similaritySearch(query, phaseK);
+                
+                results.forEach((doc: Document) => {
+                  const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
+                  if (!seenDocIds.has(docId)) {
+                    seenDocIds.add(docId);
+                    allDocs.push(doc);
+                  }
+                });
+                
+              } catch (error) {
+                console.error(`Search failed for query "${query}":`, error);
+              }
+            }
+            
+            console.log(`Phase complete: ${allDocs.length} unique docs collected`);
+            
+            if (allDocs.length >= realisticK) {
+              break;
+            }
+          }
+          
+          // 正確にK件を選択
+          relevantDocs = allDocs
+            .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
+            .slice(0, realisticK);
+          
+          const achievementRate = (relevantDocs.length / targetK) * 100;
+          console.log(`K値達成率: ${achievementRate.toFixed(1)}% (${relevantDocs.length}/${targetK})`);
           
           if (relevantDocs.length > 0) {
-            console.log(`Found ${relevantDocs.length} relevant documents from RAG`);
             contextContent = '=== RAG抽出内容 ===\n\n' + 
               relevantDocs
                 .map((doc: any) => doc.pageContent)
@@ -73,8 +126,8 @@ async function performRAGSearch(
             // ログ保存
             const logData: RAGLogData = {
               stakeholder,
-              searchQuery,
-              k,
+              searchQuery: enhancedQueries.join(' | '),
+              k: targetK,
               totalChunks: stats.totalDocuments,
               vectorStoreType: stats.storeType,
               relevantDocs,
@@ -105,14 +158,51 @@ async function performRAGSearch(
         console.log('Vector store stats:', stats);
         
         if (stats.totalDocuments > 0) {
-          const k = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
-          const searchQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
-          console.log(`Searching with query: "${searchQuery}" and k=${k}`);
+          const targetK = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+          const realisticK = Math.min(targetK, Math.floor(stats.totalDocuments * 0.8));
           
-          relevantDocs = await vectorStore.similaritySearch(searchQuery, k);
+          const queryEnhancer = new CustomStakeholderQueryEnhancer();
+          const enhancedQueries = queryEnhancer.enhanceQuery(stakeholder);
+          
+          console.log('Enhanced queries for memory store:', enhancedQueries);
+          
+          const allDocs: Document[] = [];
+          const seenDocIds = new Set<string>();
+          
+          const phases = [
+            { multiplier: 1.0, description: "Initial fetch" },
+            { multiplier: 1.5, description: "Extended fetch" }
+          ];
+          
+          for (const phase of phases) {
+            if (allDocs.length >= realisticK) break;
+            
+            const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
+            
+            for (const query of enhancedQueries) {
+              if (allDocs.length >= realisticK * 1.2) break;
+              
+              try {
+                const results = await vectorStore.similaritySearch(query, phaseK);
+                
+                results.forEach((doc: Document) => {
+                  const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
+                  if (!seenDocIds.has(docId)) {
+                    seenDocIds.add(docId);
+                    allDocs.push(doc);
+                  }
+                });
+              } catch (error) {
+                console.error(`Search failed: ${error}`);
+              }
+            }
+          }
+          
+          relevantDocs = allDocs
+            .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
+            .slice(0, realisticK);
           
           if (relevantDocs.length > 0) {
-            console.log(`Found ${relevantDocs.length} relevant documents from RAG`);
             contextContent = '=== RAG抽出内容 ===\n\n' + 
               relevantDocs
                 .map((doc: any) => doc.pageContent)
@@ -121,8 +211,8 @@ async function performRAGSearch(
             // ログ保存
             const logData: RAGLogData = {
               stakeholder,
-              searchQuery,
-              k,
+              searchQuery: enhancedQueries.join(' | '),
+              k: targetK,
               totalChunks: stats.totalDocuments,
               vectorStoreType: stats.storeType,
               relevantDocs,
