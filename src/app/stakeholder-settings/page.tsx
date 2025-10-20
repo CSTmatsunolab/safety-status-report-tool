@@ -8,6 +8,7 @@ import { FiPlus, FiEdit2, FiTrash2, FiSave, FiX } from 'react-icons/fi';
 
 export default function StakeholderSettings() {
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+  const [concernsError, setConcernsError] = useState('');
   const [newStakeholder, setNewStakeholder] = useState({
     id: '',
     role: '',
@@ -65,24 +66,33 @@ export default function StakeholderSettings() {
   };
 
   const addStakeholder = () => {
-    // ID検証
-    const error = validateId(newStakeholder.id);
-    if (error) {
-      setIdError(error);
+    // IDの検証
+    const idError = validateId(newStakeholder.id);
+    if (idError) {
+      setIdError(idError);
+      return;
+    }
+
+    // 関心事の検証
+    const validConcerns = newStakeholder.concerns.filter(c => c.trim());
+    const concernsErr = validateConcerns(newStakeholder.concerns);
+    if (concernsErr) {
+      setConcernsError(concernsErr);
       return;
     }
 
     if (newStakeholder.role.trim()) {
       const stakeholder: Stakeholder = {
-        id: `custom_${newStakeholder.id}`, // 大文字小文字をそのまま保持
+        id: `custom_${newStakeholder.id}`,
         role: newStakeholder.role,
-        concerns: newStakeholder.concerns.filter(c => c.trim())
+        concerns: validConcerns  // 空白のみの関心事を除外
       };
       const updated = [...stakeholders, stakeholder];
       setStakeholders(updated);
       saveToLocalStorage(updated);
       setNewStakeholder({ id: '', role: '', concerns: [''] });
       setIdError('');
+      setConcernsError('');
     }
   };
 
@@ -110,6 +120,14 @@ export default function StakeholderSettings() {
   const removeConcernField = (index: number) => {
     const updatedConcerns = newStakeholder.concerns.filter((_, i) => i !== index);
     setNewStakeholder({ ...newStakeholder, concerns: updatedConcerns });
+  };
+
+  const validateConcerns = (concerns: string[]): string => {
+  const validConcerns = concerns.filter(c => c.trim());
+  if (validConcerns.length === 0) {
+    return '少なくとも1つの関心事を入力してください';
+  }
+  return '';
   };
 
   // カスタムステークホルダーのみを抽出
@@ -164,15 +182,20 @@ export default function StakeholderSettings() {
 
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-2">
-                主な関心事
+                主な関心事 <span className="text-red-500">*</span>
               </label>
               {newStakeholder.concerns.map((concern, index) => (
                 <div key={index} className="flex mb-2">
                   <input
                     type="text"
                     value={concern}
-                    onChange={(e) => updateConcern(index, e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => {
+                      updateConcern(index, e.target.value);
+                      setConcernsError('');
+                    }}
+                    className={`flex-1 px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500 ${
+                      concernsError && !concern.trim() ? 'border-red-500' : ''
+                    }`}
                     placeholder="関心事を入力"
                   />
                   {newStakeholder.concerns.length > 1 && (
@@ -185,17 +208,29 @@ export default function StakeholderSettings() {
                   )}
                 </div>
               ))}
+              {concernsError && (
+                <p className="mt-1 text-sm text-red-600">{concernsError}</p>
+              )}
               <button
                 onClick={addConcernField}
                 className="text-sm text-blue-600 hover:text-blue-700"
               >
                 + 関心事を追加
               </button>
+              <p className="mt-1 text-xs text-gray-500">
+                レポート生成時の検索精度に影響します。具体的に記入してください。<br/>
+                精度向上のため、3つ以上の入力をおすすめします。
+              </p>
             </div>
 
             <button
               onClick={addStakeholder}
-              disabled={!newStakeholder.id || !newStakeholder.role.trim() || !!idError}
+              disabled={
+                !newStakeholder.id || 
+                !newStakeholder.role.trim() || 
+                !!idError ||
+                newStakeholder.concerns.filter(c => c.trim()).length === 0
+              }
               className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               <FiPlus className="mr-2" />
