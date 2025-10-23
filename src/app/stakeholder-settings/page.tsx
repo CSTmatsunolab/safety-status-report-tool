@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Stakeholder } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
-import { FiPlus, FiTrash2, FiSettings, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiX } from 'react-icons/fi';
 import { ThemeToggle } from '../components/theme-toggle';
 
 export default function StakeholderSettings() {
@@ -140,8 +140,7 @@ export default function StakeholderSettings() {
                 {/* ヘッダー */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                   <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-                    <a 
-                      href="/">Safety Status Report 自動生成ツール</a>
+                      <Link href="/">Safety Status Report 自動生成ツール</Link>
                   </h1>
                   <div className="flex items-center gap-4">
                     <ThemeToggle />

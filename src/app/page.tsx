@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import FileUpload from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
@@ -166,17 +167,15 @@ export default function Home() {
         {/* ヘッダー */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-            <a 
-            href="/">Safety Status Report 自動生成ツール</a>
+            <Link href="/">Safety Status Report 自動生成ツール</Link>
           </h1>
           <div className="flex items-center gap-4">
-            <a
-              href="/stakeholder-settings"
-              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-base sm:text-lg transition-colors hover:underline"
-            >
+            <Link 
+              href="/stakeholder-settings" 
+              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-base sm:text-lg transition-colors hover:underline">
               <FiSettings className="text-lg sm:text-xl" />
               <span>ステークホルダー設定</span>
-            </a>
+            </Link>
             <ThemeToggle />
           </div>
         </div>
