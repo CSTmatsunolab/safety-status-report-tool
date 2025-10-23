@@ -16,6 +16,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - **AI活用**: Claude APIを使用した高品質なレポート作成
 - **多様な出力形式**: PDF、HTML、Word（docx）形式でのダウンロード
 - **編集機能**: 生成後のレポートを手動で編集可能
+- **ダークモード機能**: ダークモードに切り替え可能
 
 ## 始め方
 
@@ -411,11 +412,13 @@ safety-status-report-tool/
 │   │   │       └── route.ts         # Wordテキスト抽出API
 │   │   │
 │   │   ├── components/
-│   │   │   ├── FileUpload.tsx       # ファイルアップロードUI
-│   │   │   ├── StakeholderSelect.tsx # ステークホルダー選択UI
-│   │   │   ├── ReportPreview.tsx    # レポートプレビュー
-│   │   │   ├── ReportEditor.tsx     # レポート編集機能
-│   │   │   └── ReportStructureSelector.tsx  # カスタム構成機能
+│   │   │   ├── FileUpload.tsx               # ファイルアップロードUI
+│   │   │   ├── StakeholderSelect.tsx        # ステークホルダー選択UI
+│   │   │   ├── ReportPreview.tsx            # レポートプレビュー
+│   │   │   ├── ReportEditor.tsx             # レポート編集機能
+│   │   │   ├── ReportStructureSelector.tsx  # カスタム構成機能
+│   │   │   ├── ThemeProvider.tsx            # カスタム構成機能
+│   │   │   └── ThemeToggle.tsx              # カスタム構成機能
 │   │   │
 │   │   ├── stakeholder-settings/
 │   │   │   └── page.tsx             # ステークホルダー設定メインページ
