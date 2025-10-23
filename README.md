@@ -417,8 +417,8 @@ safety-status-report-tool/
 │   │   │   ├── ReportPreview.tsx            # レポートプレビュー
 │   │   │   ├── ReportEditor.tsx             # レポート編集機能
 │   │   │   ├── ReportStructureSelector.tsx  # カスタム構成機能
-│   │   │   ├── ThemeProvider.tsx            # カスタム構成機能
-│   │   │   └── ThemeToggle.tsx              # カスタム構成機能
+│   │   │   ├── ThemeProvider.tsx            # テーマ管理(next-themesプロバイダーラッパー)
+│   │   │   └── ThemeToggle.tsx              # ライト/ダーク/システムモード切り替えUI
 │   │   │
 │   │   ├── stakeholder-settings/
 │   │   │   └── page.tsx             # ステークホルダー設定メインページ
