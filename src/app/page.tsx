@@ -5,7 +5,7 @@ import Link from 'next/link';
 import FileUpload from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
-import { ThemeToggle } from './components/theme-toggle';
+import { ThemeToggle } from './components/ThemeToggle';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader, FiSettings } from 'react-icons/fi';

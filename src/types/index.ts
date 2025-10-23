@@ -42,12 +42,17 @@ export interface ReportStructureTemplate {
   recommendedFor?: string[];
 }
 
+export interface GSNValidationResult {
+  isValid: boolean;
+  issues: string[];
+}
+
 export interface FileMetadata {
-  originalType: string;      // 元のMIMEタイプ
-  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed'; // 抽出方法
-  size: number;              // ファイルサイズ
-  confidence?: number;       // OCR信頼度（0-100）
-  service?: string;          // 使用したOCRサービス
-  gsnValidation?: any;
+  originalType: string;
+  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed';
+  size: number;
+  confidence?: number;
+  service?: string;
+  gsnValidation?: GSNValidationResult | null;
   isGSN?: boolean;
 }

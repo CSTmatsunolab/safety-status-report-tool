@@ -17,7 +17,7 @@ export function getConfidenceWarning(confidence: number): string | null {
  * Vision APIのエラーをハンドリングして適切なレスポンスを生成
  */
 export function handleVisionAPIError(
-  error: any, 
+  error: unknown, 
   fileName: string, 
   fallbackText: string = ''
 ): {
@@ -30,9 +30,14 @@ export function handleVisionAPIError(
 } {
   console.error('Vision API error:', error);
   
-  // エラーコードに基づいて適切なメッセージを生成
-  const errorMessage = error.message || error.toString();
-  
+
+  let errorMessage = 'Unknown error';
+  if (typeof error === 'object' && error !== null && 'message' in error && typeof (error as { message: unknown }).message === 'string') {
+    errorMessage = (error as { message: string }).message;
+  } else if (error) {
+    errorMessage = error.toString();
+  }
+  // エラーコードに基づいて適切なメッセージを生成  
   if (errorMessage.includes('quota') || errorMessage.includes('RESOURCE_EXHAUSTED')) {
     return {
       text: fallbackText,

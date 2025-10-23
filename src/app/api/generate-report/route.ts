@@ -2,7 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { Document } from '@langchain/core/documents'; // 追加
+import { Document } from '@langchain/core/documents'; 
+import { VectorStore } from "@langchain/core/vectorstores";
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
@@ -10,10 +11,20 @@ import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report
 import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
 import { getDynamicK, saveRAGLog, type RAGLogData } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
-import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer'; // 追加
+import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
 
-const globalStores = (global as any).vectorStores || new Map();
-(global as any).vectorStores = globalStores;
+function isVectorStore(obj: unknown): obj is VectorStore {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    typeof (obj as VectorStore).similaritySearch === 'function' &&
+    typeof (obj as VectorStore)._vectorstoreType === 'string'
+  );
+}
+
+const globalStores: Map<string, unknown> = 
+  (global as { vectorStores?: Map<string, unknown> }).vectorStores || new Map();
+(global as { vectorStores?: Map<string, unknown> }).vectorStores = globalStores;
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -24,9 +35,9 @@ async function performRAGSearch(
   stakeholder: Stakeholder,
   vectorStoreType: string,
   fullTextFiles: UploadedFile[]
-): Promise<{ contextContent: string; relevantDocs: any[] }> {
+): Promise<{ contextContent: string; relevantDocs: Document[] }> {
   let contextContent = '';
-  let relevantDocs: any[] = [];
+  let relevantDocs: Document[] = [];
 
   if (vectorStoreType === 'pinecone' || vectorStoreType === 'chromadb') {
     try {
@@ -120,7 +131,7 @@ async function performRAGSearch(
           if (relevantDocs.length > 0) {
             contextContent = '=== RAG抽出内容 ===\n\n' + 
               relevantDocs
-                .map((doc: any) => doc.pageContent)
+                .map((doc: Document) => doc.pageContent)
                 .join('\n\n---\n\n');
 
             // ログ保存
@@ -145,9 +156,10 @@ async function performRAGSearch(
   } else {
     // メモリストアの場合
     const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
-    const vectorStore = globalStores.get(storeKey);
+    const vectorStoreCandidate = globalStores.get(storeKey);
     
-    if (vectorStore && typeof vectorStore.similaritySearch === 'function') {
+    if (isVectorStore(vectorStoreCandidate)) {
+      const vectorStore = vectorStoreCandidate;
       console.log('Found memory store, searching...');
       
       try {
@@ -205,7 +217,7 @@ async function performRAGSearch(
           if (relevantDocs.length > 0) {
             contextContent = '=== RAG抽出内容 ===\n\n' + 
               relevantDocs
-                .map((doc: any) => doc.pageContent)
+                .map((doc: Document) => doc.pageContent)
                 .join('\n\n---\n\n');
 
             // ログ保存
@@ -357,7 +369,7 @@ export async function POST(request: NextRequest) {
 
     // GSNファイルの有無を確認
     const hasGSN = safeFiles.some(f => 
-      f.type === 'gsn' || (f.metadata as any)?.isGSN
+      f.type === 'gsn' || (f.metadata as { isGSN?: boolean })?.isGSN
     );
 
     // プロンプトの構築

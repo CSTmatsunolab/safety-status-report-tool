@@ -4,6 +4,12 @@ import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
 
+interface IVisionBlock {
+  confidence?: number | null;
+}
+interface IVisionPage {
+  blocks?: IVisionBlock[] | null;
+}
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -40,8 +46,8 @@ export async function POST(request: NextRequest) {
     let totalConfidence = 0;
     let confidenceCount = 0;
     
-    pages.forEach((page: any) => {
-      page.blocks?.forEach((block: any) => {
+    pages.forEach((page: IVisionPage) => {
+      page.blocks?.forEach((block: IVisionBlock) => {
         if (block.confidence) {
           totalConfidence += block.confidence;
           confidenceCount++;
@@ -83,10 +89,9 @@ export async function POST(request: NextRequest) {
       textLength: fullText.length
     });
   } 
-  catch (error: any) {
-    // 共通のエラーハンドラーを使用
+  catch (error: unknown) {
     const errorResponse = handleVisionAPIError(error, request.headers.get('x-filename') || 'unknown');
-    
+
     // 日本語メッセージへの変換マッピング
     const messageMap: { [key: string]: string } = {
       'OCR quota exceeded': 'APIの利用制限に達しました。しばらく待ってから再試行してください。',
@@ -95,12 +100,24 @@ export async function POST(request: NextRequest) {
       'Vision API error': 'OCR処理中にエラーが発生しました'
     };
     
+    let errorCode: number | undefined = undefined;
+    let errorMessage: string | undefined = undefined;
+
+    if (typeof error === 'object' && error !== null) {
+      if ('code' in error && typeof (error as {code: unknown}).code === 'number') {
+        errorCode = (error as { code: number }).code;
+      }
+      if ('message' in error && typeof (error as {message: unknown}).message === 'string') {
+        errorMessage = (error as { message: string }).message;
+      }
+    }
+
     // サイズエラーの特別な処理
-    if (error.code === 3 && error.message?.includes('size')) {
+    if (errorCode === 3 && errorMessage?.includes('size')) {
       return NextResponse.json(
         { 
           error: 'ファイルサイズが大きすぎます（10MB以下にしてください）。',
-          details: error.message,
+          details: errorMessage,
           success: false
         },
         { status: 500 }
@@ -112,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         error: japaneseMessage,
-        details: errorResponse.details || error.message,
+        details: errorResponse.details || errorMessage || 'Unknown error',
         success: false
       },
       { status: 500 }

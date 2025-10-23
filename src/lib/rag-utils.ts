@@ -1,19 +1,19 @@
 // src/lib/rag-utils.ts
 
 import { Stakeholder, UploadedFile } from '@/types';
+import { Document } from '@langchain/core/documents';
 import fs from 'fs';
 import path from 'path';
 
-/**
- * 動的K値計算関数
- */
+//動的K値計算関数
+ 
 export function getDynamicK(
   totalChunks: number, 
   stakeholder: Stakeholder,
   storeType: string
 ): number {
   // ベース値
-  let baseK = Math.ceil(totalChunks * 0.3);
+  const baseK = Math.ceil(totalChunks * 0.3);
   
   // ステークホルダーIDベースの判定
   let roleMultiplier = 1.0;
@@ -66,18 +66,38 @@ export function getDynamicK(
   return finalK;
 }
 
-/**
- * GSN要素を抽出するヘルパー関数
- */
+//GSN要素を抽出するヘルパー関数
+
 export function extractGSNElements(text: string): string[] {
   const gsnPattern = /\b([GgSsCcJj]\d+)\b/g;
   const matches = text.match(gsnPattern);
   return matches ? [...new Set(matches)] : [];
 }
 
-/**
- * RAGログデータの型定義
- */
+interface DocumentDetail {
+  index: number;
+  metadata: {
+    fileName: string;
+    fileType: unknown;
+    chunkIndex: number | undefined;
+    totalChunks: number | undefined;
+    isGSN: boolean;
+    isMinutes: boolean;
+    distance: number | undefined;
+    score: number | undefined;
+  };
+  contentPreview: string;
+  contentLength: number;
+  gsnElements: string[];
+}
+
+type FileBreakdown = Record<string, { 
+  count: number; 
+  characters: number; 
+  chunks: number[]; 
+}>;
+
+//RAGログデータの型定義
 export interface RAGLogData {
   stakeholder: Stakeholder;
   searchQuery: string;
@@ -85,15 +105,13 @@ export interface RAGLogData {
   k: number;
   totalChunks: number;
   vectorStoreType: string;
-  relevantDocs: any[];
+  relevantDocs: Document[];
   contextLength: number;
   fullTextFiles: UploadedFile[];
   timestamp: Date;
 }
 
-/**
- * RAGログを保存する関数
- */
+//RAGログを保存する関数
 export function saveRAGLog(data: RAGLogData): string | null {
   try {
     // ログディレクトリの作成
@@ -173,12 +191,10 @@ export function saveRAGLog(data: RAGLogData): string | null {
   }
 }
 
-/**
- * ファイル別の統計情報を構築
- */
-function buildFileBreakdown(relevantDocs: any[]): Record<string, any> {
-  const breakdown: { [key: string]: { count: number; characters: number; chunks: number[] } } = {};
-  
+//ファイル別の統計情報を構築
+function buildFileBreakdown(relevantDocs: Document[]): FileBreakdown {
+  const breakdown: FileBreakdown = {};
+
   relevantDocs.forEach((doc, index) => {
     const fileName = doc.metadata?.fileName || 'Unknown';
     if (!breakdown[fileName]) {
@@ -186,16 +202,14 @@ function buildFileBreakdown(relevantDocs: any[]): Record<string, any> {
     }
     breakdown[fileName].count++;
     breakdown[fileName].characters += doc.pageContent.length;
-    breakdown[fileName].chunks.push(doc.metadata?.chunkIndex || index);
+    breakdown[fileName].chunks.push(doc.metadata?.chunkIndex ?? index);
   });
   
   return breakdown;
 }
 
-/**
- * ドキュメントの詳細情報を構築
- */
-function buildDocumentDetails(relevantDocs: any[]): any[] {
+//ドキュメントの詳細情報を構築
+function buildDocumentDetails(relevantDocs: Document[]): DocumentDetail[] {
   return relevantDocs.map((doc, index) => ({
     index: index + 1,
     metadata: {
@@ -214,9 +228,7 @@ function buildDocumentDetails(relevantDocs: any[]): any[] {
   }));
 }
 
-/**
- * サマリーログを保存
- */
+//サマリーログを保存
 function saveSummaryLog(data: RAGLogData, fileName: string, logDir: string): void {
   const summaryPath = path.join(logDir, 'summary.jsonl');
   const summaryLine = JSON.stringify({

@@ -164,7 +164,7 @@ export function getRecommendedStructure(
 
 export function getSimpleRecommendedStructure(
   stakeholderId: string,
-  files: { name: string; type: string; metadata?: any }[] = []
+  files: { name: string; type: string; metadata?: { isGSN?: boolean } }[] = []
 ): ReportStructureTemplate {
   // GSNファイルチェック
   const hasGSNFile = files.some(f => 

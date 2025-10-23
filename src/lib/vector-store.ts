@@ -227,8 +227,9 @@ export class VectorStoreFactory {
     this.memoryStores.set(storeKey, store);
     
     // グローバルストレージにも保存
-    const globalStores = (global as any).vectorStores || new Map();
-    (global as any).vectorStores = globalStores;
+    const globalStores: Map<string, unknown> = 
+      (global as { vectorStores?: Map<string, unknown> }).vectorStores || new Map();
+    (global as { vectorStores?: Map<string, unknown> }).vectorStores = globalStores;
     globalStores.set(storeKey, store);
     
     console.log(`Memory store created successfully`);

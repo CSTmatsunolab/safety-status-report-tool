@@ -47,7 +47,7 @@ export default function ReportStructureSelector({
 
   // GSNファイルの検出
   const hasGSNFile = files.some(f => 
-    f.type === 'gsn' || f.name.toLowerCase().includes('gsn') || (f.metadata as any)?.isGSN
+    f.type === 'gsn' || f.name.toLowerCase().includes('gsn') || (f.metadata as { isGSN?: boolean })?.isGSN
   );
 
   const handleDragEnd = (result: DropResult) => {

@@ -6,8 +6,9 @@ import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
 
 // グローバルストレージ（メモリストアの参照を保持）
-const globalStores = (global as any).vectorStores || new Map();
-(global as any).vectorStores = globalStores;
+const globalStores: Map<string, unknown> = 
+  (global as { vectorStores?: Map<string, unknown> }).vectorStores || new Map();
+(global as { vectorStores?: Map<string, unknown> }).vectorStores = globalStores;
 
 export async function POST(request: NextRequest) {
   try {

@@ -5,8 +5,13 @@ import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
-import { PREVIEW_LENGTH, IMAGE_FILE_EXTENSIONS } from '@/lib/config/constants';
+import { PREVIEW_LENGTH } from '@/lib/config/constants';
 import { processGSNText, validateGSNText } from '@/lib/text-processing';
+
+interface GSNValidationResult {
+  isValid: boolean;
+  issues: string[];
+}
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -190,7 +195,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         let content = '';
         let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
         let ocrConfidence: number | undefined;
-        let gsnValidation: any = null;  
+        let gsnValidation: GSNValidationResult | null = null;  
         
         // ファイルタイプに応じて適切な処理を行う
         if (file.type === 'application/pdf') {
@@ -313,7 +318,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
   });
 
   const getFileIcon = (file: UploadedFile) => {
-    const metadata = file.metadata as any;
+    const metadata = file.metadata as { originalType?: string };
     if (metadata?.originalType?.startsWith('image/')) {
       return <FiImage className="text-purple-500 dark:text-purple-400" />;
     }
@@ -321,7 +326,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
   };
 
   const getExtractionBadge = (file: UploadedFile) => {
-    const metadata = file.metadata as any;
+    const metadata = file.metadata as { extractionMethod?: string };
     const method = metadata?.extractionMethod;
     
     if (method === 'ocr') {

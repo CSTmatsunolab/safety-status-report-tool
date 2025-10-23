@@ -2,6 +2,12 @@ import { ChromaClient, Collection } from 'chromadb';
 import { Embeddings } from '@langchain/core/embeddings';
 import { Document } from '@langchain/core/documents';
 
+export interface ChromaCollectionStats {
+  name: string | null;
+  count: number;
+  metadata: Collection['metadata'] | null;
+}
+
 export interface DirectChromaConfig {
   url?: string;
   apiKey?: string;
@@ -24,9 +30,7 @@ export class DirectChromaStore {
   this.embeddings = embeddings;
 }
   
-  /**
-   * コレクションの作成または取得
-   */
+  //コレクションの作成または取得
   async getOrCreateCollection(name: string): Promise<Collection> {
     try {
       // 既存のコレクションを取得
@@ -44,9 +48,7 @@ export class DirectChromaStore {
     }
   }
   
-  /**
-   * ドキュメントの追加
-   */
+  //ドキュメントの追加
   async addDocuments(
     collectionName: string,
     documents: Document[]
@@ -93,9 +95,7 @@ export class DirectChromaStore {
     console.log(`Added ${documents.length} documents to collection ${collectionName}`);
   }
   
-  /**
-   * 類似検索
-   */
+  //類似検索
   async similaritySearch(
     collectionName: string,
     query: string,
@@ -141,9 +141,7 @@ export class DirectChromaStore {
     }
   }
   
-  /**
-   * コレクションの削除
-   */
+  //コレクションの削除
   async deleteCollection(name: string): Promise<void> {
     try {
       await this.client.deleteCollection({ name });
@@ -153,9 +151,7 @@ export class DirectChromaStore {
     }
   }
   
-  /**
-   * 接続テスト
-   */
+  //接続テスト
   async testConnection(): Promise<boolean> {
     try {
       // listCollectionsを使用して接続を確認
@@ -168,9 +164,8 @@ export class DirectChromaStore {
     }
   }
   
-  /**
-   * すべてのコレクションをリスト
-   */
+  //すべてのコレクションをリスト
+   
   async listCollections(): Promise<string[]> {
     try {
       const collections = await this.client.listCollections();
@@ -181,10 +176,9 @@ export class DirectChromaStore {
     }
   }
 
-/**
- * コレクションの統計情報を取得
- */
-  async getCollectionStats(collectionName: string): Promise<any> {
+// コレクションの統計情報を取得
+
+  async getCollectionStats(collectionName: string): Promise<ChromaCollectionStats> {
     try {
       const collection = await this.client.getCollection({ name: collectionName });
       const count = await collection.count();
@@ -196,7 +190,7 @@ export class DirectChromaStore {
       };
     } catch (error) {
       console.error('Failed to get collection stats:', error);
-      return { count: 0 };
+      return { count: 0, name: collectionName, metadata: null };
     }
   }
 }

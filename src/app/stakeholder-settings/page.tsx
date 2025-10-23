@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Stakeholder } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
 import { FiPlus, FiTrash2, FiX } from 'react-icons/fi';
-import { ThemeToggle } from '../components/theme-toggle';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export default function StakeholderSettings() {
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);

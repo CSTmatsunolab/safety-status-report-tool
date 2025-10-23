@@ -4,6 +4,13 @@ import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH, PREVIEW_LENGTH } from '@/lib/config/constants';
 
+interface IVisionBlock {
+  confidence?: number | null;
+}
+interface IVisionPage {
+  blocks?: IVisionBlock[] | null;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -79,8 +86,8 @@ export async function POST(request: NextRequest) {
               
               // 信頼度の計算
               const pages = response.fullTextAnnotation?.pages || [];
-              pages.forEach((page: any) => {
-                page.blocks?.forEach((block: any) => {
+              pages.forEach((page: IVisionPage) => {
+                page.blocks?.forEach((block: IVisionBlock) => {
                   if (block.confidence) {
                     totalConfidence += block.confidence;
                     confidenceCount++;
@@ -131,14 +138,24 @@ export async function POST(request: NextRequest) {
         confidence: averageConfidence
       });
       
-    } catch (visionError: any) {
+    } catch (visionError: unknown) {
       // 共通のエラーハンドラーを使用
       const errorResponse = handleVisionAPIError(visionError, file.name, data.text || '');
       
-      // 特殊なエラーケースの処理
+      let errorCode: number | undefined = undefined;
+      let errorMessage: string | undefined = undefined;
+
+      if (typeof visionError === 'object' && visionError !== null) {
+        if ('code' in visionError && typeof (visionError as {code: unknown}).code === 'number') {
+          errorCode = (visionError as { code: number }).code;
+        }
+        if ('message' in visionError && typeof (visionError as {message: unknown}).message === 'string') {
+          errorMessage = (visionError as { message: string }).message;
+        }
+      }
       
       // API使用制限エラー
-      if (visionError.code === 8 || visionError.message?.includes('quota')) {
+      if (errorCode === 8 || errorMessage?.includes('quota')) {
         return NextResponse.json({ 
           text: data.text || '', 
           success: false,
@@ -150,8 +167,8 @@ export async function POST(request: NextRequest) {
       }
       
       // ページ数制限エラー
-      if (visionError.message?.includes('pages') || visionError.message?.includes('exceeds') || 
-          (visionError.code === 3 && visionError.message?.includes('pages'))) {
+      if (errorMessage?.includes('pages') || errorMessage?.includes('exceeds') || 
+          (errorCode === 3 && errorMessage?.includes('pages'))) {
         return NextResponse.json({ 
           text: data.text || '', 
           success: false,
@@ -164,7 +181,7 @@ export async function POST(request: NextRequest) {
       }
       
       // 認証エラー
-      if (visionError.code === 7 || visionError.message?.includes('UNAUTHENTICATED')) {
+      if (errorCode === 7 || errorMessage?.includes('UNAUTHENTICATED')) {
         console.error('Google Cloud認証エラー: APIキーまたは認証情報を確認してください');
         return NextResponse.json({ 
           text: data.text || '', 
@@ -177,7 +194,7 @@ export async function POST(request: NextRequest) {
       }
       
       // ファイルサイズエラー
-      if (visionError.message?.includes('size') && visionError.code === 3) {
+      if (errorMessage?.includes('size') && errorCode === 3) {
         return NextResponse.json({ 
           text: data.text || '', 
           success: false,
