@@ -1,26 +1,71 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* 
+ * Tailwind CSS v4 完全動作版
+ * ダークモード対応
+ */
+
+/* カスタムCSS変数定義 */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-bg: #ffffff;
+  --app-bg-secondary: #f9fafb;
+  --app-text: #111827;
+  --app-text-secondary: #6b7280;
+  --app-border: #e5e7eb;
+  --app-card: #ffffff;
+  --app-accent: #3b82f6;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+.dark {
+  --app-bg: #0a0a0a;
+  --app-bg-secondary: #111827;
+  --app-text: #f9fafb;
+  --app-text-secondary: #9ca3af;
+  --app-border: #374151;
+  --app-card: #1f2937;
+  --app-accent: #60a5fa;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Body基本スタイル（オプション） */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--app-bg-secondary);
+  color: var(--app-text);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* スクロールバー */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #9ca3af;
+  border-radius: 5px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* フォーカススタイル */
+:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
+}
+
+/* テキスト選択 */
+::selection {
+  background-color: var(--app-accent);
+  opacity: 0.3;
+  color: white;
 }

@@ -315,9 +315,9 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
   const getFileIcon = (file: UploadedFile) => {
     const metadata = file.metadata as any;
     if (metadata?.originalType?.startsWith('image/')) {
-      return <FiImage className="text-purple-500" />;
+      return <FiImage className="text-purple-500 dark:text-purple-400" />;
     }
-    return <FiFile className="text-gray-500" />;
+    return <FiFile className="text-gray-500 dark:text-gray-400" />;
   };
 
   const getExtractionBadge = (file: UploadedFile) => {
@@ -325,51 +325,64 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
     const method = metadata?.extractionMethod;
     
     if (method === 'ocr') {
-      return <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">OCR</span>;
+      return <span className="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">OCR</span>;
     } else if (method === 'pdf') {
-      return <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">PDF</span>;
+      return <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">PDF</span>;
     } else if (method === 'excel') {
-      return <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">Excel</span>;
-    }else if (method === 'docx') {
-    return <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Word</span>;
+      return <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded">Excel</span>;
+    } else if (method === 'docx') {
+      return <span className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded">Word</span>;
     }
     return null;
   };
 
   return (
     <div className="space-y-4">
+      {/* ドロップゾーン */}
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-          ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}
-          ${isProcessing ? 'opacity-50 cursor-wait' : ''}`}
+        className={`
+          border-2 border-dashed rounded-lg p-8 text-center cursor-pointer 
+          transition-all duration-200
+          ${isDragActive 
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 scale-[1.02]' 
+            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 bg-white dark:bg-gray-800/50'
+          }
+          ${isProcessing ? 'opacity-50 cursor-wait' : ''}
+        `}
       >
         <input {...getInputProps()} disabled={isProcessing} />
-        <FiUpload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+        <FiUpload className={`
+          mx-auto h-12 w-12 mb-4 transition-colors
+          ${isDragActive ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}
+        `} />
+        
         {isProcessing ? (
           <div>
-            <p className="text-gray-600 mb-2">ファイルを処理中...</p>
+            <p className="text-gray-600 dark:text-gray-300 mb-2">ファイルを処理中...</p>
             {processingStatus && (
-              <p className="text-sm text-blue-600">{processingStatus}</p>
+              <p className="text-sm text-blue-600 dark:text-blue-400">{processingStatus}</p>
             )}
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               画像やPDFのOCR処理には時間がかかる場合があります
             </p>
           </div>
         ) : isDragActive ? (
-          <p className="text-blue-600">ファイルをドロップしてください</p>
+          <p className="text-blue-600 dark:text-blue-400 font-medium">
+            ファイルをドロップしてください
+          </p>
         ) : (
           <div>
-            <p className="text-gray-600">
+            <p className="text-gray-600 dark:text-gray-300 font-medium">
               ファイルをドラッグ＆ドロップ、またはクリックして選択
             </p>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
               対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNG等)
             </p>
-            <p className="text-xs text-red-400 mt-1">
+            <p className="text-xs text-red-400 dark:text-red-400 mt-1">
               ※ GSNファイルは全文使用をONにすることを推奨します
             </p>
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               ※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します<br/>
               ※ 画像の場合はPDFよりも画像ファイルの方が精度が高くなる可能性があります
             </p>
@@ -377,19 +390,24 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         )}
       </div>
 
+      {/* アップロード済みファイルリスト */}
       {files.length > 0 && (
         <div className="space-y-2">
-          <h3 className="font-medium text-gray-700">アップロード済みファイル:</h3>
+          <h3 className="font-medium text-gray-700 dark:text-gray-300">
+            アップロード済みファイル:
+          </h3>
           {files.map((file) => (
             <div
               key={file.id}
-              className="flex items-center justify-between bg-gray-50 p-3 rounded-md"
+              className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 p-3 rounded-md border border-gray-200 dark:border-gray-700 transition-all hover:shadow-md dark:hover:shadow-lg"
             >
               <div className="flex items-center space-x-3">
                 {getFileIcon(file)}
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                    {file.name}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
                             file.type === 'minutes' ? '議事録' : 'その他'}
                     {file.content.length > 0 ? (
@@ -397,7 +415,7 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
                         ({file.content.length.toLocaleString()} 文字)
                       </span>
                     ) : (
-                      <span className="ml-2 text-red-500">
+                      <span className="ml-2 text-red-500 dark:text-red-400">
                         (テキスト抽出不可 - 画像形式での再アップロードを推奨)
                       </span>
                     )}
@@ -405,39 +423,42 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
                 </div>
                 {getExtractionBadge(file)}
               </div>
-                <div className="flex items-center space-x-2">
-                  {file.content.length > 0 && (
-                    <label className="flex items-center cursor-pointer mr-2">
-                      <input
-                        type="checkbox"
-                        checked={file.includeFullText || false}
-                        onChange={(e) => onToggleFullText(file.id, e.target.checked)}
-                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">全文使用</span>
-                    </label>
-                  )}
-                  
-                  <button
-                    onClick={() => onRemove(file.id)}
-                    className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50"
-                  >
-                    <FiX size={18} />
-                  </button>
+              
+              <div className="flex items-center space-x-2">
+                {file.content.length > 0 && (
+                  <label className="flex items-center cursor-pointer mr-2">
+                    <input
+                      type="checkbox"
+                      checked={file.includeFullText || false}
+                      onChange={(e) => onToggleFullText(file.id, e.target.checked)}
+                      className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+                    />
+                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                      全文使用
+                    </span>
+                  </label>
+                )}
+                
+                <button
+                  onClick={() => onRemove(file.id)}
+                  className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                >
+                  <FiX size={18} />
+                </button>
               </div>
             </div>
           ))}
           
           {/* 画像ベースPDFの警告メッセージ */}
           {files.some(f => f.content.length === 0) && (
-            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
-              <p className="text-sm text-yellow-800 font-medium mb-2">
+            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                 ⚠️ 一部のファイルからテキストを抽出できませんでした
               </p>
-              <p className="text-xs text-yellow-700 mb-2">
+              <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
                 画像ベースのファイルの可能性があります。以下の方法をお試しください：
               </p>
-              <ul className="text-xs text-yellow-700 list-disc list-inside space-y-1">
+              <ul className="text-xs text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
                 <li>PDFを画像（PNG/JPG）として保存し、再アップロード</li>
                 <li>Google DriveでPDFを開き、Googleドキュメントに変換</li>
                 <li>Adobe AcrobatなどでOCR処理後、テキストPDFとして保存</li>
@@ -445,15 +466,15 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
               
               {/* GSNファイル専用の案内 */}
               {files.some(f => f.name.includes('GSN') && f.content.length === 0) && (
-                <div className="mt-3 pt-3 border-t border-yellow-300">
-                  <p className="text-sm text-yellow-800 font-medium mb-2">
+                <div className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                     📋 GSN図の場合の推奨方法：
                   </p>
-                  <ol className="text-xs text-yellow-700 list-decimal list-inside space-y-1">
+                  <ol className="text-xs text-yellow-700 dark:text-yellow-300 list-decimal list-inside space-y-1">
                     <li>GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力</li>
                     <li>
                       フォーマット例：
-                      <pre className="mt-1 p-2 bg-yellow-100 rounded text-xs overflow-x-auto">
+                      <pre className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs overflow-x-auto">
 {`G1: 実証実験期間中、安全に特定運行ができる
 → S1
 
@@ -478,7 +499,7 @@ S1: システム安全と運行時の残存リスク制御に分けた議論
                         'Sn: Solution（ソリューション）'
                       );
                     }}
-                    className="text-xs text-blue-600 hover:text-blue-700 underline"
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
                   >
                     詳細なフォーマットガイドを見る
                   </a>

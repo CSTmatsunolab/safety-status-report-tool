@@ -148,8 +148,8 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     <div className="h-full flex flex-col">
       <div className="items-center mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">{report.title}</h3>
-          <p className="text-sm text-gray-700 mt-1">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{report.title}</h3>
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
             対象: {report.stakeholder.role} | 
             戦略: {report.rhetoricStrategy}
           </p><br/>
@@ -157,35 +157,35 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-700 rounded-md text-sm text-white"
           >
             <FiEdit className="mr-1" />
             {isEditing ? 'プレビュー' : '編集'}
           </button>
           <button
             onClick={handleExportDOCX}
-            className="flex items-center px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white rounded-md text-sm"
           >
             <FiFile className="mr-1" />
             Word出力
           </button>
           <button
             onClick={handleExportHTML}
-            className="flex items-center px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white rounded-md text-sm"
           >
             <FiFileText className="mr-1" />
             HTML出力
           </button>
           <button
             onClick={handleExportPDF}
-            className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-md text-sm"
           >
             <FiDownload className="mr-1" />
             PDF出力
           </button>
           <button
             onClick={handlePrint}
-            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-md text-sm"
           >
             <FiPrinter className="mr-1" />
             印刷
@@ -199,7 +199,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full h-96 p-4 border rounded-md font-mono text-sm text-gray-800 bg-white"
+              className="w-full h-96 p-4 border rounded-md font-mono text-sm text-gray-800 bg-white dark:bg-gray-900 dark:text-gray-200 dark:border-gray-600"
             />
             <div className="flex justify-end space-x-2">
               <button
@@ -207,21 +207,21 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
                   setEditedContent(report.content);
                   setIsEditing(false);
                 }}
-                className="px-4 py-2 text-black border border-black rounded-md hover:bg-gray-50"
+                className="px-4 py-2 text-black dark:text-gray-300 border border-black dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-600"
               >
                 保存
               </button>
             </div>
           </div>
         ) : (
-          <div className="prose max-w-none">
-            <div className="whitespace-pre-wrap bg-white border border-gray-200 p-6 rounded-lg text-gray-800 leading-relaxed">
+          <div className="prose dark:prose-invert max-w-none">
+            <div className="whitespace-pre-wrap bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg text-gray-800 dark:text-gray-200 leading-relaxed">
               {report.content}
             </div>
           </div>

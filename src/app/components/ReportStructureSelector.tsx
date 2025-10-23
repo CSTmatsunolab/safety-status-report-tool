@@ -14,7 +14,7 @@ interface ReportStructureSelectorProps {
   customStructures?: ReportStructureTemplate[];
   onAddCustomStructure?: (structure: ReportStructureTemplate) => void;
   onDeleteCustomStructure?: (structureId: string) => void;
-  files?: UploadedFile[]; // ファイル情報を追加
+  files?: UploadedFile[];
 }
 
 export default function ReportStructureSelector({
@@ -24,10 +24,10 @@ export default function ReportStructureSelector({
   customStructures = [],
   onAddCustomStructure,
   onDeleteCustomStructure,
-  files = [] // デフォルト値を設定
+  files = []
 }: ReportStructureSelectorProps) {
   const [showCustomModal, setShowCustomModal] = useState(false);
-  const [expandedGSNInfo, setExpandedGSNInfo] = useState<string | null>(null); // GSN情報の展開状態
+  const [expandedGSNInfo, setExpandedGSNInfo] = useState<string | null>(null);
   const [customStructure, setCustomStructure] = useState<ReportStructureTemplate>({
     id: 'custom',
     name: '',
@@ -107,10 +107,10 @@ export default function ReportStructureSelector({
     <>
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-3">
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             レポート構成を選択
             {recommendedStructureId && (
-              <span className="ml-2 text-xs text-blue-600 bg-blue-100 px-2 py-1 rounded">
+              <span className="ml-2 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
                 推奨構成を自動選択済み
               </span>
             )}
@@ -124,20 +124,22 @@ export default function ReportStructureSelector({
                 onClick={() => onSelect(structure)}
                 className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
                   selectedStructure?.id === structure.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' // 選択中は青
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800'
                 }`}
               >
+                {/* 推奨バッジは緑 */}
                 {structure.id === recommendedStructureId && (
-                  <span className="absolute top-2 right-2 text-xs bg-blue-500 text-white px-2 py-1 rounded">
+                  <span className="absolute top-2 right-2 text-xs bg-green-500 dark:bg-green-600 text-white px-2 py-1 rounded">
                     推奨
                   </span>
                 )}
                 
                 <div className="flex items-start">
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900">
+                    <h4 className="font-medium text-gray-900 dark:text-white">
                       {structure.name}
+                      {/* 情報アイコンはグレー */}
                       {((structure.gsnSections && structure.gsnSections.length > 0) || 
                         (structure.recommendedFor && structure.recommendedFor.length > 0)) && (
                         <button
@@ -147,7 +149,7 @@ export default function ReportStructureSelector({
                               return prev === structure.id ? null : structure.id;
                             });
                           }}
-                          className="ml-2 text-blue-500 hover:text-blue-600 inline-flex items-center"
+                          className="ml-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 inline-flex items-center"
                           aria-label="詳細情報を表示"
                           title="クリックして推奨対象とGSNセクションを表示"
                         >
@@ -155,15 +157,15 @@ export default function ReportStructureSelector({
                         </button>
                       )}
                     </h4>
-                    <p className="text-sm text-gray-600 mt-1">{structure.description}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
 
-                    {/* クリックで展開される詳細情報（推奨対象とGSNセクションを統合） */}
+                    {/* クリックで展開される詳細情報 */}
                     {expandedGSNInfo === structure.id && (
                       <div className="mt-2 space-y-2">
-                        {/* 推奨ステークホルダー */}
+                        {/* 推奨ステークホルダー（情報ボックスをグレー系に変更） */}
                         {structure.recommendedFor && structure.recommendedFor.length > 0 && (
-                          <div className="p-2 bg-green-50 border border-green-200 rounded text-xs">
-                            <p className="font-medium text-green-800 mb-1">
+                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-xs">
+                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
                               推奨ステークホルダー：
                             </p>
                             <div className="flex flex-wrap gap-1">
@@ -193,7 +195,7 @@ export default function ReportStructureSelector({
                                 return (
                                   <span
                                     key={stakeholderId}
-                                    className="bg-white text-green-700 px-2 py-0.5 rounded border border-green-300"
+                                    className="bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600"
                                   >
                                     {displayNames[stakeholderId] || stakeholderId}
                                   </span>
@@ -203,13 +205,13 @@ export default function ReportStructureSelector({
                           </div>
                         )}
                         
-                        {/* GSNセクション */}
+                        {/* GSNセクション（情報ボックスをグレー系に変更） */}
                         {structure.gsnSections && structure.gsnSections.length > 0 && (
-                          <div className="p-2 bg-green-50 border border-green-200 rounded text-xs">
-                            <p className="font-medium text-green-800 mb-1">
+                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-xs">
+                            <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
                               GSNファイルがある場合の追加セクション：
                             </p>
-                            <ul className="text-green-700 space-y-1">
+                            <ul className="text-gray-700 dark:text-gray-400 space-y-1">
                               {structure.gsnSections.map((section, idx) => (
                                 <li key={idx}>• {section}</li>
                               ))}
@@ -219,8 +221,8 @@ export default function ReportStructureSelector({
                       </div>
                     )}
                     <div className="mt-2">
-                      <p className="text-xs text-gray-500 mb-1">基本構成:</p>
-                      <div className="text-xs text-gray-700">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">基本構成:</p>
+                      <div className="text-xs text-gray-700 dark:text-gray-300">
                         {structure.sections.map((section, idx) => (
                           <span key={idx}>
                             {idx > 0 && ' → '}
@@ -230,8 +232,9 @@ export default function ReportStructureSelector({
                       </div>
                     </div>
                   </div>
+                  {/* 選択中のチェックマークは青 */}
                   {selectedStructure?.id === structure.id && (
-                    <FiCheck className="ml-3 text-blue-500 text-xl flex-shrink-0" />
+                    <FiCheck className="ml-3 text-blue-500 dark:text-blue-400 text-xl flex-shrink-0" />
                   )}
                 </div>
               </div>
@@ -240,8 +243,8 @@ export default function ReportStructureSelector({
             {/* カスタム構成 */}
             {customStructures.length > 0 && (
               <>
-                <div className="border-t pt-3 mt-3">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">カスタム構成</h4>
+                <div className="border-t dark:border-gray-700 pt-3 mt-3">
+                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">カスタム構成</h4>
                 </div>
                 {customStructures.map(structure => (
                   <div
@@ -249,24 +252,24 @@ export default function ReportStructureSelector({
                     onClick={() => onSelect(structure)}
                     className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
                       selectedStructure?.id === structure.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-start">
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900">
+                        <h4 className="font-medium text-gray-900 dark:text-white">
                           {structure.name}
-                          <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                          <span className="ml-2 text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
                             カスタム
                           </span>
                         </h4>
                         {structure.description && (
-                          <p className="text-sm text-gray-600 mt-1">{structure.description}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
                         )}
                         <div className="mt-2">
-                          <p className="text-xs text-gray-500 mb-1">構成内容:</p>
-                          <div className="text-xs text-gray-700">
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">構成内容:</p>
+                          <div className="text-xs text-gray-700 dark:text-gray-300">
                             {structure.sections.map((section, idx) => (
                               <span key={idx}>
                                 {idx > 0 && ' → '}
@@ -277,7 +280,7 @@ export default function ReportStructureSelector({
                         </div>
                       </div>
                       {selectedStructure?.id === structure.id && (
-                        <FiCheck className="ml-3 text-blue-500 text-xl flex-shrink-0" />
+                        <FiCheck className="ml-3 text-blue-500 dark:text-blue-400 text-xl flex-shrink-0" />
                       )}
                       {/* 削除ボタン */}
                       {onDeleteCustomStructure && (
@@ -288,7 +291,7 @@ export default function ReportStructureSelector({
                               onDeleteCustomStructure(structure.id);
                             }
                           }}
-                          className="ml-2 p-1 text-red-500 hover:bg-red-50 rounded"
+                          className="ml-2 p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         >
                           <FiTrash2 />
                         </button>
@@ -303,24 +306,24 @@ export default function ReportStructureSelector({
 
         {/* 最終的なレポート構成プレビュー */}
         {selectedStructure && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-semibold text-gray-700 mb-2">
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               最終的なレポート構成
             </h4>
             
             <ol className="space-y-1 text-sm">
               {buildFinalReportStructure(selectedStructure, files).map((section, idx) => (
                 <li key={idx} className="flex items-center">
-                  <span className="text-gray-500 mr-2">{idx + 1}.</span>
+                  <span className="text-gray-500 dark:text-gray-400 mr-2">{idx + 1}.</span>
                   <span className={
                     selectedStructure.gsnSections?.includes(section)
-                      ? "text-blue-600 font-medium"
-                      : "text-gray-700"
+                      ? "text-blue-600 dark:text-blue-400 font-medium" // GSNセクションは青（情報）
+                      : "text-gray-700 dark:text-gray-300"
                   }>
                     {section}
                   </span>
                   {selectedStructure.gsnSections?.includes(section) && (
-                    <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
                       GSN分析
                     </span>
                   )}
@@ -328,10 +331,10 @@ export default function ReportStructureSelector({
               ))}
             </ol>
             
-            <div className="mt-3 text-xs text-gray-500">
+            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
               章数: {buildFinalReportStructure(selectedStructure, files).length}章
               {hasGSNFile && selectedStructure.gsnSections && (
-                <span className="ml-2 text-blue-600">
+                <span className="ml-2 text-blue-600 dark:text-blue-400">
                   （GSNセクション{selectedStructure.gsnSections.length}章を含む）
                 </span>
               )}
@@ -340,10 +343,10 @@ export default function ReportStructureSelector({
         )}
 
         {/* カスタム構成作成ボタン */}
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t dark:border-gray-700">
           <button
             onClick={() => setShowCustomModal(true)}
-            className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-gray-400 text-gray-600 hover:text-gray-700 transition-colors"
+            className="w-full p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 text-gray-600 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors bg-white dark:bg-gray-800"
           >
             <FiPlus className="inline mr-2" />
             カスタム構成を作成
@@ -353,13 +356,13 @@ export default function ReportStructureSelector({
 
       {/* カスタム構成作成モーダル */}
       {showCustomModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">カスタムレポート構成を作成</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">カスタムレポート構成を作成</h3>
               <button
                 onClick={() => setShowCustomModal(false)}
-                className="text-gray-400 hover:text-gray-500"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400"
               >
                 <FiX size={24} />
               </button>
@@ -367,20 +370,20 @@ export default function ReportStructureSelector({
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  構成名 <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  構成名 <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
                   type="text"
                   value={customStructure.name}
                   onChange={(e) => setCustomStructure({ ...customStructure, name: e.target.value })}
                   placeholder="例: ～～向けレポート"
-                  className="w-full px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   説明（任意）
                 </label>
                 <input
@@ -388,15 +391,15 @@ export default function ReportStructureSelector({
                   value={customStructure.description}
                   onChange={(e) => setCustomStructure({ ...customStructure, description: e.target.value })}
                   placeholder="この構成の特徴を簡単に説明"
-                  className="w-full px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  セクション構成 <span className="text-red-500">*</span>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  セクション構成 <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   レポートに含めるセクションを順番に入力してください
                 </p>
                 
@@ -419,30 +422,30 @@ export default function ReportStructureSelector({
                                 ref={dragProvided.innerRef}
                                 {...dragProvided.draggableProps}
                                 className={`flex items-center ${
-                                  snapshot.isDragging ? 'bg-gray-50' : ''
+                                  snapshot.isDragging ? 'bg-gray-50 dark:bg-gray-700' : ''
                                 }`}
                               >
                                 <span
-                                  className="text-gray-400 mr-2 cursor-move flex items-center"
+                                  className="text-gray-400 dark:text-gray-500 mr-2 cursor-move flex items-center"
                                   {...dragProvided.dragHandleProps}
                                 >
                                   <FiMove />
                                 </span>
 
-                                <span className="text-gray-500 mr-2 w-8">{index + 1}.</span>
+                                <span className="text-gray-500 dark:text-gray-400 mr-2 w-8">{index + 1}.</span>
 
                                 <input
                                   type="text"
                                   value={section}
                                   onChange={(e) => handleCustomSectionChange(index, e.target.value)}
                                   placeholder="セクション名を入力"
-                                  className="flex-1 px-3 py-2 border rounded-md text-gray-900 focus:ring-2 focus:ring-blue-500"
+                                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400"
                                 />
 
                                 {customStructure.sections.length > 1 && (
                                   <button
                                     onClick={() => removeCustomSection(index)}
-                                    className="ml-2 p-2 text-red-500 hover:bg-red-50 rounded"
+                                    className="ml-2 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
                                     type="button"
                                   >
                                     <FiX />
@@ -461,14 +464,14 @@ export default function ReportStructureSelector({
                 
                 <button
                   onClick={addCustomSection}
-                  className="mt-3 text-sm text-blue-600 hover:text-blue-700"
+                  className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
                   + セクションを追加
                 </button>
               </div>
 
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                <p className="text-xs text-yellow-800">
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <p className="text-xs text-yellow-800 dark:text-yellow-200">
                   <strong>注意:</strong> GSNファイルがアップロードされた場合、カスタム構成でも自動的にGSN分析セクションが追加される場合があります。
                 </p>
               </div>
@@ -477,14 +480,14 @@ export default function ReportStructureSelector({
             <div className="flex justify-end mt-6 space-x-3">
               <button
                 onClick={() => setShowCustomModal(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleCustomStructureSubmit}
                 disabled={!customStructure.name || customStructure.sections.filter(s => s.trim()).length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
               >
                 この構成を使用
               </button>

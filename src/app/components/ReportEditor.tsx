@@ -134,23 +134,23 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
   };
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg shadow-lg">
+    <div className="h-full flex flex-col bg-white dark:bg-gray-800 rounded-lg shadow-lg dark:shadow-gray-700/50">
       {/* ヘッダー */}
-      <div className="border-b px-6 py-4">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">レポート編集</h2>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">レポート編集</h2>
           <div className="flex space-x-2">
             <button
               onClick={handleSave}
               disabled={!isDirty}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 dark:bg-blue-500 dark:hover:bg-blue-600 dark:disabled:bg-gray-600"
             >
               <FiSave className="mr-2" />
               保存
             </button>
             <button
               onClick={onCancel}
-              className="flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              className="flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
             >
               <FiX className="mr-2" />
               キャンセル
@@ -160,45 +160,45 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
       </div>
 
       {/* ツールバー */}
-      <div className="border-b px-6 py-2 bg-gray-50">
-        <div className="flex items-center space-x-2">
+      <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-2 bg-gray-50 dark:bg-gray-900">
+        <div className="flex items-center space-x-2 text-gray-700 dark:text-gray-400">
           <button
             onClick={() => insertFormatting('bold')}
-            className="p-2 hover:bg-gray-200 rounded"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
             title="太字"
           >
             <FiBold />
           </button>
           <button
             onClick={() => insertFormatting('italic')}
-            className="p-2 hover:bg-gray-200 rounded"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
             title="斜体"
           >
             <FiItalic />
           </button>
           <button
             onClick={() => insertFormatting('underline')}
-            className="p-2 hover:bg-gray-200 rounded"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
             title="下線"
           >
             <FiUnderline />
           </button>
-          <div className="w-px h-6 bg-gray-300 mx-2" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
           <button
             onClick={() => insertFormatting('list')}
-            className="p-2 hover:bg-gray-200 rounded"
+            className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
             title="リスト"
           >
             <FiList />
           </button>
-          <div className="w-px h-6 bg-gray-300 mx-2" />
-          <button className="p-2 hover:bg-gray-200 rounded" title="左揃え">
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
+          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="左揃え">
             <FiAlignLeft />
           </button>
-          <button className="p-2 hover:bg-gray-200 rounded" title="中央揃え">
+          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="中央揃え">
             <FiAlignCenter />
           </button>
-          <button className="p-2 hover:bg-gray-200 rounded" title="右揃え">
+          <button className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="右揃え">
             <FiAlignRight />
           </button>
         </div>
@@ -207,12 +207,12 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
       {/* エディター本体 */}
       <div className="flex-1 flex overflow-hidden">
         {/* サイドバー：セクション一覧 */}
-        <div className="w-64 border-r bg-gray-50 p-4 overflow-y-auto">
+        <div className="w-64 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 overflow-y-auto">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="font-semibold text-sm text-gray-700">セクション</h3>
+            <h3 className="font-semibold text-sm text-gray-700 dark:text-gray-300">セクション</h3>
             <button
               onClick={addSection}
-              className="text-sm text-blue-600 hover:text-blue-700"
+              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500"
             >
               + 追加
             </button>
@@ -224,19 +224,19 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
                 onClick={() => setActiveSection(section.id)}
                 className={`p-3 rounded cursor-pointer transition-colors ${
                   activeSection === section.id
-                    ? 'bg-blue-100 border-blue-300 border'
-                    : 'hover:bg-gray-100'
+                    ? 'bg-blue-100 dark:bg-blue-900/50 border-blue-300 dark:border-blue-700 border'
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <h4 className="font-medium text-sm">{section.title}</h4>
+                  <h4 className="font-medium text-sm text-gray-900 dark:text-white">{section.title}</h4>
                   {sections.length > 1 && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         deleteSection(section.id);
                       }}
-                      className="text-red-500 hover:text-red-700 text-xs"
+                      className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-500 text-xs"
                     >
                       削除
                     </button>
@@ -248,7 +248,7 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
         </div>
 
         {/* メインエディター */}
-        <div className="flex-1 p-6 overflow-y-auto">
+        <div className="flex-1 p-6 overflow-y-auto bg-white dark:bg-gray-800">
           {sections.map((section) => (
             <div
               key={section.id}
@@ -263,12 +263,12 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
                   ));
                   setIsDirty(true);
                 }}
-                className="text-2xl font-bold mb-4 w-full px-2 py-1 border-b border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none"
+                className="text-2xl font-bold mb-4 w-full px-2 py-1 border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none bg-transparent text-gray-900 dark:text-white"
               />
               <textarea
                 value={section.content}
                 onChange={(e) => updateSection(section.id, e.target.value)}
-                className="w-full h-96 p-4 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full h-96 p-4 border border-gray-200 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:focus:border-blue-500 resize-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-200"
                 placeholder="ここにレポート内容を入力..."
               />
             </div>
@@ -277,8 +277,8 @@ export default function ReportEditor({ report, onSave, onCancel }: ReportEditorP
       </div>
 
       {/* ステータスバー */}
-      <div className="border-t px-6 py-2 bg-gray-50">
-        <div className="flex justify-between text-sm text-gray-600">
+      <div className="border-t border-gray-200 dark:border-gray-700 px-6 py-2 bg-gray-50 dark:bg-gray-900">
+        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
           <span>
             {isDirty && '● 未保存の変更があります'}
           </span>
