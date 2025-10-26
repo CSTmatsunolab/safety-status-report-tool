@@ -40,12 +40,29 @@ export class QueryEnhancer {
     const cleanedRole = this.cleanRole(stakeholder.role);
     const prioritizedConcerns = this.prioritizeConcerns(stakeholder.concerns);
     
-    // 3. 基本クエリパターン（オリジナル言語）
-    queries.push(
-      `${cleanedRole} ${prioritizedConcerns.join(' ')}`,
-      prioritizedConcerns.join(' '),
-      prioritizedConcerns[0] || ''
-    );
+    // 3. 【変更】基本クエリパターン（重複回避ロジック）
+    if (prioritizedConcerns.length >= 3) {
+      queries.push(
+        `${cleanedRole} ${prioritizedConcerns.join(' ')}`,
+        prioritizedConcerns.join(' '),
+        prioritizedConcerns.slice(0, 2).join(' ')  // 上位2つのみ
+      );
+    } else if (prioritizedConcerns.length === 2) {
+      queries.push(
+        `${cleanedRole} ${prioritizedConcerns.join(' ')}`,
+        prioritizedConcerns.join(' '),
+        `${cleanedRole} ${prioritizedConcerns[0]}`  // ロール＋第1関心事
+      );
+    } else if (prioritizedConcerns.length === 1) {
+      queries.push(
+        `${cleanedRole} ${prioritizedConcerns[0]}`,
+        prioritizedConcerns[0]
+        // 3つ目は後続の拡張に任せる
+      );
+    } else if (prioritizedConcerns.length === 0) {
+      // 関心事がない場合（エラーケース対応）
+      queries.push(cleanedRole);
+    }
     
     // 4. 言語変換クエリ
     if (roleLang === 'en' || concernsLang === 'en') {
