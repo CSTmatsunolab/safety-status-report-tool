@@ -37,67 +37,88 @@ function needsGSNFormatting(content: string): boolean {
   return hasGSNElements;
 }
 
-// 画像ファイルからテキストを抽出する関数（Google Cloud Vision使用）
+// 画像からテキストを抽出する関数（Blob対応版）
 async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
     
+    console.log(`Uploading Image for OCR: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // タイムアウト設定
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    
     const response = await fetch('/api/google-vision-ocr', {
       method: 'POST',
       body: formData,
+      signal: controller.signal
     });
     
+    clearTimeout(timeout);
+    
     if (!response.ok) {
-      throw new Error(`OCR failed: ${response.status}`);
+      if (response.status === 413) {
+        throw new Error('画像ファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
+      }
+      throw new Error(`Image OCR failed: ${response.status}`);
     }
     
     const result = await response.json();
-    
-    if (result.success) {
-      console.log(`Google Cloud Vision OCR completed: ${file.name}`);
-      return { 
-        text: result.text || '', 
-        confidence: result.confidence 
-      };
-    }
-    
-    // エラーメッセージがある場合
-    if (result.message) {
-      console.error('OCR error:', result.message);
-    }
-    
-    return { text: '', confidence: 0 };
+    return {
+      text: result.text || '',
+      confidence: result.confidence
+    };
   } catch (error) {
     console.error('Image OCR error:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      alert('画像のOCR処理がタイムアウトしました。');
+    } else if (error instanceof Error) {
+      alert(`画像のOCR処理に失敗しました: ${error.message}`);
+    }
     return { text: '', confidence: 0 };
   }
 }
 
-// PDFをテキストに変換する関数（Google Cloud Vision OCR対応）
 async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
   try {
     const formData = new FormData();
     formData.append('file', file);
     
-    // Google Cloud Vision対応のPDF処理
+    console.log(`Uploading PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // タイムアウト設定を追加（大きいファイルの場合）
+    const controller = new AbortController();
+    const timeoutMs = file.size > 5 * 1024 * 1024 ? 90000 : 60000; // 5MB以上は90秒、それ以外は60秒
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    
     const response = await fetch('/api/pdf-extract', {
       method: 'POST',
       body: formData,
+      signal: controller.signal
     });
+    
+    clearTimeout(timeout);
     
     if (!response.ok) {
       const errorData = await response.text();
       console.error('PDF extraction failed:', errorData);
-      throw new Error(`PDF extraction failed: ${response.status}`);
+      
+      // エラーメッセージを改善
+      if (response.status === 413) {
+        throw new Error('ファイルサイズが大きすぎます。10MB以下のファイルをアップロードしてください。');
+      } else if (response.status === 504) {
+        throw new Error('処理がタイムアウトしました。ファイルサイズを小さくしてから再試行してください。');
+      }
+      throw new Error(`PDF処理に失敗しました: ${response.status}`);
     }
     
     const result = await response.json();
-    console.log(`PDF extracted using method: ${result.method}`);
+    console.log(`PDF extracted successfully using method: ${result.method}`);
     
     // 処理結果に応じたメッセージ
     if (result.method === 'google-cloud-vision' && result.success) {
-      console.log('Google Cloud Vision APIでOCR処理完了');
+      console.log(`OCR完了: 信頼度 ${result.confidence ? (result.confidence * 100).toFixed(1) : 'N/A'}%`);
     } else if (result.requiresOcr && result.message) {
       // 非同期でアラートを表示（処理をブロックしない）
       setTimeout(() => {
@@ -112,22 +133,43 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     };
   } catch (error) {
     console.error('PDF extraction error:', error);
+    
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        alert('PDFの処理がタイムアウトしました。ファイルサイズを小さくしてから再試行してください。');
+      } else {
+        alert(`PDFの処理に失敗しました: ${error.message}`);
+      }
+    }
+    
     return { text: '', method: 'failed', confidence: 0 };
   }
 }
 
-// Excelをテキストに変換する関数
+// Excelをテキストに変換する関数（Blob対応版）
 async function extractTextFromExcel(file: File): Promise<string> {
   try {
     const formData = new FormData();
     formData.append('file', file);
     
+    console.log(`Uploading Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // タイムアウト設定
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    
     const response = await fetch('/api/excel-extract', {
       method: 'POST',
       body: formData,
+      signal: controller.signal
     });
     
+    clearTimeout(timeout);
+    
     if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('Excelファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
+      }
       throw new Error(`Excel extraction failed: ${response.status}`);
     }
     
@@ -135,22 +177,39 @@ async function extractTextFromExcel(file: File): Promise<string> {
     return text || '';
   } catch (error) {
     console.error('Excel extraction error:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      alert('Excelの処理がタイムアウトしました。');
+    } else if (error instanceof Error) {
+      alert(`Excelの処理に失敗しました: ${error.message}`);
+    }
     return '';
   }
 }
 
-// Wordをテキストに変換する関数
+// Wordをテキストに変換する関数（Blob対応版）
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
     const formData = new FormData();
     formData.append('file', file);
     
+    console.log(`Uploading Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // タイムアウト設定
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    
     const response = await fetch('/api/docx-extract', {
       method: 'POST',
       body: formData,
+      signal: controller.signal
     });
     
+    clearTimeout(timeout);
+    
     if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error('Wordファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
+      }
       throw new Error(`DOCX extraction failed: ${response.status}`);
     }
     
@@ -164,6 +223,11 @@ async function extractTextFromDocx(file: File): Promise<string> {
     return text || '';
   } catch (error) {
     console.error('DOCX extraction error:', error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      alert('Wordファイルの処理がタイムアウトしました。');
+    } else if (error instanceof Error) {
+      alert(`Wordファイルの処理に失敗しました: ${error.message}`);
+    }
     return '';
   }
 }
@@ -200,7 +264,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           ocrConfidence = result.confidence;
         } else if (
           file.type === 'application/vnd.ms-excel' || 
-          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
           file.name.endsWith('.xls') || 
           file.name.endsWith('.xlsx')
         ) {
@@ -215,15 +279,12 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           content = await extractTextFromDocx(file);
           extractionMethod = 'docx';
         } else {
-          try {
-            content = await file.text();
-            extractionMethod = 'text';
-          } catch (error) {
-            console.log(`Could not read file ${file.name} as text`);
-            extractionMethod = 'failed';
-          }
+                    content = await file.text();
+          extractionMethod = 'text';
         }
         
+        // ファイルタイプの判定（議事録やGSNの自動検出）
+        const lowerFileName = file.name.toLowerCase();
         console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
 
         // Show preview of extracted text
@@ -234,9 +295,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             console.log('...(truncated)');
           }
         }
-
-        // ファイル名からタイプを判定（GSN以外）
-        const type = file.name.includes('議事録') ? 'minutes' : 'other';
+        const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
         
         newFiles.push({
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -333,7 +392,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               <p className="text-sm text-blue-600 dark:text-blue-400">{processingStatus}</p>
             )}
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              画像やPDFのOCR処理には時間がかかる場合があります
+              4MB以上のファイルサイズまたは画像やPDFのOCR処理には時間がかかる場合があります<br/>
             </p>
           </div>
         ) : isDragActive ? (

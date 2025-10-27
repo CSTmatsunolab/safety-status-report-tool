@@ -1,5 +1,6 @@
 // src/app/api/google-vision-ocr/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { put, del } from '@vercel/blob';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
@@ -10,7 +11,11 @@ interface IVisionBlock {
 interface IVisionPage {
   blocks?: IVisionBlock[] | null;
 }
+
 export async function POST(request: NextRequest) {
+  let blobUrl: string | null = null;
+  let fileName: string = 'unknown'; 
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -22,10 +27,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`画像処理開始: ${file.name}`);
+    fileName = file.name;
+    console.log(`画像処理開始: ${file.name}, Size: ${file.size} bytes`);
     
-    // ファイルをBufferに変換
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // 4MB以上はBlob経由
+    const USE_BLOB_THRESHOLD = 4 * 1024 * 1024;
+    let buffer: Buffer;
+
+    if (file.size > USE_BLOB_THRESHOLD) {
+      console.log('Large image file detected, using Vercel Blob storage');
+      
+      const blob = await put(`temp/img-${Date.now()}-${file.name}`, file, {
+        access: 'public',
+        addRandomSuffix: true,
+      });
+      
+      blobUrl = blob.url;
+      console.log(`Image uploaded to Blob: ${blobUrl}`);
+      
+      const response = await fetch(blobUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    } else {
+      // 小さいファイルは直接処理
+      buffer = Buffer.from(await file.arrayBuffer());
+    }
     
     // Vision APIクライアントを取得
     const client = getVisionClient();
@@ -59,6 +85,13 @@ export async function POST(request: NextRequest) {
       ? Math.round((totalConfidence / confidenceCount) * 100)
       : 0;
     
+    // Blobクリーンアップ
+    if (blobUrl) {
+      await del(blobUrl).catch(err => 
+        console.error('Blob deletion failed:', err)
+      );
+    }
+    
     console.log(`OCR完了: ${file.name}, 信頼度: ${averageConfidence}%, 文字数: ${fullText.length}`);
     
     // プレビューの表示
@@ -82,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json({ 
-      text: fullText,  // processGSNTextを削除
+      text: fullText,
       success: true,
       confidence: averageConfidence,
       fileName: file.name,
@@ -90,7 +123,21 @@ export async function POST(request: NextRequest) {
     });
   } 
   catch (error: unknown) {
-    const errorResponse = handleVisionAPIError(error, request.headers.get('x-filename') || 'unknown');
+    console.error('Vision API error:', error);
+    
+    // エラー時もBlobをクリーンアップ
+    if (blobUrl) {
+      await del(blobUrl).catch(err => 
+        console.error('Blob deletion failed during error handling:', err)
+      );
+    }
+    
+    // handleVisionAPIErrorを使用（ファイル名と空のfallbackTextを渡す）
+    const errorResponse = handleVisionAPIError(
+      error, 
+      fileName || request.headers.get('x-filename') || 'unknown',
+      ''  // fallbackText
+    );
 
     // 日本語メッセージへの変換マッピング
     const messageMap: { [key: string]: string } = {

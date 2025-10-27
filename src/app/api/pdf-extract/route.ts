@@ -1,5 +1,6 @@
 // src/app/api/pdf-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { put, del } from '@vercel/blob';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH, PREVIEW_LENGTH } from '@/lib/config/constants';
@@ -7,11 +8,14 @@ import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH, PREVIEW_LENGTH } from '@/l
 interface IVisionBlock {
   confidence?: number | null;
 }
+
 interface IVisionPage {
   blocks?: IVisionBlock[] | null;
 }
 
 export async function POST(request: NextRequest) {
+  let blobUrl: string | null = null;
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -23,7 +27,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    console.log(`Processing PDF: ${file.name}, Size: ${file.size} bytes`);
+
+    // ファイルサイズチェック（4MB以上の場合はBlob経由）
+    const USE_BLOB_THRESHOLD = 4 * 1024 * 1024; // 4MB
+    let buffer: Buffer;
+
+    if (file.size > USE_BLOB_THRESHOLD) {
+      console.log('Large file detected, using Vercel Blob storage');
+      
+      // Vercel Blobにアップロード
+      const blob = await put(`temp/pdf-${Date.now()}-${file.name}`, file, {
+        access: 'public',
+        addRandomSuffix: true,
+      });
+      
+      blobUrl = blob.url;
+      console.log(`File uploaded to Blob: ${blobUrl}`);
+      
+      // BlobからBufferを取得
+      const response = await fetch(blobUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    } else {
+      // 小さいファイルは直接処理
+      buffer = Buffer.from(await file.arrayBuffer());
+    }
     
     // まず埋め込みテキストの抽出を試みる
     const pdf = await import('pdf-parse-new');
@@ -33,6 +62,13 @@ export async function POST(request: NextRequest) {
     
     // 十分なテキストがある場合はそのまま返す
     if (data.text && data.text.trim().length > MIN_EMBEDDED_TEXT_LENGTH) {
+      // Blobを使用した場合はクリーンアップ
+      if (blobUrl) {
+        await del(blobUrl).catch(err => 
+          console.error('Blob deletion failed:', err)
+        );
+      }
+      
       return NextResponse.json({ 
         text: data.text,
         success: true,
@@ -100,123 +136,80 @@ export async function POST(request: NextRequest) {
       }
       
       const averageConfidence = confidenceCount > 0 
-        ? Math.round((totalConfidence / confidenceCount) * 100)
+        ? totalConfidence / confidenceCount 
         : 0;
       
-      // テキストが抽出できなかった場合
-      if (!fullText.trim()) {
-        return NextResponse.json({ 
-          text: data.text || '', 
+      // Blobクリーンアップ
+      if (blobUrl) {
+        await del(blobUrl).catch(err => 
+          console.error('Blob deletion failed:', err)
+        );
+      }
+      
+      if (!fullText || fullText.trim().length === 0) {
+        return NextResponse.json({
+          text: '',
           success: false,
-          method: 'ocr-no-text',
+          method: 'google-cloud-vision',
           fileName: file.name,
-          message: 'OCRでテキストを検出できませんでした。画像の品質を確認してください。',
-          confidence: 0
+          requiresOcr: true,
+          message: 'OCR処理に失敗しました。画像が不鮮明な可能性があります。'
         });
       }
       
-      const processedText = fullText.trim();  // processGSNTextを削除
-      
-      // OCR結果をログ
-      console.log(`OCR完了: ${file.name}, 信頼度: ${averageConfidence}%, 文字数: ${processedText.length}`);
-
-      // プレビュー表示
-      if (processedText.length > 0) {
-        console.log(`抽出されたテキスト（最初の${PREVIEW_LENGTH}文字）:`);
-        console.log(processedText.substring(0, PREVIEW_LENGTH));
-        if (processedText.length > PREVIEW_LENGTH) {
-          console.log('...(以下省略)');
-        }
-      }
-      
-      return NextResponse.json({ 
-        text: processedText,
+      return NextResponse.json({
+        text: fullText,
         success: true,
         method: 'google-cloud-vision',
         fileName: file.name,
-        textLength: processedText.length,
-        confidence: averageConfidence
+        textLength: fullText.length,
+        confidence: averageConfidence,
+        ocrPages: pages.length
       });
       
-    } catch (visionError: unknown) {
-      // 共通のエラーハンドラーを使用
-      const errorResponse = handleVisionAPIError(visionError, file.name, data.text || '');
+    } catch (visionError) {
+      console.error('Vision API error:', visionError);
+      const errorInfo = handleVisionAPIError(
+        visionError,
+        file.name,
+        data.text || ''
+      );
       
-      let errorCode: number | undefined = undefined;
-      let errorMessage: string | undefined = undefined;
-
-      if (typeof visionError === 'object' && visionError !== null) {
-        if ('code' in visionError && typeof (visionError as {code: unknown}).code === 'number') {
-          errorCode = (visionError as { code: number }).code;
-        }
-        if ('message' in visionError && typeof (visionError as {message: unknown}).message === 'string') {
-          errorMessage = (visionError as { message: string }).message;
-        }
+      // Blobクリーンアップ
+      if (blobUrl) {
+        await del(blobUrl).catch(err => 
+          console.error('Blob deletion failed:', err)
+        );
       }
       
-      // API使用制限エラー
-      if (errorCode === 8 || errorMessage?.includes('quota')) {
-        return NextResponse.json({ 
-          text: data.text || '', 
-          success: false,
-          error: 'quota-exceeded',
-          method: 'quota-exceeded',
-          fileName: file.name,
-          message: 'APIの使用制限に達しました。しばらく待ってから再試行してください。',
-        });
-      }
-      
-      // ページ数制限エラー
-      if (errorMessage?.includes('pages') || errorMessage?.includes('exceeds') || 
-          (errorCode === 3 && errorMessage?.includes('pages'))) {
-        return NextResponse.json({ 
-          text: data.text || '', 
-          success: false,
-          error: 'too-many-pages',
-          method: 'too-many-pages',
-          fileName: file.name,
-          message: `PDFが${PDF_OCR_MAX_PAGES}ページを超えています。各ページを画像 (PNGやJPGなど)として保存してアップロードしてください。`,
-          requiresOcr: true
-        });
-      }
-      
-      // 認証エラー
-      if (errorCode === 7 || errorMessage?.includes('UNAUTHENTICATED')) {
-        console.error('Google Cloud認証エラー: APIキーまたは認証情報を確認してください');
-        return NextResponse.json({ 
-          text: data.text || '', 
-          success: false,
-          error: 'auth-failed',
-          method: 'auth-failed',
-          fileName: file.name,
-          message: 'Google Cloud Vision APIの認証に失敗しました。管理者にお問い合わせください。',
-        });
-      }
-      
-      // ファイルサイズエラー
-      if (errorMessage?.includes('size') && errorCode === 3) {
-        return NextResponse.json({ 
-          text: data.text || '', 
-          success: false,
-          error: 'file-too-large',
-          method: 'file-too-large',
-          fileName: file.name,
-          message: 'ファイルサイズが大きすぎます（10MB以下にしてください）。',
-        });
-      }
-      
-      // 共通エラーハンドラーの結果を使用
-      return NextResponse.json(errorResponse);
+      return NextResponse.json({
+        text: data.text || '',
+        success: false,
+        method: 'embedded-text-fallback',
+        fileName: file.name,
+        requiresOcr: true,
+        error: errorInfo.message,
+        message: errorInfo.message,
+        textLength: data.text?.length || 0
+      });
     }
     
   } catch (error) {
-    console.error('PDF処理エラー:', error);
+    console.error('PDF extraction error:', error);
     
-    return NextResponse.json({ 
-      text: '', 
-      success: false,
-      error: 'PDF処理に失敗しました',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    // エラー時もBlobをクリーンアップ
+    if (blobUrl) {
+      await del(blobUrl).catch(err => 
+        console.error('Blob deletion failed during error handling:', err)
+      );
+    }
+    
+    return NextResponse.json(
+      { 
+        error: 'PDFの処理に失敗しました',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
+      { status: 500 }
+    );
   }
 }

@@ -1,7 +1,11 @@
+// src/app/api/excel-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
+import { put, del } from '@vercel/blob';
 import * as XLSX from 'xlsx';
 
 export async function POST(request: NextRequest) {
+  let blobUrl: string | null = null;
+  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -13,56 +17,73 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    
-    try {
-      // Excelファイルを読み込む
-      const workbook = XLSX.read(buffer, {
-        type: 'buffer',
-        cellText: false,
-        cellDates: true
+    console.log(`Processing Excel: ${file.name}, Size: ${file.size} bytes`);
+
+    // 4MB以上はBlob経由
+    const USE_BLOB_THRESHOLD = 4 * 1024 * 1024;
+    let buffer: Buffer;
+
+    if (file.size > USE_BLOB_THRESHOLD) {
+      console.log('Large Excel file detected, using Vercel Blob storage');
+      
+      const blob = await put(`temp/excel-${Date.now()}-${file.name}`, file, {
+        access: 'public',
+        addRandomSuffix: true,
       });
       
-      let fullText = '';
+      blobUrl = blob.url;
+      console.log(`Excel uploaded to Blob: ${blobUrl}`);
       
-      // 各シートを処理
-      workbook.SheetNames.forEach((sheetName, index) => {
-        const worksheet = workbook.Sheets[sheetName];
-        
-        // シート名を追加
-        fullText += `\n=== シート: ${sheetName} ===\n`;
-        
-        // CSV形式のテキストに変換
-        const csvContent = XLSX.utils.sheet_to_csv(worksheet, {
-          blankrows: false,
-          skipHidden: true
-        });
-        
-        fullText += csvContent + '\n';
-      });
-      
-      console.log(`Excel extraction successful: ${file.name}, extracted ${fullText.length} characters`);
-      
-      return NextResponse.json({ 
-        text: fullText.trim(),
-        success: true,
-        fileName: file.name,
-        textLength: fullText.length
-      });
-    } catch (error) {
-      console.error('Excel parsing error:', error);
-      
-      return NextResponse.json({ 
-        text: '', 
-        success: false,
-        error: 'Excel parsing failed',
-        fileName: file.name
-      });
+      const response = await fetch(blobUrl);
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    } else {
+      buffer = Buffer.from(await file.arrayBuffer());
     }
+
+    // Excelファイルを解析
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    let fullText = '';
+
+    // 全シートのテキストを抽出
+    workbook.SheetNames.forEach(sheetName => {
+      const sheet = workbook.Sheets[sheetName];
+      const csvData = XLSX.utils.sheet_to_csv(sheet);
+      fullText += `\n--- シート: ${sheetName} ---\n${csvData}\n`;
+    });
+
+    // Blobクリーンアップ
+    if (blobUrl) {
+      await del(blobUrl).catch(err => 
+        console.error('Blob deletion failed:', err)
+      );
+    }
+
+    console.log(`Excel extraction successful: ${file.name}, extracted ${fullText.length} characters`);
+
+    return NextResponse.json({ 
+      text: fullText,
+      success: true,
+      fileName: file.name,
+      textLength: fullText.length,
+      sheetCount: workbook.SheetNames.length
+    });
+    
   } catch (error) {
-    console.error('Request processing error:', error);
+    console.error('Excel extraction error:', error);
+    
+    // エラー時もBlobをクリーンアップ
+    if (blobUrl) {
+      await del(blobUrl).catch(err => 
+        console.error('Blob deletion failed during error handling:', err)
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Request processing failed' },
+      { 
+        error: 'Excelファイルの処理に失敗しました',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
