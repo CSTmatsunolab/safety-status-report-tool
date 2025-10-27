@@ -3,7 +3,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiImage, FiInfo } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
 import { processGSNText, validateGSNText } from '@/lib/text-processing';
@@ -18,23 +18,12 @@ interface FileUploadProps {
   onUpload: (files: UploadedFile[]) => void;
   onRemove: (id: string) => void;
   onToggleFullText: (id: string, includeFullText: boolean) => void;
+  onToggleGSN?: (id: string, isGSN: boolean) => void;
 }
 
-function isGSNFile(fileName: string, content: string): boolean {
-  // ファイル名にGSNが含まれる
-  if (fileName.toLowerCase().includes('gsn')) {
-    return true;
-  }
-  
-  // 内容にGSN要素が含まれる（G1, S1などのパターン）
-  const gsnPattern = /\b[GgSsCcEe]\d+\b/;
-  if (gsnPattern.test(content)) {
-    // GSN要素が3つ以上含まれる場合はGSNファイルと判定
-    const matches = content.match(/\b[GgSsCcEe]\d+\b/g);
-    return matches ? matches.length >= 3 : false;
-  }
-  
-  return false;
+interface PendingFile {
+  file: File;
+  isGSN?: boolean; // ユーザーが指定するGSNフラグ
 }
 
 function needsGSNFormatting(content: string): boolean {
@@ -179,9 +168,9 @@ async function extractTextFromDocx(file: File): Promise<string> {
   }
 }
 
-export default function FileUpload({ files, onUpload, onRemove, onToggleFullText}: FileUploadProps) {
+export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onToggleGSN }: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
-  const [processingStatus, setProcessingStatus] = useState<string>('');
+  const [processingStatus, setProcessingStatus] = useState('');
   
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsProcessing(true);
@@ -195,17 +184,15 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         let content = '';
         let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
         let ocrConfidence: number | undefined;
-        let gsnValidation: GSNValidationResult | null = null;  
         
         // ファイルタイプに応じて適切な処理を行う
         if (file.type === 'application/pdf') {
           console.log(`Extracting text from PDF: ${file.name}`);
           const result = await extractTextFromPDF(file);
           content = result.text;
-          extractionMethod = content.length > 0 ? 'pdf' : 'failed';
+          extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
           ocrConfidence = result.confidence;
         } else if (file.type.startsWith('image/')) {
-          // 画像ファイルの場合
           console.log(`Extracting text from image: ${file.name}`);
           const result = await extractTextFromImage(file);
           content = result.text;
@@ -228,7 +215,6 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
           content = await extractTextFromDocx(file);
           extractionMethod = 'docx';
         } else {
-          // テキスト・CSVファイルは直接読み込む
           try {
             content = await file.text();
             extractionMethod = 'text';
@@ -240,28 +226,6 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
         
         console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
 
-        const isGSN = isGSNFile(file.name, content);
-      
-        if (isGSN && content.length > 0) {
-          console.log(`GSN file detected: ${file.name}`);
-          
-          // GSNテキストの整形が必要か判定
-          if (extractionMethod === 'ocr' || needsGSNFormatting(content)) {
-            console.log('Applying GSN formatting...');
-            const originalLength = content.length;
-            content = processGSNText(content);
-            console.log(`GSN formatting applied: ${originalLength} -> ${content.length} characters`);
-          }
-          
-          // GSN構造の妥当性チェック
-          gsnValidation = validateGSNText(content);
-          console.log('GSN validation:', gsnValidation);
-          
-          if (!gsnValidation.isValid) {
-            console.warn(`GSN validation issues for ${file.name}:`, gsnValidation.issues);
-          }
-        }
-
         // Show preview of extracted text
         if (content.length > 0) {
           console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
@@ -271,9 +235,8 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
           }
         }
 
-        // ファイル名からタイプを判定
-        const type = isGSN ? 'gsn' :
-                     file.name.includes('議事録') ? 'minutes' : 'other';
+        // ファイル名からタイプを判定（GSN以外）
+        const type = file.name.includes('議事録') ? 'minutes' : 'other';
         
         newFiles.push({
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -287,8 +250,9 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
             extractionMethod,
             size: file.size,
             confidence: ocrConfidence,
-            gsnValidation: gsnValidation,
-            isGSN: isGSN
+            gsnValidation: null,
+            isGSN: false,
+            userDesignatedGSN: false
           }
         });
       }
@@ -415,45 +379,85 @@ export default function FileUpload({ files, onUpload, onRemove, onToggleFullText
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
                             file.type === 'minutes' ? '議事録' : 'その他'}
+                    {file.metadata?.userDesignatedGSN && (
+                      <span className="ml-2 text-xs bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded">
+                        ユーザー指定
+                      </span>
+                    )}
                     {file.content.length > 0 ? (
                       <span className="ml-2">
                         ({file.content.length.toLocaleString()} 文字)
                       </span>
                     ) : (
                       <span className="ml-2 text-red-500 dark:text-red-400">
-                        (テキスト抽出不可 - 画像形式での再アップロードを推奨)
+                        (テキスト抽出失敗)
                       </span>
                     )}
                   </p>
                 </div>
                 {getExtractionBadge(file)}
               </div>
-              
-              <div className="flex items-center space-x-2">
-                {file.content.length > 0 && (
-                  <label className="flex items-center cursor-pointer mr-2">
-                    <input
-                      type="checkbox"
-                      checked={file.includeFullText || false}
-                      onChange={(e) => onToggleFullText(file.id, e.target.checked)}
-                      className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
-                    />
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                      全文使用
-                    </span>
-                  </label>
-                )}
-                
+              <div className="flex items-center justify-end space-x-4">
+
+                {/* 1. チェックボックス・グループ (縦並び) */}
+                <div className="flex flex-col items-start space-y-1">
+                  
+                  {/* GSNチェックボックス (mr-2を削除) */}
+                  {onToggleGSN && (
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={file.type === 'gsn'}
+                        onChange={(e) => onToggleGSN(file.id, e.target.checked)}
+                        className="w-4 h-4 text-orange-600 dark:text-orange-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-orange-500 dark:focus:ring-orange-400"
+                      />
+                      <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                        GSN
+                      </span>
+                    </label>
+                  )}
+                  
+                  {/* 全文使用チェックボックス (mr-2を削除) */}
+                  {file.content.length > 0 && (
+                    <label className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={file.includeFullText || false}
+                        onChange={(e) => onToggleFullText(file.id, e.target.checked)}
+                        className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
+                      />
+                      <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                        全文使用
+                      </span>
+                    </label>
+                  )}
+                </div>
+
+                {/* 2. 削除ボタン (グループの外) */}
                 <button
                   onClick={() => onRemove(file.id)}
                   className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                 >
                   <FiX size={18} />
                 </button>
+                
               </div>
             </div>
           ))}
-          
+
+          {/* GSNファイル推奨案内 */}
+          {files.some(f => f.type === 'gsn') && (
+            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+              <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
+                GSNドキュメントの推奨設定
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                ・GSNにチェックを入れると，レポート構成にGSNセクションが追加されます．<br/>
+                ・GSNドキュメントは構造が重要なため，「全文使用」をONにすることを推奨します．
+              </p>
+            </div>
+          )}
+
           {/* 画像ベースPDFの警告メッセージ */}
           {files.some(f => f.content.length === 0) && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">

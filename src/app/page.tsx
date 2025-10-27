@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import FileUpload from './components/FileUpload';
+import { FileUpload } from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
 import { ThemeToggle } from './components/ThemeToggle';
@@ -58,6 +58,30 @@ export default function Home() {
           ? { ...file, includeFullText } 
           : file
       )
+    );
+  };
+
+  const handleToggleGSN = (fileId: string, isGSN: boolean) => {
+    setFiles(prev =>
+      prev.map(file => {
+        if (file.id !== fileId) return file;
+        
+        const currentMetadata = file.metadata || {
+          originalType: 'unknown',
+          extractionMethod: 'text' as const,
+          size: 0,
+          userDesignatedGSN: false
+        };
+        
+        return {
+          ...file,
+          type: (isGSN ? 'gsn' : 'other') as 'gsn' | 'minutes' | 'other',
+          metadata: {
+            ...currentMetadata,
+            userDesignatedGSN: isGSN
+          }
+        };
+      })
     );
   };
 
@@ -197,6 +221,7 @@ export default function Home() {
                 onUpload={handleFileUpload} 
                 onRemove={handleFileRemove}
                 onToggleFullText={handleToggleFullText}
+                onToggleGSN={handleToggleGSN}
                 files={files} 
               />
             </div>

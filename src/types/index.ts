@@ -55,4 +55,5 @@ export interface FileMetadata {
   service?: string;
   gsnValidation?: GSNValidationResult | null;
   isGSN?: boolean;
+  userDesignatedGSN: boolean;
 }
