@@ -2,12 +2,12 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* 
- * Tailwind CSS v4 完全動作版
- * ダークモード対応
+ * さらにコンパクトなUI設定
+ * 情報密度を最大化しつつレイアウトを維持
  */
 
-/* カスタムCSS変数定義 */
 :root {
+  /* カラー設定 */
   --app-bg: #ffffff;
   --app-bg-secondary: #f9fafb;
   --app-text: #111827;
@@ -15,6 +15,13 @@
   --app-border: #e5e7eb;
   --app-card: #ffffff;
   --app-accent: #3b82f6;
+  
+  /* さらにコンパクトなサイズ設定 */
+  --base-font-size: 11px; /* 13px → 11px */
+  --spacing-scale: 0.6; /* 75% → 60% */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.5;
 }
 
 .dark {
@@ -27,17 +34,337 @@
   --app-accent: #60a5fa;
 }
 
-/* Body基本スタイル（オプション） */
+/* 基本設定 */
+html {
+  font-size: var(--base-font-size);
+}
+
 body {
   background-color: var(--app-bg-secondary);
   color: var(--app-text);
+  line-height: var(--line-height-normal);
   transition: background-color 0.2s, color 0.2s;
 }
 
-/* スクロールバー */
+/* テキストサイズの調整（さらに小さく） */
+.text-xs { 
+  font-size: 0.65rem !important;
+  line-height: 0.9rem !important;
+}
+
+.text-sm { 
+  font-size: 0.75rem !important;
+  line-height: 1.1rem !important;
+}
+
+.text-base { 
+  font-size: 0.9rem !important;
+  line-height: 1.3rem !important;
+}
+
+.text-lg { 
+  font-size: 1.05rem !important;
+  line-height: 1.5rem !important;
+}
+
+.text-xl { 
+  font-size: 1.2rem !important;
+  line-height: 1.7rem !important;
+}
+
+.text-2xl { 
+  font-size: 1.4rem !important;
+  line-height: 1.9rem !important;
+}
+
+.text-3xl { 
+  font-size: 1.65rem !important;
+  line-height: 2.1rem !important;
+}
+
+.text-4xl { 
+  font-size: 1.9rem !important;
+  line-height: 2.3rem !important;
+}
+
+/* 見出しのサイズ調整（さらにコンパクト） */
+h1 { 
+  font-size: 1.7rem !important;
+  line-height: 1.2 !important;
+  margin-bottom: 0.6rem !important;
+}
+
+h2 { 
+  font-size: 1.3rem !important;
+  line-height: 1.25 !important;
+  margin-bottom: 0.5rem !important;
+}
+
+h3 { 
+  font-size: 1.1rem !important;
+  line-height: 1.3 !important;
+  margin-bottom: 0.4rem !important;
+}
+
+h4, h5, h6 { 
+  font-size: 0.95rem !important;
+  line-height: 1.3 !important;
+  margin-bottom: 0.3rem !important;
+}
+
+/* パディングの調整（60%スケール） */
+.p-0 { padding: 0 !important; }
+.p-1 { padding: calc(0.25rem * var(--spacing-scale)) !important; }
+.p-2 { padding: calc(0.5rem * var(--spacing-scale)) !important; }
+.p-3 { padding: calc(0.75rem * var(--spacing-scale)) !important; }
+.p-4 { padding: calc(1rem * var(--spacing-scale)) !important; }
+.p-5 { padding: calc(1.25rem * var(--spacing-scale)) !important; }
+.p-6 { padding: calc(1.5rem * var(--spacing-scale)) !important; }
+.p-8 { padding: calc(2rem * var(--spacing-scale)) !important; }
+.p-10 { padding: calc(2.5rem * var(--spacing-scale)) !important; }
+.p-12 { padding: calc(3rem * var(--spacing-scale)) !important; }
+
+.px-0 { padding-left: 0 !important; padding-right: 0 !important; }
+.px-1 { 
+  padding-left: calc(0.25rem * var(--spacing-scale)) !important;
+  padding-right: calc(0.25rem * var(--spacing-scale)) !important;
+}
+.px-2 { 
+  padding-left: calc(0.5rem * var(--spacing-scale)) !important;
+  padding-right: calc(0.5rem * var(--spacing-scale)) !important;
+}
+.px-3 { 
+  padding-left: calc(0.75rem * var(--spacing-scale)) !important;
+  padding-right: calc(0.75rem * var(--spacing-scale)) !important;
+}
+.px-4 { 
+  padding-left: calc(1rem * var(--spacing-scale)) !important;
+  padding-right: calc(1rem * var(--spacing-scale)) !important;
+}
+.px-6 { 
+  padding-left: calc(1.5rem * var(--spacing-scale)) !important;
+  padding-right: calc(1.5rem * var(--spacing-scale)) !important;
+}
+.px-8 { 
+  padding-left: calc(2rem * var(--spacing-scale)) !important;
+  padding-right: calc(2rem * var(--spacing-scale)) !important;
+}
+.px-10 { 
+  padding-left: calc(2.5rem * var(--spacing-scale)) !important;
+  padding-right: calc(2.5rem * var(--spacing-scale)) !important;
+}
+
+.py-0 { padding-top: 0 !important; padding-bottom: 0 !important; }
+.py-1 { 
+  padding-top: calc(0.25rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(0.25rem * var(--spacing-scale)) !important;
+}
+.py-2 { 
+  padding-top: calc(0.5rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(0.5rem * var(--spacing-scale)) !important;
+}
+.py-3 { 
+  padding-top: calc(0.75rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(0.75rem * var(--spacing-scale)) !important;
+}
+.py-4 { 
+  padding-top: calc(1rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(1rem * var(--spacing-scale)) !important;
+}
+.py-6 { 
+  padding-top: calc(1.5rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(1.5rem * var(--spacing-scale)) !important;
+}
+.py-8 { 
+  padding-top: calc(2rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(2rem * var(--spacing-scale)) !important;
+}
+.py-12 { 
+  padding-top: calc(3rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(3rem * var(--spacing-scale)) !important;
+}
+.py-16 { 
+  padding-top: calc(4rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(4rem * var(--spacing-scale)) !important;
+}
+.py-20 { 
+  padding-top: calc(5rem * var(--spacing-scale)) !important;
+  padding-bottom: calc(5rem * var(--spacing-scale)) !important;
+}
+
+/* マージンの調整（60%スケール） */
+.m-0 { margin: 0 !important; }
+.m-1 { margin: calc(0.25rem * var(--spacing-scale)) !important; }
+.m-2 { margin: calc(0.5rem * var(--spacing-scale)) !important; }
+.m-3 { margin: calc(0.75rem * var(--spacing-scale)) !important; }
+.m-4 { margin: calc(1rem * var(--spacing-scale)) !important; }
+.m-6 { margin: calc(1.5rem * var(--spacing-scale)) !important; }
+.m-8 { margin: calc(2rem * var(--spacing-scale)) !important; }
+
+.mt-0 { margin-top: 0 !important; }
+.mt-1 { margin-top: calc(0.25rem * var(--spacing-scale)) !important; }
+.mt-2 { margin-top: calc(0.5rem * var(--spacing-scale)) !important; }
+.mt-3 { margin-top: calc(0.75rem * var(--spacing-scale)) !important; }
+.mt-4 { margin-top: calc(1rem * var(--spacing-scale)) !important; }
+.mt-6 { margin-top: calc(1.5rem * var(--spacing-scale)) !important; }
+.mt-8 { margin-top: calc(2rem * var(--spacing-scale)) !important; }
+
+.mb-0 { margin-bottom: 0 !important; }
+.mb-1 { margin-bottom: calc(0.25rem * var(--spacing-scale)) !important; }
+.mb-2 { margin-bottom: calc(0.5rem * var(--spacing-scale)) !important; }
+.mb-3 { margin-bottom: calc(0.75rem * var(--spacing-scale)) !important; }
+.mb-4 { margin-bottom: calc(1rem * var(--spacing-scale)) !important; }
+.mb-6 { margin-bottom: calc(1.5rem * var(--spacing-scale)) !important; }
+.mb-8 { margin-bottom: calc(2rem * var(--spacing-scale)) !important; }
+
+.ml-0 { margin-left: 0 !important; }
+.ml-1 { margin-left: calc(0.25rem * var(--spacing-scale)) !important; }
+.ml-2 { margin-left: calc(0.5rem * var(--spacing-scale)) !important; }
+.ml-3 { margin-left: calc(0.75rem * var(--spacing-scale)) !important; }
+.ml-4 { margin-left: calc(1rem * var(--spacing-scale)) !important; }
+
+.mr-0 { margin-right: 0 !important; }
+.mr-1 { margin-right: calc(0.25rem * var(--spacing-scale)) !important; }
+.mr-2 { margin-right: calc(0.5rem * var(--spacing-scale)) !important; }
+.mr-3 { margin-right: calc(0.75rem * var(--spacing-scale)) !important; }
+.mr-4 { margin-right: calc(1rem * var(--spacing-scale)) !important; }
+
+.mx-auto { 
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.mx-1 {
+  margin-left: calc(0.25rem * var(--spacing-scale)) !important;
+  margin-right: calc(0.25rem * var(--spacing-scale)) !important;
+}
+.mx-2 {
+  margin-left: calc(0.5rem * var(--spacing-scale)) !important;
+  margin-right: calc(0.5rem * var(--spacing-scale)) !important;
+}
+
+/* スペーシング（60%スケール） */
+.space-y-1 > * + * { margin-top: calc(0.25rem * var(--spacing-scale)) !important; }
+.space-y-2 > * + * { margin-top: calc(0.5rem * var(--spacing-scale)) !important; }
+.space-y-3 > * + * { margin-top: calc(0.75rem * var(--spacing-scale)) !important; }
+.space-y-4 > * + * { margin-top: calc(1rem * var(--spacing-scale)) !important; }
+.space-y-6 > * + * { margin-top: calc(1.5rem * var(--spacing-scale)) !important; }
+
+.space-x-1 > * + * { margin-left: calc(0.25rem * var(--spacing-scale)) !important; }
+.space-x-2 > * + * { margin-left: calc(0.5rem * var(--spacing-scale)) !important; }
+.space-x-3 > * + * { margin-left: calc(0.75rem * var(--spacing-scale)) !important; }
+.space-x-4 > * + * { margin-left: calc(1rem * var(--spacing-scale)) !important; }
+
+/* Gap（グリッドレイアウト用 - 60%スケール） */
+.gap-1 { gap: calc(0.25rem * var(--spacing-scale)) !important; }
+.gap-2 { gap: calc(0.5rem * var(--spacing-scale)) !important; }
+.gap-3 { gap: calc(0.75rem * var(--spacing-scale)) !important; }
+.gap-4 { gap: calc(1rem * var(--spacing-scale)) !important; }
+.gap-6 { gap: calc(1.5rem * var(--spacing-scale)) !important; }
+.gap-8 { gap: calc(2rem * var(--spacing-scale)) !important; }
+
+/* レスポンシブギャップ */
+@media (min-width: 1024px) {
+  .lg\:gap-6 {
+    gap: calc(1.5rem * var(--spacing-scale)) !important;
+  }
+  .lg\:gap-8 {
+    gap: calc(2rem * var(--spacing-scale)) !important;
+  }
+}
+
+/* ボタンのさらなるコンパクト化 */
+button {
+  padding: calc(0.3rem * var(--spacing-scale)) calc(0.6rem * var(--spacing-scale));
+  font-size: 0.85rem;
+  line-height: 1.2;
+  min-height: unset;
+}
+
+/* 大きなボタンの調整 */
+button.w-full {
+  padding: calc(0.6rem * var(--spacing-scale)) calc(1.2rem * var(--spacing-scale));
+}
+
+/* 入力フィールド（さらにコンパクト） */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+textarea,
+select {
+  padding: calc(0.3rem * var(--spacing-scale)) calc(0.5rem * var(--spacing-scale));
+  font-size: 0.85rem;
+  line-height: 1.3;
+  min-height: unset;
+}
+
+textarea {
+  line-height: 1.4;
+}
+
+/* カードの角丸調整（小さく） */
+.rounded { border-radius: 0.2rem !important; }
+.rounded-md { border-radius: 0.3rem !important; }
+.rounded-lg { border-radius: 0.4rem !important; }
+.rounded-xl { border-radius: 0.6rem !important; }
+
+/* シャドウの調整（軽く） */
+.shadow-sm {
+  box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+.shadow {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+}
+
+.shadow-md {
+  box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
+}
+
+.shadow-lg {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.05) !important;
+}
+
+.shadow-xl {
+  box-shadow: 0 8px 10px -3px rgba(0, 0, 0, 0.08), 0 3px 4px -2px rgba(0, 0, 0, 0.04) !important;
+}
+
+.shadow-2xl {
+  box-shadow: 0 12px 16px -4px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ボーダー（細く） */
+.border {
+  border-width: 0.75px !important;
+}
+
+.border-2 {
+  border-width: 1.5px !important;
+}
+
+/* アイコンサイズの調整（小さく） */
+svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* 特定のアイコンサイズクラス */
+.w-6 { width: calc(1.5rem * var(--spacing-scale)) !important; }
+.h-6 { height: calc(1.5rem * var(--spacing-scale)) !important; }
+.w-8 { width: calc(2rem * var(--spacing-scale)) !important; }
+.h-8 { height: calc(2rem * var(--spacing-scale)) !important; }
+.w-10 { width: calc(2.5rem * var(--spacing-scale)) !important; }
+.h-10 { height: calc(2.5rem * var(--spacing-scale)) !important; }
+.w-12 { width: calc(3rem * var(--spacing-scale)) !important; }
+.h-12 { height: calc(3rem * var(--spacing-scale)) !important; }
+.w-16 { width: calc(4rem * var(--spacing-scale)) !important; }
+.h-16 { height: calc(4rem * var(--spacing-scale)) !important; }
+
+/* スクロールバー（さらに細く） */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -46,7 +373,7 @@ body {
 
 ::-webkit-scrollbar-thumb {
   background: #9ca3af;
-  border-radius: 5px;
+  border-radius: 2.5px;
 }
 
 .dark ::-webkit-scrollbar-thumb {
@@ -57,15 +384,329 @@ body {
   background: #6b7280;
 }
 
-/* フォーカススタイル */
-:focus-visible {
-  outline: 2px solid var(--app-accent);
-  outline-offset: 2px;
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #374151;
 }
 
-/* テキスト選択 */
-::selection {
-  background-color: var(--app-accent);
-  opacity: 0.3;
-  color: white;
+/* グリッドレイアウトの保持 */
+.grid {
+  display: grid !important;
 }
+
+.grid-cols-1 {
+  grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+}
+
+/* レスポンシブグリッド */
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .lg\:col-span-1 {
+    grid-column: span 1 / span 1 !important;
+  }
+  .lg\:col-span-2 {
+    grid-column: span 2 / span 2 !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .xl\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .xl\:col-span-1 {
+    grid-column: span 1 / span 1 !important;
+  }
+}
+
+/* Sticky位置の保持 */
+@media (min-width: 1024px) {
+  .lg\:sticky {
+    position: sticky !important;
+  }
+  
+  .lg\:top-4 {
+    top: calc(1rem * var(--spacing-scale)) !important;
+  }
+  
+  .lg\:top-8 {
+    top: calc(2rem * var(--spacing-scale)) !important;
+  }
+  
+  .lg\:p-6 {
+    padding: calc(1.5rem * var(--spacing-scale)) !important;
+  }
+  
+  .lg\:py-20 {
+    padding-top: calc(5rem * var(--spacing-scale)) !important;
+    padding-bottom: calc(5rem * var(--spacing-scale)) !important;
+  }
+  
+  .lg\:text-lg {
+    font-size: 1.05rem !important;
+  }
+  
+  .lg\:h-16 { 
+    height: calc(4rem * var(--spacing-scale)) !important; 
+  }
+  
+  .lg\:w-16 { 
+    width: calc(4rem * var(--spacing-scale)) !important; 
+  }
+}
+
+/* 高さの調整 */
+.h-fit {
+  height: fit-content !important;
+}
+
+.h-96 { height: calc(24rem * var(--spacing-scale)) !important; }
+
+.min-h-screen {
+  min-height: 100vh !important;
+}
+
+.max-h-\[90vh\] {
+  max-height: 90vh !important;
+}
+
+.max-h-\[calc\(100vh-200px\)\] {
+  max-height: calc(100vh - 200px) !important;
+}
+
+/* 幅の調整 */
+.w-full { width: 100% !important; }
+.w-64 { width: calc(16rem * var(--spacing-scale)) !important; }
+.w-48 { width: calc(12rem * var(--spacing-scale)) !important; }
+.w-32 { width: calc(8rem * var(--spacing-scale)) !important; }
+.w-px { width: 1px !important; }
+
+/* 最大幅の調整（コンパクト化） */
+.max-w-sm { max-width: 20rem !important; }
+.max-w-md { max-width: 24rem !important; }
+.max-w-lg { max-width: 28rem !important; }
+.max-w-xl { max-width: 32rem !important; }
+.max-w-2xl { max-width: 36rem !important; }
+.max-w-4xl { max-width: 48rem !important; }
+.max-w-6xl { max-width: 60rem !important; }
+.max-w-7xl { max-width: 72rem !important; }
+
+/* フレックスボックスの保持 */
+.flex { display: flex !important; }
+.items-center { align-items: center !important; }
+.justify-between { justify-content: space-between !important; }
+.justify-center { justify-content: center !important; }
+.justify-end { justify-content: flex-end !important; }
+.flex-1 { flex: 1 1 0% !important; }
+
+/* オーバーフロー */
+.overflow-hidden { overflow: hidden !important; }
+.overflow-y-auto { overflow-y: auto !important; }
+.overflow-x-auto { overflow-x: auto !important; }
+
+/* フォーカス（コンパクト） */
+:focus-visible {
+  outline: 1.5px solid var(--app-accent);
+  outline-offset: 0.5px;
+}
+
+/* トランジション */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.transition-colors {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.duration-200 {
+  transition-duration: 200ms;
+}
+
+/* アニメーション */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* テーブル（コンパクト） */
+table {
+  font-size: 0.8rem;
+}
+
+td, th {
+  padding: calc(0.4rem * var(--spacing-scale)) calc(0.6rem * var(--spacing-scale));
+}
+
+/* リスト（コンパクト） */
+ul, ol {
+  padding-left: calc(1.2rem * var(--spacing-scale));
+}
+
+li {
+  margin-bottom: calc(0.2rem * var(--spacing-scale));
+}
+
+/* Proseスタイル（記事風コンテンツ） */
+.prose {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.max-w-none {
+  max-width: none !important;
+}
+
+.whitespace-pre-wrap {
+  white-space: pre-wrap !important;
+}
+
+.leading-relaxed {
+  line-height: var(--line-height-relaxed) !important;
+}
+
+/* レスポンシブブレークポイント対応 */
+@media (min-width: 640px) {
+  .sm\:text-base { font-size: 0.9rem !important; }
+  .sm\:text-lg { font-size: 1.05rem !important; }
+  .sm\:text-xl { font-size: 1.2rem !important; }
+  .sm\:text-4xl { font-size: 1.9rem !important; }
+  .sm\:p-6 { padding: calc(1.5rem * var(--spacing-scale)) !important; }
+  .sm\:py-6 { 
+    padding-top: calc(1.5rem * var(--spacing-scale)) !important;
+    padding-bottom: calc(1.5rem * var(--spacing-scale)) !important;
+  }
+  .sm\:py-16 { 
+    padding-top: calc(4rem * var(--spacing-scale)) !important;
+    padding-bottom: calc(4rem * var(--spacing-scale)) !important;
+  }
+  .sm\:px-10 { 
+    padding-left: calc(2.5rem * var(--spacing-scale)) !important;
+    padding-right: calc(2.5rem * var(--spacing-scale)) !important;
+  }
+  .sm\:rounded-xl { border-radius: 0.6rem !important; }
+  .sm\:w-16 { width: calc(4rem * var(--spacing-scale)) !important; }
+  .sm\:h-16 { height: calc(4rem * var(--spacing-scale)) !important; }
+}
+
+/* モバイル対応（より大きめに） */
+@media (max-width: 768px) {
+  :root {
+    --base-font-size: 12px;
+    --spacing-scale: 0.7;
+  }
+}
+
+/* 大画面対応（さらにコンパクトに） */
+@media (min-width: 1536px) {
+  :root {
+    --base-font-size: 10px;
+    --spacing-scale: 0.55;
+  }
+  
+  .max-w-4xl {
+    max-width: 64rem !important;
+  }
+  
+  .max-w-7xl {
+    max-width: 80rem !important;
+  }
+}
+
+/* 超大画面対応 */
+@media (min-width: 1920px) {
+  :root {
+    --base-font-size: 10px;
+    --spacing-scale: 0.5;
+  }
+}
+
+/* ダークモードのトランジション */
+.dark\:bg-gray-800,
+.dark\:bg-gray-900,
+.dark\:text-white,
+.dark\:text-gray-300,
+.dark\:text-gray-400,
+.dark\:text-gray-500,
+.dark\:border-gray-600,
+.dark\:border-gray-700,
+.dark\:shadow-lg,
+.dark\:shadow-2xl,
+.dark\:hover\:shadow-2xl,
+.dark\:bg-gray-900\/50,
+.dark\:bg-gray-900\/30,
+.dark\:bg-blue-900\/30,
+.dark\:hover\:bg-blue-900\/30,
+.dark\:hover\:bg-gray-700,
+.dark\:bg-gray-600,
+.dark\:bg-green-500,
+.dark\:text-black,
+.dark\:hover\:bg-green-600,
+.dark\:text-blue-400,
+.dark\:hover\:text-blue-300,
+.dark\:text-yellow-400,
+.dark\:text-green-400,
+.dark\:text-red-400,
+.dark\:prose-invert {
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+}
+
+/* カーソル */
+.cursor-not-allowed {
+  cursor: not-allowed !important;
+}
+
+/* 透明度 */
+.opacity-60 {
+  opacity: 0.6 !important;
+}
+
+/* テキスト配置 */
+.text-center {
+  text-align: center !important;
+}
+
+/* フォント太さ */
+.font-semibold {
+  font-weight: 600 !important;
+}
+
+.font-bold {
+  font-weight: 700 !important;
+}
+
+.font-medium {
+  font-weight: 500 !important;
+}
+
+/* 位置指定 */
+.relative {
+  position: relative !important;
+}
+
+.absolute {
+  position: absolute !important;
+}
+
+.fixed {
+  position: fixed !important;
+}
+
+.sticky {
+  position: sticky !important;
+}
+
+.top-0 { top: 0 !important; }
+.top-4 { top: calc(1rem * var(--spacing-scale)) !important; }
+.top-8 { top: calc(2rem * var(--spacing-scale)) !important; }
+
+/* Z-index */
+.z-50 { z-index: 50 !important; }
