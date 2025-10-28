@@ -12,6 +12,7 @@ import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } fro
 import { getDynamicK, saveRAGLog, type RAGLogData } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
 import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
+import { processGSNText } from '@/lib/text-processing';
 
 function isVectorStore(obj: unknown): obj is VectorStore {
   return (
@@ -244,9 +245,8 @@ async function performRAGSearch(
   return { contextContent, relevantDocs };
 }
 
-/**
- * 全文使用ファイルをコンテキストに追加
- */
+//全文使用ファイルをコンテキストに追加
+
 function addFullTextToContext(
   contextContent: string,
   fullTextFiles: UploadedFile[]
@@ -257,8 +257,25 @@ function addFullTextToContext(
 
   console.log(`Adding ${fullTextFiles.length} full-text files to context`);
   
-  const fullTextContent = fullTextFiles
-    .map(file => `=== ファイル: ${file.name} (全文) ===\n\n${file.content}`)
+const fullTextContent = fullTextFiles
+    .map(file => {
+      let content = file.content;
+
+      const metadata = file.metadata as { 
+        isGSN?: boolean; 
+        extractionMethod?: string;
+        userDesignatedGSN?: boolean;
+      };
+
+      const isGSN = file.type === 'gsn' || metadata?.isGSN || metadata?.userDesignatedGSN;
+      const isOCR = metadata?.extractionMethod === 'ocr';
+
+      if (isGSN && isOCR) {
+        console.log(`Applying GSN auto-formatting to (OCR): ${file.name}`);
+        content = processGSNText(content);
+      }
+      return `=== ファイル: ${file.name} (全文) ===\n\n${content}`;
+    })
     .join('\n\n---\n\n');
   
   if (contextContent) {
@@ -268,9 +285,8 @@ function addFullTextToContext(
   }
 }
 
-/**
- * コンテキストのサイズを制限
- */
+//コンテキストのサイズを制限
+
 function limitContextSize(
   contextContent: string,
   stakeholder: Stakeholder,
@@ -285,9 +301,7 @@ function limitContextSize(
   return contextContent;
 }
 
-/**
- * Claude APIを使用してレポートを生成
- */
+// Claude APIを使用してレポートを生成
 async function generateReportWithClaude(
   promptContent: string
 ): Promise<string> {

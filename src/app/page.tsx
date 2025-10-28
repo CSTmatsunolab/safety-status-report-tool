@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { FileUpload } from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
@@ -191,7 +192,23 @@ export default function Home() {
         {/* ヘッダー */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-            <Link href="/">Safety Status Report 自動生成ツール</Link>
+            
+            <Link 
+              href="/" 
+              className="flex items-center gap-3" 
+            >
+              {/* <Image
+                src="/icon.png"
+                alt="SSR Tool Icon"
+                width={40}
+                height={40}
+                className="rounded-lg"
+              />*/}
+              <span>
+                Safety Status Report 自動生成ツール
+              </span>
+            </Link>
+
           </h1>
           <div className="flex items-center gap-4">
             <Link 
@@ -343,9 +360,13 @@ export default function Home() {
               ) : (
                 <div className="text-center py-12 sm:py-16">
                   <div className="text-gray-400 dark:text-gray-500 space-y-2">
-                    <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                    <Image
+                      src="/file.svg"
+                      alt="レポートプレビューアイコン"
+                      width={32}
+                      height={32}
+                      className="mx-auto mb-4 opacity-50 dark:opacity-90"
+                    />
                     <p className="text-sm sm:text-base">レポートが生成されると</p>
                     <p className="text-sm sm:text-base">ここに表示されます</p>
                   </div>

@@ -6,12 +6,6 @@ import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX, FiImage, FiInfo } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
-import { processGSNText, validateGSNText } from '@/lib/text-processing';
-
-interface GSNValidationResult {
-  isValid: boolean;
-  issues: string[];
-}
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -21,23 +15,6 @@ interface FileUploadProps {
   onToggleGSN?: (id: string, isGSN: boolean) => void;
 }
 
-interface PendingFile {
-  file: File;
-  isGSN?: boolean; // ユーザーが指定するGSNフラグ
-}
-
-function needsGSNFormatting(content: string): boolean {
-  // すでに整形済みフォーマット（[Goal G1]: など）があるかチェック
-  if (content.includes('[Goal') || content.includes('[Strategy')) {
-    return false;
-  }
-  
-  // GSN要素があるが整形されていない場合
-  const hasGSNElements = /\b[GgSsCcEe]\d+\b/.test(content);
-  return hasGSNElements;
-}
-
-// 画像からテキストを抽出する関数（Blob対応版）
 async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     const formData = new FormData();
@@ -146,7 +123,6 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
   }
 }
 
-// Excelをテキストに変換する関数（Blob対応版）
 async function extractTextFromExcel(file: File): Promise<string> {
   try {
     const formData = new FormData();
@@ -186,7 +162,6 @@ async function extractTextFromExcel(file: File): Promise<string> {
   }
 }
 
-// Wordをテキストに変換する関数（Blob対応版）
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
     const formData = new FormData();
@@ -476,7 +451,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                     </label>
                   )}
                   
-                  {/* 全文使用チェックボックス (mr-2を削除) */}
+                  {/* 全文使用チェックボックス */}
                   {file.content.length > 0 && (
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -492,7 +467,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                   )}
                 </div>
 
-                {/* 2. 削除ボタン (グループの外) */}
+                {/* 2. 削除ボタン */}
                 <button
                   onClick={() => onRemove(file.id)}
                   className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 p-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
@@ -521,7 +496,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           {files.some(f => f.content.length === 0) && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
               <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                ⚠️ 一部のファイルからテキストを抽出できませんでした
+                一部のファイルからテキストを抽出できませんでした
               </p>
               <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
                 画像ベースのファイルの可能性があります。以下の方法をお試しください：
@@ -536,7 +511,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               {files.some(f => f.name.includes('GSN') && f.content.length === 0) && (
                 <div className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
                   <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                    📋 GSN図の場合の推奨方法：
+                    GSN図の場合の推奨方法：
                   </p>
                   <ol className="text-xs text-yellow-700 dark:text-yellow-300 list-decimal list-inside space-y-1">
                     <li>GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力</li>
