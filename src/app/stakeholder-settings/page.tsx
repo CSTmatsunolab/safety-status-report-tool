@@ -241,7 +241,7 @@ export default function StakeholderSettings() {
                 !!idError ||
                 newStakeholder.concerns.filter(c => c.trim()).length === 0
               }
-              className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed dark:bg-blue-500 dark:hover:bg-blue-600 dark:disabled:bg-gray-600"
+              className="flex items-center px-4 py-2 rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 disabled:text-white disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-600"
             >
               <FiPlus className="mr-2" />
               追加

@@ -224,7 +224,7 @@ export default function Home() {
         {/* メインコンテンツ - 2カラムグリッド */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
           {/* 左側：入力セクション */}
-          <div className="space-y-6">
+          <div className="space-y-6 mb-8 xl:mb-0">
             {/* 1. データアップロード */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
@@ -334,7 +334,7 @@ export default function Home() {
                 transition-all duration-200
                 ${!selectedStakeholder || !selectedStructure || isGenerating || isKnowledgeBaseBuilding
                   ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60 text-white'
-                  : 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:text-black dark:hover:bg-green-600'
+                  : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600'
                 }
               `}
             >

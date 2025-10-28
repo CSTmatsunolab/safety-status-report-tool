@@ -124,13 +124,13 @@ export default function ReportStructureSelector({
                 onClick={() => onSelect(structure)}
                 className={`relative border rounded-lg p-4 cursor-pointer transition-all ${
                   selectedStructure?.id === structure.id
-                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' // 選択中は青
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800'
                 }`}
               >
                 {/* 推奨バッジは緑 */}
                 {structure.id === recommendedStructureId && (
-                  <span className="absolute top-2 right-2 text-xs bg-green-500 dark:bg-green-600 text-white px-2 py-1 rounded">
+                  <span className="absolute top-2 right-2 text-xs bg-green-100 text-green-800 dark:bg-green-700 dark:text-white px-2 py-1 rounded">
                     推奨
                   </span>
                 )}
@@ -480,14 +480,14 @@ export default function ReportStructureSelector({
             <div className="flex justify-end mt-6 space-x-3">
               <button
                 onClick={() => setShowCustomModal(false)}
-                className="px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleCustomStructureSubmit}
                 disabled={!customStructure.name || customStructure.sections.filter(s => s.trim()).length === 0}
-                className="px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
+                className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 disabled:text-white disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md text-sm transition-colors"
               >
                 この構成を使用
               </button>

@@ -155,37 +155,46 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           </p><br/>
         </div>
         <div className="flex flex-wrap gap-2">
+          {/* 編集ボタン (グレー系) */}
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center px-3 py-2 bg-gray-600 hover:bg-gray-700 dark:bg-gray-600 dark:hover:bg-gray-700 rounded-md text-sm text-white"
+            className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
           >
             <FiEdit className="mr-1" />
             {isEditing ? 'プレビュー' : '編集'}
           </button>
+          
+          {/* Word出力ボタン (紫系) */}
           <button
             onClick={handleExportDOCX}
-            className="flex items-center px-3 py-2 bg-purple-600 hover:bg-purple-700 dark:bg-purple-500 dark:hover:bg-purple-600 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-700 dark:text-white dark:hover:bg-purple-600 rounded-md text-sm transition-colors"
           >
             <FiFile className="mr-1" />
             Word出力
           </button>
+          
+          {/* HTML出力ボタン (オレンジ系) */}
           <button
             onClick={handleExportHTML}
-            className="flex items-center px-3 py-2 bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-700 dark:text-white dark:hover:bg-orange-600 rounded-md text-sm transition-colors"
           >
             <FiFileText className="mr-1" />
             HTML出力
           </button>
+          
+          {/* PDF出力ボタン (青系) */}
           <button
             onClick={handleExportPDF}
-            className="flex items-center px-3 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-sm transition-colors"
           >
             <FiDownload className="mr-1" />
             PDF出力
           </button>
+          
+          {/* 印刷ボタン (緑系) */}
           <button
             onClick={handlePrint}
-            className="flex items-center px-3 py-2 bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white rounded-md text-sm"
+            className="flex items-center px-3 py-2 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600 rounded-md text-sm transition-colors"
           >
             <FiPrinter className="mr-1" />
             印刷
@@ -207,13 +216,13 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
                   setEditedContent(report.content);
                   setIsEditing(false);
                 }}
-                className="px-4 py-2 text-black dark:text-gray-300 border border-black dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-600"
+                className="px-4 py-2 rounded-md bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600"
               >
                 保存
               </button>
