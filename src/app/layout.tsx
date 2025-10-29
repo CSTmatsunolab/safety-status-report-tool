@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "安全状況報告書作成ツール",
-  description: "RAGを活用した安全状況報告書の自動生成システム",
+  title: "Safety Status Report 自動生成ツール",
+  description: "RAGを活用したSafety Status Reportの自動生成システム",
 };
 
 export default function RootLayout({
