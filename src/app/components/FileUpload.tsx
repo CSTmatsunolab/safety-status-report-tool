@@ -65,7 +65,7 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     // 4MB以上の場合は、クライアントサイドでBlobにアップロード
     const BLOB_THRESHOLD = 4 * 1024 * 1024; // 4MB
     let processUrl = '/api/pdf-extract';
-    let formData = new FormData();
+    const formData = new FormData();
     
     if (file.size >= BLOB_THRESHOLD) {
       console.log('File >= 4MB, uploading to Blob first...');
