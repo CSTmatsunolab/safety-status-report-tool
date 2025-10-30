@@ -197,13 +197,6 @@ export default function Home() {
               href="/" 
               className="flex items-center gap-3" 
             >
-              {/* <Image
-                src="/icon.png"
-                alt="SSR Tool Icon"
-                width={40}
-                height={40}
-                className="rounded-lg"
-              />*/}
               <span>
                 Safety Status Report 自動生成ツール
               </span>
