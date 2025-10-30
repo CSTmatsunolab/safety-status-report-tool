@@ -1,43 +1,75 @@
-// src/app/api/blob-upload-token/route.ts
-import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
-import { NextResponse } from 'next/server';
+// src/app/api/pdf-extract-from-blob/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { del } from '@vercel/blob';
 
-export async function POST(request: Request): Promise<NextResponse> {
-  const body = (await request.json()) as HandleUploadBody;
-
+export async function POST(request: NextRequest) {
+  let blobUrl: string | null = null;
+  let fileName: string = 'unknown';
+  
   try {
-    const jsonResponse = await handleUpload({
-      body,
-      request,
-      onBeforeGenerateToken: async (pathname) => {
-        // ここで認証チェックなどを追加可能
-        console.log(`Generating token for: ${pathname}`);
-        
-        return {
-          allowedContentTypes: [
-            'application/pdf',
-            'image/*',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-          ],
-          tokenPayload: JSON.stringify({
-            uploadedAt: Date.now()
-          }),
-        };
-      },
-      onUploadCompleted: async ({ blob, tokenPayload }) => {
-        console.log('Upload completed:', blob.url);
-        console.log('File will be deleted after processing');
-      },
+    const formData = await request.formData();
+    blobUrl = formData.get('blobUrl') as string;
+    fileName = formData.get('fileName') as string;
+
+    if (!blobUrl) {
+      return NextResponse.json(
+        { error: 'Blob URLが提供されていません' },
+        { status: 400 }
+      );
+    }
+
+    console.log(`Processing PDF from Blob: ${fileName}`);
+    console.log(`Blob URL: ${blobUrl}`);
+
+    // ユーザーエージェントを追加してfetch
+    const response = await fetch(blobUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Vercel Edge Functions)'
+      }
+    });
+    
+    if (!response.ok) {
+      // デバッグ情報を追加
+      console.error(`Fetch failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch from Blob: ${response.status}`);
+    }
+    
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(`Successfully fetched: ${buffer.length} bytes`);
+
+    // 以下、通常のPDF処理...
+    const pdf = await import('pdf-parse-new');
+    const data = await pdf.default(buffer);
+    
+    return NextResponse.json({ 
+      text: data.text,
+      success: true,
+      method: 'blob-processed',
+      fileName: fileName,
+      textLength: data.text.length
     });
 
-    return NextResponse.json(jsonResponse);
   } catch (error) {
-    console.error('Upload token generation failed:', error);
+    console.error('PDF extraction error:', error);
     return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 400 }
+      { 
+        error: 'PDFの処理に失敗しました',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        fileName: fileName
+      },
+      { status: 500 }
     );
+    
+  } finally {
+    if (blobUrl) {
+      try {
+        await del(blobUrl);
+        console.log(`Blob deleted: ${fileName}`);
+      } catch (delError) {
+        console.error(`Blob deletion failed:`, delError);
+      }
+    }
   }
 }
