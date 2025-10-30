@@ -20,32 +20,33 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     console.log(`Uploading Image for OCR: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
-    // タイムアウト設定
+
+    // タイムアウト
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
-    
+
     const response = await fetch('/api/google-vision-ocr', {
       method: 'POST',
       body: formData,
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store',
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (!response.ok) {
       if (response.status === 413) {
         throw new Error('画像ファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
       }
       throw new Error(`Image OCR failed: ${response.status}`);
     }
-    
+
     const result = await response.json();
     return {
       text: result.text || '',
-      confidence: result.confidence
+      confidence: result.confidence,
     };
   } catch (error) {
     console.error('Image OCR error:', error);
@@ -62,7 +63,6 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    // 4MB以上の場合は、クライアントサイドでBlobにアップロード
     const BLOB_THRESHOLD = 4 * 1024 * 1024; // 4MB
     let processUrl = '/api/pdf-extract';
     const formData = new FormData();
@@ -79,10 +79,11 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
         
         console.log(`✅ Blob upload successful: ${blob.url}`);
         
-        // BlobのURLをAPIに送信（URLは小さいので問題なし）
+        // BlobのURLとファイルサイズをAPIに送信
         processUrl = '/api/pdf-extract-from-blob';
         formData.append('blobUrl', blob.url);
         formData.append('fileName', file.name);
+        formData.append('expectedBytes', file.size.toString()); // サイズも送る
         
       } catch (uploadError) {
         console.error('Blob upload failed:', uploadError);
@@ -94,10 +95,16 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
       formData.append('file', file);
     }
     
-    // タイムアウト設定
+    // タイムアウト設定（大きいファイルは長めに）
     const controller = new AbortController();
-    const timeoutMs = file.size > 5 * 1024 * 1024 ? 90000 : 60000;
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutMs = file.size >= 4 * 1024 * 1024 
+      ? 180000  // 4MB以上: 3分（CDN伝搬で最大2分かかる可能性）
+      : 60000;  // 4MB未満: 1分
+    
+    const timeout = setTimeout(() => {
+      console.log('Request timeout, aborting...');
+      controller.abort();
+    }, timeoutMs);
     
     const response = await fetch(processUrl, {
       method: 'POST',
@@ -114,13 +121,7 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     }
     
     const result = await response.json();
-    console.log(`PDF extracted successfully using method: ${result.method}`);
-    
-    if (result.requiresOcr && result.message) {
-      setTimeout(() => {
-        alert(`${file.name}:\n\n${result.message}`);
-      }, 100);
-    }
+    console.log(`PDF extracted successfully: ${result.method || 'unknown'}`);
     
     return { 
       text: result.text || '', 
@@ -146,28 +147,28 @@ async function extractTextFromExcel(file: File): Promise<string> {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     console.log(`Uploading Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
-    // タイムアウト設定
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
-    
+
     const response = await fetch('/api/excel-extract', {
       method: 'POST',
       body: formData,
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store',
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (!response.ok) {
       if (response.status === 413) {
         throw new Error('Excelファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
       }
       throw new Error(`Excel extraction failed: ${response.status}`);
     }
-    
+
     const { text } = await response.json();
     return text || '';
   } catch (error) {
@@ -185,28 +186,29 @@ async function extractTextFromDocx(file: File): Promise<string> {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     console.log(`Uploading Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
+
     // タイムアウト設定
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
-    
+
     const response = await fetch('/api/docx-extract', {
       method: 'POST',
       body: formData,
-      signal: controller.signal
+      signal: controller.signal,
+      cache: 'no-store',                                        // ★ 追加
     });
-    
+
     clearTimeout(timeout);
-    
+
     if (!response.ok) {
       if (response.status === 413) {
         throw new Error('Wordファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
       }
       throw new Error(`DOCX extraction failed: ${response.status}`);
     }
-    
+
     const { text, messages } = await response.json();
     
     // 警告メッセージがある場合はコンソールに表示
@@ -226,23 +228,45 @@ async function extractTextFromDocx(file: File): Promise<string> {
   }
 }
 
+async function waitBlobPublish(url: string, expectedBytes?: number, onTick?: (i:number, delay:number)=>void) {
+  const maxAttempts = 10;            // だいたい ~75s 前後
+  const baseDelay = 500;             // 0.5s から指数バックオフ
+  for (let i = 1; i <= maxAttempts; i++) {
+    try {
+      const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+      const ok = head.ok;
+      const len = Number(head.headers.get('content-length') || -1);
+
+      if (ok && (!expectedBytes || (len >= expectedBytes))) {
+        return true;                 // 公開＆サイズ整合を確認
+      }
+    } catch { /* ignore */ }
+
+    // 0.5,1,2,4,8,16,32,64... に ±10% ジッター
+    const delay = Math.floor(baseDelay * Math.pow(2, i - 1) * (0.9 + Math.random() * 0.2));
+    onTick?.(i, delay);
+    await new Promise(r => setTimeout(r, delay));
+  }
+  return false;
+}
+
 export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onToggleGSN }: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
-  
+
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     setIsProcessing(true);
     try {
       const newFiles: UploadedFile[] = [];
-      
+
       for (let i = 0; i < acceptedFiles.length; i++) {
         const file = acceptedFiles[i];
         setProcessingStatus(`処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`);
-        
+
         let content = '';
         let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
         let ocrConfidence: number | undefined;
-        
+
         // ファイルタイプに応じて適切な処理を行う
         if (file.type === 'application/pdf') {
           console.log(`Extracting text from PDF: ${file.name}`);
@@ -257,9 +281,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           extractionMethod = 'ocr';
           ocrConfidence = result.confidence;
         } else if (
-          file.type === 'application/vnd.ms-excel' || 
-          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          file.name.endsWith('.xls') || 
+          file.type === 'application/vnd.ms-excel' ||
+          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          file.name.endsWith('.xls') ||
           file.name.endsWith('.xlsx')
         ) {
           console.log(`Extracting text from Excel: ${file.name}`);
@@ -273,24 +297,20 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           content = await extractTextFromDocx(file);
           extractionMethod = 'docx';
         } else {
-                    content = await file.text();
+          content = await file.text();
           extractionMethod = 'text';
         }
-        
+
         // ファイルタイプの判定（議事録やGSNの自動検出）
         const lowerFileName = file.name.toLowerCase();
         console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
-
-        // Show preview of extracted text
         if (content.length > 0) {
           console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
           console.log(content.substring(0, PREVIEW_LENGTH));
-          if (content.length > PREVIEW_LENGTH) {
-            console.log('...(truncated)');
-          }
+          if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
         }
         const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
-        
+
         newFiles.push({
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           name: file.name,
@@ -305,11 +325,11 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             confidence: ocrConfidence,
             gsnValidation: null,
             isGSN: false,
-            userDesignatedGSN: false
-          }
+            userDesignatedGSN: false,
+          },
         });
       }
-      
+
       onUpload(newFiles);
       setProcessingStatus('');
     } catch (error) {
@@ -329,7 +349,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
+      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff'],
     },
     multiple: true,
   });
@@ -375,10 +395,10 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       >
         <input {...getInputProps()} disabled={isProcessing} />
         <FiUpload className={`
-          mx-auto h-12 w-12 mb-4 transition-colors
-          ${isDragActive ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}
+            mx-auto h-12 w-12 mb-4 transition-colors
+            ${isDragActive ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}
         `} />
-        
+
         {isProcessing ? (
           <div>
             <p className="text-gray-600 dark:text-gray-300 mb-2">ファイルを処理中...</p>
