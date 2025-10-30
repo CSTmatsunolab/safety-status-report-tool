@@ -62,31 +62,39 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    // 10MB以上の場合は、クライアントサイドでBlobにアップロード
-    const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024;
+    // 4MB以上の場合は、クライアントサイドでBlobにアップロード
+    const BLOB_THRESHOLD = 4 * 1024 * 1024; // 4MB
     let processUrl = '/api/pdf-extract';
-    const formData = new FormData();
+    let formData = new FormData();
     
-    if (file.size > LARGE_FILE_THRESHOLD) {
-      console.log('Large file detected, uploading to Blob first...');
+    if (file.size >= BLOB_THRESHOLD) {
+      console.log('File >= 4MB, uploading to Blob first...');
       
-      // クライアントから直接Blobにアップロード
-      const blob = await upload(file.name, file, {
-        access: 'public',
-        handleUploadUrl: '/api/blob-upload-token', // トークン取得エンドポイント
-      });
-      
-      console.log(`File uploaded to Blob: ${blob.url}`);
-      
-      // BlobのURLをAPIに送信（URLは小さいので問題なし）
-      processUrl = '/api/pdf-extract-from-blob';
-      formData.append('blobUrl', blob.url);
-      formData.append('fileName', file.name);
+      try {
+        // クライアントから直接Blobにアップロード
+        const blob = await upload(file.name, file, {
+          access: 'public',
+          handleUploadUrl: '/api/blob-upload-token',
+        });
+        
+        console.log(`✅ Blob upload successful: ${blob.url}`);
+        
+        // BlobのURLをAPIに送信（URLは小さいので問題なし）
+        processUrl = '/api/pdf-extract-from-blob';
+        formData.append('blobUrl', blob.url);
+        formData.append('fileName', file.name);
+        
+      } catch (uploadError) {
+        console.error('Blob upload failed:', uploadError);
+        throw new Error('ファイルのアップロードに失敗しました。');
+      }
     } else {
-      // 通常のアップロード（10MB以下）
+      // 4MB未満は通常のアップロード
+      console.log('File < 4MB, using direct upload');
       formData.append('file', file);
     }
     
+    // タイムアウト設定
     const controller = new AbortController();
     const timeoutMs = file.size > 5 * 1024 * 1024 ? 90000 : 60000;
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -108,6 +116,12 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     const result = await response.json();
     console.log(`PDF extracted successfully using method: ${result.method}`);
     
+    if (result.requiresOcr && result.message) {
+      setTimeout(() => {
+        alert(`${file.name}:\n\n${result.message}`);
+      }, 100);
+    }
+    
     return { 
       text: result.text || '', 
       method: result.method || 'unknown',
@@ -115,9 +129,15 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     };
   } catch (error) {
     console.error('PDF extraction error:', error);
+    
     if (error instanceof Error) {
-      alert(`PDFの処理に失敗しました: ${error.message}`);
+      if (error.name === 'AbortError') {
+        alert('PDFの処理がタイムアウトしました。');
+      } else {
+        alert(`PDFの処理に失敗しました: ${error.message}`);
+      }
     }
+    
     return { text: '', method: 'failed', confidence: 0 };
   }
 }

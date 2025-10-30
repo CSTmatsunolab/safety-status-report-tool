@@ -10,22 +10,31 @@ export async function POST(request: Request): Promise<NextResponse> {
       body,
       request,
       onBeforeGenerateToken: async (pathname) => {
-        // 認証チェックなどを実装可能
+        // ここで認証チェックなどを追加可能
+        console.log(`Generating token for: ${pathname}`);
+        
         return {
-          allowedContentTypes: ['application/pdf', 'image/*'],
+          allowedContentTypes: [
+            'application/pdf',
+            'image/*',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          ],
           tokenPayload: JSON.stringify({
-            // カスタムメタデータ
+            uploadedAt: Date.now()
           }),
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
-        // アップロード完了後の処理
-        console.log('Upload completed', blob.url);
+        console.log('Upload completed:', blob.url);
+        console.log('File will be deleted after processing');
       },
     });
 
     return NextResponse.json(jsonResponse);
   } catch (error) {
+    console.error('Upload token generation failed:', error);
     return NextResponse.json(
       { error: (error as Error).message },
       { status: 400 }
