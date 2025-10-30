@@ -24,8 +24,7 @@ export async function POST(request: NextRequest) {
       throw new Error('Generated PDF buffer is empty');
     }
 
-    // PDFをレスポンスとして返す
-    // Bufferを新しいUint8Arrayに変換
+    // PDFをレスポンスとして返す, Bufferを新しいUint8Arrayに変換
     const uint8Array = new Uint8Array(pdfBuffer);
     
     return new Response(uint8Array, {
