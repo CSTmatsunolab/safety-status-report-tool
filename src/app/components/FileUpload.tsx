@@ -3,9 +3,10 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiFile, FiX, FiImage, FiInfo } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
+import { upload } from '@vercel/blob/client';
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -59,17 +60,38 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
 
 async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
   try {
+    console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // 10MB以上の場合は、クライアントサイドでBlobにアップロード
+    const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024;
+    let processUrl = '/api/pdf-extract';
     const formData = new FormData();
-    formData.append('file', file);
     
-    console.log(`Uploading PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    if (file.size > LARGE_FILE_THRESHOLD) {
+      console.log('Large file detected, uploading to Blob first...');
+      
+      // クライアントから直接Blobにアップロード
+      const blob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/blob-upload-token', // トークン取得エンドポイント
+      });
+      
+      console.log(`File uploaded to Blob: ${blob.url}`);
+      
+      // BlobのURLをAPIに送信（URLは小さいので問題なし）
+      processUrl = '/api/pdf-extract-from-blob';
+      formData.append('blobUrl', blob.url);
+      formData.append('fileName', file.name);
+    } else {
+      // 通常のアップロード（10MB以下）
+      formData.append('file', file);
+    }
     
-    // タイムアウト設定を追加（大きいファイルの場合）
     const controller = new AbortController();
-    const timeoutMs = file.size > 5 * 1024 * 1024 ? 90000 : 60000; // 5MB以上は90秒、それ以外は60秒
+    const timeoutMs = file.size > 5 * 1024 * 1024 ? 90000 : 60000;
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     
-    const response = await fetch('/api/pdf-extract', {
+    const response = await fetch(processUrl, {
       method: 'POST',
       body: formData,
       signal: controller.signal
@@ -80,28 +102,11 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     if (!response.ok) {
       const errorData = await response.text();
       console.error('PDF extraction failed:', errorData);
-      
-      // エラーメッセージを改善
-      if (response.status === 413) {
-        throw new Error('ファイルサイズが大きすぎます。10MB以下のファイルをアップロードしてください。');
-      } else if (response.status === 504) {
-        throw new Error('処理がタイムアウトしました。ファイルサイズを小さくしてから再試行してください。');
-      }
       throw new Error(`PDF処理に失敗しました: ${response.status}`);
     }
     
     const result = await response.json();
     console.log(`PDF extracted successfully using method: ${result.method}`);
-    
-    // 処理結果に応じたメッセージ
-    if (result.method === 'google-cloud-vision' && result.success) {
-      console.log(`OCR完了: 信頼度 ${result.confidence ? (result.confidence * 100).toFixed(1) : 'N/A'}%`);
-    } else if (result.requiresOcr && result.message) {
-      // 非同期でアラートを表示（処理をブロックしない）
-      setTimeout(() => {
-        alert(`${file.name}:\n\n${result.message}`);
-      }, 100);
-    }
     
     return { 
       text: result.text || '', 
@@ -110,15 +115,9 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     };
   } catch (error) {
     console.error('PDF extraction error:', error);
-    
     if (error instanceof Error) {
-      if (error.name === 'AbortError') {
-        alert('PDFの処理がタイムアウトしました。ファイルサイズを小さくしてから再試行してください。');
-      } else {
-        alert(`PDFの処理に失敗しました: ${error.message}`);
-      }
+      alert(`PDFの処理に失敗しました: ${error.message}`);
     }
-    
     return { text: '', method: 'failed', confidence: 0 };
   }
 }
