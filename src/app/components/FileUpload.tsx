@@ -78,7 +78,7 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    if (file.size >= CHUNK_THRESHOLD) {
+    if (file.size < CHUNK_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -121,7 +121,7 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
 async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    if (file.size >= CHUNK_THRESHOLD) {
+    if (file.size < CHUNK_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -171,7 +171,7 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
 async function extractTextFromExcel(file: File): Promise<string> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    if (file.size >= CHUNK_THRESHOLD) {
+    if (file.size < CHUNK_THRESHOLD) {
       // S3にアップロード
       const s3Key = await uploadToS3(file);
       
@@ -216,7 +216,7 @@ async function extractTextFromExcel(file: File): Promise<string> {
 // Word処理
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
-    if (file.size >= CHUNK_THRESHOLD) {
+    if (file.size < CHUNK_THRESHOLD) {
       console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       const formData = new FormData();
         formData.append('file', file);
