@@ -3,7 +3,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiFile, FiX, FiImage, FiInfo } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
 

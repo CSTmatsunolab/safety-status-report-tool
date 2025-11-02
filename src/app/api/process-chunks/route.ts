@@ -1,3 +1,4 @@
+// src/app/api/process-chunks/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
@@ -11,6 +12,14 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const TEMP_DIR = '/tmp/file-chunks';
+
+interface IBlock {
+  confidence?: number | null;
+}
+
+interface IPage {
+  blocks?: IBlock[] | null;
+}
 
 export async function POST(request: NextRequest) {
   let uploadDir: string | null = null;
@@ -50,13 +59,13 @@ export async function POST(request: NextRequest) {
         result = await processPDF(completeBuffer, fileName);
         break;
       case 'excel':
-        result = await processExcel(completeBuffer, fileName);
+        result = await processExcel(completeBuffer);
         break;
       case 'docx':
-        result = await processWord(completeBuffer, fileName);
+        result = await processWord(completeBuffer);
         break;
       case 'image':
-        result = await processImage(completeBuffer, fileName);
+        result = await processImage(completeBuffer);
         break;
       default:
         result = { text: completeBuffer.toString('utf-8') };
@@ -145,13 +154,15 @@ async function processPDF(buffer: Buffer, fileName: string) {
           fullText += response.fullTextAnnotation.text + '\n';
           
           const pages = response.fullTextAnnotation?.pages || [];
-          pages.forEach((page: any) => {
-            page.blocks?.forEach((block: any) => {
-              if (block.confidence) {
-                totalConfidence += block.confidence;
-                confidenceCount++;
-              }
-            });
+          pages.forEach((page: IPage) => {
+            if (page.blocks && Array.isArray(page.blocks)) {
+              page.blocks.forEach((block: IBlock) => {
+                if (block.confidence !== null && block.confidence !== undefined) {
+                  totalConfidence += block.confidence;
+                  confidenceCount++;
+                }
+              });
+            }
           });
         }
       }
@@ -181,7 +192,7 @@ async function processPDF(buffer: Buffer, fileName: string) {
   }
 }
 
-async function processExcel(buffer: Buffer, fileName: string) {
+async function processExcel(buffer: Buffer) {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
   let fullText = '';
   
@@ -200,7 +211,7 @@ async function processExcel(buffer: Buffer, fileName: string) {
   };
 }
 
-async function processWord(buffer: Buffer, fileName: string) {
+async function processWord(buffer: Buffer) {
   const result = await mammoth.extractRawText({ buffer });
   
   console.log(`Word extracted: ${result.value.length} characters`);
@@ -212,7 +223,7 @@ async function processWord(buffer: Buffer, fileName: string) {
   };
 }
 
-async function processImage(buffer: Buffer, fileName: string) {
+async function processImage(buffer: Buffer) {
   const client = getVisionClient();
   
   const [result] = await client.documentTextDetection({
@@ -229,13 +240,15 @@ async function processImage(buffer: Buffer, fileName: string) {
   let totalConfidence = 0;
   let confidenceCount = 0;
   
-  pages.forEach((page: any) => {
-    page.blocks?.forEach((block: any) => {
-      if (block.confidence) {
-        totalConfidence += block.confidence;
-        confidenceCount++;
-      }
-    });
+  pages.forEach((page: IPage) => {
+    if (page.blocks && Array.isArray(page.blocks)) {
+      page.blocks.forEach((block: IBlock) => {
+        if (block.confidence !== null && block.confidence !== undefined) {
+          totalConfidence += block.confidence;
+          confidenceCount++;
+        }
+      });
+    }
   });
   
   const averageConfidence = confidenceCount > 0 
