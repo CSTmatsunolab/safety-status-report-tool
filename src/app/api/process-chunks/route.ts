@@ -1,7 +1,5 @@
 // src/app/api/process-chunks/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
@@ -11,7 +9,10 @@ import * as mammoth from 'mammoth';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const TEMP_DIR = '/tmp/file-chunks';
+declare global {
+  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
+  var uploadMetadata: Map<string, any> | undefined;
+}
 
 interface IBlock {
   confidence?: number | null;
@@ -22,8 +23,6 @@ interface IPage {
 }
 
 export async function POST(request: NextRequest) {
-  let uploadDir: string | null = null;
-  
   try {
     const { uploadId, fileName, fileType } = await request.json();
     
@@ -31,49 +30,88 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
     
-    uploadDir = path.join(TEMP_DIR, uploadId);
+    if (!global.uploadChunks || !global.uploadMetadata) {
+      console.error('Upload storage not initialized');
+      return NextResponse.json(
+        { error: 'Upload storage not available' },
+        { status: 500 }
+      );
+    }
     
-    // チャンク一覧取得
-    const files = await fs.readdir(uploadDir);
-    const chunkFiles = files
-      .filter(f => f.startsWith('chunk_'))
-      .sort();
+    if (!global.uploadChunks.has(uploadId)) {
+      console.error(`Upload ${uploadId} not found in memory`);
+      return NextResponse.json(
+        { error: 'Upload not found. It may have expired or this is a different server instance.' },
+        { status: 404 }
+      );
+    }
     
-    console.log(`Processing ${chunkFiles.length} chunks for ${fileName}`);
+    const chunksMap = global.uploadChunks.get(uploadId)!;
+    const metadata = global.uploadMetadata.get(uploadId);
     
-    // すべてのチャンクを結合
+    if (!metadata) {
+      console.error(`Metadata for ${uploadId} not found`);
+      return NextResponse.json(
+        { error: 'Upload metadata not found' },
+        { status: 404 }
+      );
+    }
+    
+    console.log(`Processing ${chunksMap.size} chunks for ${fileName}`);
+    
+    const totalChunks = metadata.totalChunks;
+    if (chunksMap.size !== totalChunks) {
+      console.error(`Expected ${totalChunks} chunks, but got ${chunksMap.size}`);
+      return NextResponse.json(
+        { error: `Incomplete upload. Expected ${totalChunks} chunks, received ${chunksMap.size}` },
+        { status: 400 }
+      );
+    }
+    
     const chunks: Buffer[] = [];
-    for (const chunkFile of chunkFiles) {
-      const chunkPath = path.join(uploadDir, chunkFile);
-      const chunkBuffer = await fs.readFile(chunkPath);
-      chunks.push(chunkBuffer);
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = chunksMap.get(i);
+      if (!chunk) {
+        console.error(`Missing chunk ${i} for upload ${uploadId}`);
+        return NextResponse.json(
+          { error: `Missing chunk ${i}` },
+          { status: 400 }
+        );
+      }
+      chunks.push(chunk);
     }
     
     const completeBuffer = Buffer.concat(chunks);
     console.log(`Reconstructed file: ${fileName} (${completeBuffer.length} bytes)`);
     
-    // ファイルタイプに応じた処理
+    global.uploadChunks.delete(uploadId);
+    global.uploadMetadata.delete(uploadId);
+    console.log(`Cleaned up upload: ${uploadId}`);
+    
     let result;
     switch (fileType) {
       case 'pdf':
+      case 'application/pdf':
         result = await processPDF(completeBuffer, fileName);
         break;
       case 'excel':
+      case 'application/vnd.ms-excel':
+      case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
         result = await processExcel(completeBuffer);
         break;
       case 'docx':
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
         result = await processWord(completeBuffer);
         break;
       case 'image':
+      case 'image/jpeg':
+      case 'image/png':
+      case 'image/gif':
         result = await processImage(completeBuffer);
         break;
       default:
         result = { text: completeBuffer.toString('utf-8') };
     }
-    
-    // クリーンアップ
-    await fs.rm(uploadDir, { recursive: true, force: true });
-    console.log(`Cleaned up: ${uploadId}`);
     
     return NextResponse.json({
       ...result,
@@ -85,29 +123,23 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Processing error:', error);
     
-    // クリーンアップ
-    if (uploadDir) {
-      await fs.rm(uploadDir, { recursive: true, force: true }).catch(() => {});
-    }
-    
     return NextResponse.json(
-      { error: 'Processing failed', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Processing failed', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
 }
 
-// ============================================
 // 処理関数
-// ============================================
-
 async function processPDF(buffer: Buffer, fileName: string) {
   const pdf = await import('pdf-parse-new');
   const data = await pdf.default(buffer);
   
   console.log(`PDF parsed: ${data.numpages} pages, ${data.text?.length || 0} characters`);
   
-  // 埋め込みテキストが十分な場合
   if (data.text && data.text.trim().length > MIN_EMBEDDED_TEXT_LENGTH) {
     return {
       text: data.text,
@@ -116,7 +148,6 @@ async function processPDF(buffer: Buffer, fileName: string) {
     };
   }
   
-  // OCR処理が必要な場合
   console.log('Starting OCR for image-based PDF...');
   
   try {
@@ -235,7 +266,6 @@ async function processImage(buffer: Buffer) {
   
   const fullText = result.fullTextAnnotation?.text || '';
   
-  // 信頼度計算
   const pages = result.fullTextAnnotation?.pages || [];
   let totalConfidence = 0;
   let confidenceCount = 0;

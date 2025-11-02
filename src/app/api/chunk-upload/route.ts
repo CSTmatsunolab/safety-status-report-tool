@@ -1,10 +1,20 @@
+// src/app/api/chunk-upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
-const TEMP_DIR = '/tmp/file-chunks';
+declare global {
+  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
+  var uploadMetadata: Map<string, any> | undefined;
+}
+
+if (!global.uploadChunks) {
+  global.uploadChunks = new Map();
+}
+if (!global.uploadMetadata) {
+  global.uploadMetadata = new Map();
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +22,7 @@ export async function POST(request: NextRequest) {
     const chunk = formData.get('chunk') as File;
     const uploadId = formData.get('uploadId') as string;
     const chunkIndex = formData.get('chunkIndex') as string;
+    const totalChunks = formData.get('totalChunks') as string;
     const fileName = formData.get('fileName') as string;
     const fileType = formData.get('fileType') as string;
     
@@ -19,40 +30,51 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
     
-    // アップロードディレクトリ作成
-    const uploadDir = path.join(TEMP_DIR, uploadId);
-    await fs.mkdir(uploadDir, { recursive: true });
+    const chunkIndexNum = Number(chunkIndex);
+    const totalChunksNum = Number(totalChunks);
     
-    // メタデータ保存（最初のチャンクの時のみ）
-    if (chunkIndex === '0') {
-      const metadata = {
+    if (!global.uploadChunks!.has(uploadId)) {
+      global.uploadChunks!.set(uploadId, new Map());
+      global.uploadMetadata!.set(uploadId, {
         fileName,
         fileType,
-        uploadTime: new Date().toISOString()
-      };
-      await fs.writeFile(
-        path.join(uploadDir, 'metadata.json'),
-        JSON.stringify(metadata)
-      );
+        totalChunks: totalChunksNum,
+        uploadTime: Date.now()
+      });
     }
     
-    // チャンク保存
     const buffer = Buffer.from(await chunk.arrayBuffer());
-    const chunkPath = path.join(uploadDir, `chunk_${chunkIndex.padStart(3, '0')}`);
-    await fs.writeFile(chunkPath, buffer);
+    global.uploadChunks!.get(uploadId)!.set(chunkIndexNum, buffer);
     
-    console.log(`Chunk ${chunkIndex} saved: ${fileName} (${uploadId})`);
+    console.log(`Chunk ${chunkIndex}/${totalChunks} saved in memory: ${fileName} (${uploadId})`);
+    
+    const now = Date.now();
+    for (const [id, metadata] of global.uploadMetadata!.entries()) {
+      if (now - metadata.uploadTime > 5 * 60 * 1000) {
+        global.uploadChunks!.delete(id);
+        global.uploadMetadata!.delete(id);
+        console.log(`Cleaned up expired upload: ${id}`);
+      }
+    }
+    
+    const currentChunks = global.uploadChunks!.get(uploadId)!.size;
     
     return NextResponse.json({ 
       success: true, 
-      chunkIndex,
-      uploadId 
+      chunkIndex: chunkIndexNum,
+      uploadId,
+      received: currentChunks,
+      total: totalChunksNum,
+      complete: currentChunks === totalChunksNum
     });
     
   } catch (error) {
     console.error('Chunk upload error:', error);
     return NextResponse.json(
-      { error: 'Chunk upload failed' },
+      { 
+        error: 'Chunk upload failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
