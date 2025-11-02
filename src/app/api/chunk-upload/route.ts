@@ -4,11 +4,21 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const maxDuration = 30;
 
-declare global {
-  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
-  var uploadMetadata: Map<string, any> | undefined;
+// 型定義
+interface UploadMetadata {
+  fileName: string;
+  fileType: string;
+  totalChunks: number;
+  uploadTime: number;
 }
 
+// グローバルメモリストレージs
+declare global {
+  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
+  var uploadMetadata: Map<string, UploadMetadata> | undefined;
+}
+
+// 初期化
 if (!global.uploadChunks) {
   global.uploadChunks = new Map();
 }
@@ -33,6 +43,7 @@ export async function POST(request: NextRequest) {
     const chunkIndexNum = Number(chunkIndex);
     const totalChunksNum = Number(totalChunks);
     
+    // メモリに保存
     if (!global.uploadChunks!.has(uploadId)) {
       global.uploadChunks!.set(uploadId, new Map());
       global.uploadMetadata!.set(uploadId, {
@@ -43,11 +54,13 @@ export async function POST(request: NextRequest) {
       });
     }
     
+    // チャンクをメモリに保存
     const buffer = Buffer.from(await chunk.arrayBuffer());
     global.uploadChunks!.get(uploadId)!.set(chunkIndexNum, buffer);
     
     console.log(`Chunk ${chunkIndex}/${totalChunks} saved in memory: ${fileName} (${uploadId})`);
     
+    // 5分以上古いアップロードをクリーンアップ
     const now = Date.now();
     for (const [id, metadata] of global.uploadMetadata!.entries()) {
       if (now - metadata.uploadTime > 5 * 60 * 1000) {
@@ -57,6 +70,7 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // 現在の状態を返す
     const currentChunks = global.uploadChunks!.get(uploadId)!.size;
     
     return NextResponse.json({ 

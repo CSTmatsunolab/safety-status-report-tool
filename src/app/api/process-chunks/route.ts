@@ -9,11 +9,21 @@ import * as mammoth from 'mammoth';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-declare global {
-  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
-  var uploadMetadata: Map<string, any> | undefined;
+// 型定義
+interface UploadMetadata {
+  fileName: string;
+  fileType: string;
+  totalChunks: number;
+  uploadTime: number;
 }
 
+// グローバルメモリストレージにアクセス
+declare global {
+  var uploadChunks: Map<string, Map<number, Buffer>> | undefined;
+  var uploadMetadata: Map<string, UploadMetadata> | undefined;
+}
+
+// Vision API型定義
 interface IBlock {
   confidence?: number | null;
 }
@@ -30,6 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
     
+    // グローバル変数の存在確認
     if (!global.uploadChunks || !global.uploadMetadata) {
       console.error('Upload storage not initialized');
       return NextResponse.json(
@@ -38,6 +49,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // メモリからチャンクを取得
     if (!global.uploadChunks.has(uploadId)) {
       console.error(`Upload ${uploadId} not found in memory`);
       return NextResponse.json(
@@ -59,6 +71,7 @@ export async function POST(request: NextRequest) {
     
     console.log(`Processing ${chunksMap.size} chunks for ${fileName}`);
     
+    // すべてのチャンクが揃っているか確認
     const totalChunks = metadata.totalChunks;
     if (chunksMap.size !== totalChunks) {
       console.error(`Expected ${totalChunks} chunks, but got ${chunksMap.size}`);
@@ -68,6 +81,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // すべてのチャンクを順番に結合
     const chunks: Buffer[] = [];
     for (let i = 0; i < totalChunks; i++) {
       const chunk = chunksMap.get(i);
@@ -84,10 +98,12 @@ export async function POST(request: NextRequest) {
     const completeBuffer = Buffer.concat(chunks);
     console.log(`Reconstructed file: ${fileName} (${completeBuffer.length} bytes)`);
     
+    // メモリからクリーンアップ
     global.uploadChunks.delete(uploadId);
     global.uploadMetadata.delete(uploadId);
     console.log(`Cleaned up upload: ${uploadId}`);
     
+    // ファイルタイプに応じた処理
     let result;
     switch (fileType) {
       case 'pdf':
@@ -133,7 +149,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// 処理関数
+// 処理関数（既存のものと同じ）
 async function processPDF(buffer: Buffer, fileName: string) {
   const pdf = await import('pdf-parse-new');
   const data = await pdf.default(buffer);
