@@ -1,9 +1,8 @@
 // src/app/api/pdf-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { put, del } from '@vercel/blob';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
-import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH, PREVIEW_LENGTH } from '@/lib/config/constants';
+import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
 
 interface IVisionBlock {
   confidence?: number | null;
@@ -14,8 +13,6 @@ interface IVisionPage {
 }
 
 export async function POST(request: NextRequest) {
-  let blobUrl: string | null = null;
-  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -29,30 +26,8 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing PDF: ${file.name}, Size: ${file.size} bytes`);
 
-    // ファイルサイズチェック（4MB以上の場合はBlob経由）
-    const USE_BLOB_THRESHOLD = 4 * 1024 * 1024; // 4MB
-    let buffer: Buffer;
-
-    if (file.size > USE_BLOB_THRESHOLD) {
-      console.log('Large file detected, using Vercel Blob storage');
-      
-      // Vercel Blobにアップロード
-      const blob = await put(`temp/pdf-${Date.now()}-${file.name}`, file, {
-        access: 'public',
-        addRandomSuffix: true,
-      });
-      
-      blobUrl = blob.url;
-      console.log(`File uploaded to Blob: ${blobUrl}`);
-      
-      // BlobからBufferを取得
-      const response = await fetch(blobUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-    } else {
-      // 小さいファイルは直接処理
-      buffer = Buffer.from(await file.arrayBuffer());
-    }
+    // 4MB以上のファイルはクライアント側でチャンク分割されるため、ここでは4MB未満のみ処理
+    const buffer = Buffer.from(await file.arrayBuffer());
     
     // まず埋め込みテキストの抽出を試みる
     const pdf = await import('pdf-parse-new');
@@ -62,13 +37,6 @@ export async function POST(request: NextRequest) {
     
     // 十分なテキストがある場合はそのまま返す
     if (data.text && data.text.trim().length > MIN_EMBEDDED_TEXT_LENGTH) {
-      // Blobを使用した場合はクリーンアップ
-      if (blobUrl) {
-        await del(blobUrl).catch(err => 
-          console.error('Blob deletion failed:', err)
-        );
-      }
-      
       return NextResponse.json({ 
         text: data.text,
         success: true,
@@ -86,7 +54,9 @@ export async function POST(request: NextRequest) {
       const client = getVisionClient();
       
       // ページ配列を動的に生成
-      const pages = Array.from({ length: PDF_OCR_MAX_PAGES }, (_, i) => i + 1);
+      const pages = Array.from({ 
+        length: Math.min(data.numpages || PDF_OCR_MAX_PAGES, PDF_OCR_MAX_PAGES) 
+      }, (_, i) => i + 1);
       
       // PDFをGoogle Cloud Vision APIで処理
       const request = {
@@ -139,13 +109,6 @@ export async function POST(request: NextRequest) {
         ? totalConfidence / confidenceCount 
         : 0;
       
-      // Blobクリーンアップ
-      if (blobUrl) {
-        await del(blobUrl).catch(err => 
-          console.error('Blob deletion failed:', err)
-        );
-      }
-      
       if (!fullText || fullText.trim().length === 0) {
         return NextResponse.json({
           text: '',
@@ -175,13 +138,6 @@ export async function POST(request: NextRequest) {
         data.text || ''
       );
       
-      // Blobクリーンアップ
-      if (blobUrl) {
-        await del(blobUrl).catch(err => 
-          console.error('Blob deletion failed:', err)
-        );
-      }
-      
       return NextResponse.json({
         text: data.text || '',
         success: false,
@@ -196,13 +152,6 @@ export async function POST(request: NextRequest) {
     
   } catch (error) {
     console.error('PDF extraction error:', error);
-    
-    // エラー時もBlobをクリーンアップ
-    if (blobUrl) {
-      await del(blobUrl).catch(err => 
-        console.error('Blob deletion failed during error handling:', err)
-      );
-    }
     
     return NextResponse.json(
       { 

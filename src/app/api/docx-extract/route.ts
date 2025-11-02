@@ -1,11 +1,8 @@
 // src/app/api/docx-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { put, del } from '@vercel/blob';
 import * as mammoth from 'mammoth';
 
 export async function POST(request: NextRequest) {
-  let blobUrl: string | null = null;
-  
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -19,38 +16,12 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing Word document: ${file.name}, Size: ${file.size} bytes`);
 
-    // 4MB以上はBlob経由
-    const USE_BLOB_THRESHOLD = 4 * 1024 * 1024;
-    let buffer: Buffer;
-
-    if (file.size > USE_BLOB_THRESHOLD) {
-      console.log('Large Word file detected, using Vercel Blob storage');
-      
-      const blob = await put(`temp/docx-${Date.now()}-${file.name}`, file, {
-        access: 'public',
-        addRandomSuffix: true,
-      });
-      
-      blobUrl = blob.url;
-      console.log(`Word document uploaded to Blob: ${blobUrl}`);
-      
-      const response = await fetch(blobUrl);
-      const arrayBuffer = await response.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-    } else {
-      buffer = Buffer.from(await file.arrayBuffer());
-    }
+    // 4MB以上のファイルはクライアント側でチャンク分割されるため、ここでは4MB未満のみ処理
+    const buffer = Buffer.from(await file.arrayBuffer());
     
     try {
       // mammothを使用してdocxからテキストを抽出
       const result = await mammoth.extractRawText({ buffer });
-      
-      // Blobクリーンアップ
-      if (blobUrl) {
-        await del(blobUrl).catch(err => 
-          console.error('Blob deletion failed:', err)
-        );
-      }
       
       console.log(`DOCX extraction successful: ${file.name}, extracted ${result.value.length} characters`);
       
@@ -64,13 +35,6 @@ export async function POST(request: NextRequest) {
     } catch (parseError) {
       console.error('DOCX parsing error:', parseError);
       
-      // パースエラー時もBlobクリーンアップ
-      if (blobUrl) {
-        await del(blobUrl).catch(err => 
-          console.error('Blob deletion failed:', err)
-        );
-      }
-      
       return NextResponse.json({ 
         text: '', 
         success: false,
@@ -81,13 +45,6 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('Request processing error:', error);
-    
-    // エラー時もBlobをクリーンアップ
-    if (blobUrl) {
-      await del(blobUrl).catch(err => 
-        console.error('Blob deletion failed during error handling:', err)
-      );
-    }
     
     return NextResponse.json(
       { 
