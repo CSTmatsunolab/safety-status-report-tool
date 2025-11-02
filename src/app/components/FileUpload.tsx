@@ -15,41 +15,80 @@ interface FileUploadProps {
   onToggleGSN?: (id: string, isGSN: boolean) => void;
 }
 
-// チャンクアップロード設定
 const CHUNK_THRESHOLD = 4 * 1024 * 1024; // 4MB
-const CHUNK_SIZE = 2 * 1024 * 1024; // 2MBチャンク
+
+// S3アップロード用の関数
+async function uploadToS3(file: File): Promise<string> {
+  const urlResponse = await fetch('/api/s3-upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+    }),
+  });
+
+  if (!urlResponse.ok) {
+    const error = await urlResponse.json();
+    throw new Error(error.error || 'Failed to get upload URL');
+  }
+
+  const { uploadUrl, key } = await urlResponse.json();
+
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error('Failed to upload file to S3');
+  }
+
+  return key;
+}
+
+// S3からファイルを処理
+async function processFileFromS3(
+  key: string,
+  fileName: string,
+  fileType: string
+): Promise<{ text: string; confidence?: number; method?: string }> {
+  const response = await fetch('/api/s3-process', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      key,
+      fileName,
+      fileType,
+      deleteAfterProcess: true,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to process file');
+  }
+
+  return await response.json();
+}
 
 async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     if (file.size >= CHUNK_THRESHOLD) {
-      // 大きい画像は単一リクエストでチャンク送信
-      console.log('Large image detected, using single request with chunks...');
-      
       const formData = new FormData();
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      formData.append('file', file);
       
-      // すべてのチャンクをFormDataに追加
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        formData.append(`chunk_${i}`, chunk);
-      }
-      
-      formData.append('totalChunks', totalChunks.toString());
-      formData.append('fileName', file.name);
-      formData.append('fileType', 'image');
-      
-      // 単一リクエストで送信
-      const response = await fetch('/api/process-large-file', {
+      const response = await fetch('/api/google-vision-ocr', {
         method: 'POST',
-        body: formData
+        body: formData,
       });
       
       if (!response.ok) {
-        throw new Error(`Image processing failed: ${response.status}`);
+        throw new Error(`Image OCR failed: ${response.status}`);
       }
       
       const result = await response.json();
@@ -57,31 +96,11 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
         text: result.text || '',
         confidence: result.confidence
       };
-      
-    } else {
-      // 4MB未満は通常処理
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      
-      const response = await fetch('/api/google-vision-ocr', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-      
-      if (!response.ok) {
-        if (response.status === 413) {
-          throw new Error('画像ファイルが大きすぎます。10MB以下のファイルをアップロードしてください。');
-        }
-        throw new Error(`Image OCR failed: ${response.status}`);
-      }
-      
-      const result = await response.json();
+    } 
+    // 4MB以上はS3経由
+    else {
+      const s3Key = await uploadToS3(file);
+      const result = await processFileFromS3(s3Key, file.name, file.type);
       return {
         text: result.text || '',
         confidence: result.confidence
@@ -102,100 +121,37 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
 async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
     if (file.size >= CHUNK_THRESHOLD) {
-      // 大きいPDFは単一リクエストでチャンク送信
-      console.log('File >= 4MB, using single request with chunks...');
-      
-      const formData = new FormData();
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      
-      console.log(`Splitting into ${totalChunks} chunks...`);
-      
-      // すべてのチャンクをFormDataに追加
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        formData.append(`chunk_${i}`, chunk);
-        console.log(`Added chunk ${i + 1}/${totalChunks} (${(chunk.size / 1024).toFixed(0)} KB)`);
-      }
-      
-      formData.append('totalChunks', totalChunks.toString());
-      formData.append('fileName', file.name);
-      formData.append('fileType', file.type || 'application/pdf');
-      
-      console.log('Sending single request with all chunks...');
-      
-      // タイムアウトを長めに設定
-      const controller = new AbortController();
-      const timeoutMs = 180000; // 3分
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      
-      // 単一リクエストで送信
-      const response = await fetch('/api/process-large-file', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-      
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('PDF processing failed:', errorData);
-        throw new Error(`PDF処理に失敗しました: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      console.log(`PDF processed successfully: ${result.method}`);
-      
-      return {
-        text: result.text || '',
-        method: result.method || 'single-request',
-        confidence: result.confidence
-      };
-      
-    } else {
-      // 4MB未満は通常処理
       const formData = new FormData();
       formData.append('file', file);
-      
-      const controller = new AbortController();
-      const timeoutMs = 60000; // 1分
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       
       const response = await fetch('/api/pdf-extract', {
         method: 'POST',
         body: formData,
-        signal: controller.signal
       });
       
-      clearTimeout(timeout);
-      
       if (!response.ok) {
-        const errorData = await response.text();
-        console.error('PDF extraction failed:', errorData);
-        
-        if (response.status === 413) {
-          throw new Error('ファイルサイズが大きすぎます。');
-        }
         throw new Error(`PDF処理に失敗しました: ${response.status}`);
       }
       
       const result = await response.json();
-      console.log(`PDF extracted successfully using method: ${result.method}`);
-      
-      if (result.method === 'google-cloud-vision' && result.success) {
-        console.log(`OCR完了: 信頼度 ${result.confidence ? (result.confidence * 100).toFixed(1) : 'N/A'}%`);
-      }
-      
-      return { 
-        text: result.text || '', 
-        method: result.method || 'unknown',
-        confidence: result.confidence 
+      return {
+        text: result.text || '',
+        method: result.method || 'embedded-text',
+        confidence: result.confidence
+      };
+    } 
+    // 4MB以上はS3経由
+    else {
+      const s3Key = await uploadToS3(file);
+      const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
+      return {
+        text: result.text || '',
+        method: result.method || 'vision-ocr',
+        confidence: result.confidence
       };
     }
+    
   } catch (error) {
     console.error('PDF extraction error:', error);
     
@@ -215,37 +171,16 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
 async function extractTextFromExcel(file: File): Promise<string> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
     if (file.size >= CHUNK_THRESHOLD) {
-      // 大きいExcelは単一リクエストでチャンク送信
-      console.log('Large Excel file, using single request with chunks...');
+      // S3にアップロード
+      const s3Key = await uploadToS3(file);
       
-      const formData = new FormData();
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+      // S3から処理
+      const result = await processFileFromS3(s3Key, file.name, file.type);
       
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        formData.append(`chunk_${i}`, chunk);
-      }
+      console.log('Excel file processed');
       
-      formData.append('totalChunks', totalChunks.toString());
-      formData.append('fileName', file.name);
-      formData.append('fileType', 'excel');
-      
-      const response = await fetch('/api/process-large-file', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error('Excel processing failed');
-      }
-      
-      const result = await response.json();
-      return result.text || '';
-      
+    return result.text || '';
     } else {
       // 4MB未満は通常処理
       const formData = new FormData();
@@ -281,151 +216,133 @@ async function extractTextFromExcel(file: File): Promise<string> {
 // Word処理
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
-    console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
     if (file.size >= CHUNK_THRESHOLD) {
-      // 大きいWordは単一リクエストでチャンク送信
-      console.log('Large Word file, using single request with chunks...');
-      
+      console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       const formData = new FormData();
-      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-      
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, file.size);
-        const chunk = file.slice(start, end);
-        formData.append(`chunk_${i}`, chunk);
+        formData.append('file', file);
+        
+        const response = await fetch('/api/excel-extract', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Excel extraction failed: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        return result.text || '';
+      } 
+      // 4MB以上はS3経由
+      else {
+        const s3Key = await uploadToS3(file);
+        const result = await processFileFromS3(s3Key, file.name, file.type);
+        return result.text || '';
       }
-      
-      formData.append('totalChunks', totalChunks.toString());
-      formData.append('fileName', file.name);
-      formData.append('fileType', 'docx');
-      
-      const response = await fetch('/api/process-large-file', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error('Word processing failed');
+    } catch (error) {
+      console.error('Word extraction error:', error);
+      if (error instanceof Error) {
+        alert(`Wordファイルの処理に失敗しました: ${error.message}`);
       }
-      
-      const result = await response.json();
-      return result.text || '';
-      
-    } else {
-      // 4MB未満は通常処理
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      
-      const response = await fetch('/api/docx-extract', {
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-      
-      if (!response.ok) {
-        throw new Error(`Word extraction failed: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      return result.text || '';
-    }
-  } catch (error) {
-    console.error('Word extraction error:', error);
-    if (error instanceof Error) {
-      alert(`Wordの処理に失敗しました: ${error.message}`);
-    }
     return '';
   }
 }
 
-// メインコンポーネント
 export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onToggleGSN }: FileUploadProps) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    setIsProcessing(true);
     try {
-    const newFiles: UploadedFile[] = [];
-
+      setIsProcessing(true);
+      const newFiles: UploadedFile[] = [];
+      
       for (let i = 0; i < acceptedFiles.length; i++) {
         const file = acceptedFiles[i];
         setProcessingStatus(`処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`);
         
-        let content = '';
-        let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
-        let ocrConfidence: number | undefined;
+        // ファイルサイズチェック（100MBまで）
+        if (file.size > 100 * 1024 * 1024) {
+          alert(`${file.name}のサイズが大きすぎます。100MB以下のファイルをアップロードしてください。`);
+          continue;
+        }
 
-        // PDFファイル
-        if (file.type === 'application/pdf') {
-          const result = await extractTextFromPDF(file);
-          content = result.text;
-          extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
-          ocrConfidence = result.confidence;
+        try {
+          let content = '';
+          let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
+          let ocrConfidence: number | undefined;
+
+          // PDFファイル
+          if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            const result = await extractTextFromPDF(file);
+            content = result.text;
+            extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
+            ocrConfidence = result.confidence;
         } else if (file.type.startsWith('image/')) {
-          console.log(`Extracting text from image: ${file.name}`);
-          const result = await extractTextFromImage(file);
-          content = result.text;
-          extractionMethod = 'ocr';
-          ocrConfidence = result.confidence;
+            console.log(`Extracting text from image: ${file.name}`);
+            const result = await extractTextFromImage(file);
+            content = result.text;
+            extractionMethod = 'ocr';
+            ocrConfidence = result.confidence;
         } else if (
-          file.type === 'application/vnd.ms-excel' ||
-          file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
-          file.name.endsWith('.xls') ||
-          file.name.endsWith('.xlsx')
-        ) {
-          console.log(`Extracting text from Excel: ${file.name}`);
-          content = await extractTextFromExcel(file);
-          extractionMethod = 'excel';
+            file.type === 'application/vnd.ms-excel' ||
+            file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+            file.name.endsWith('.xls') ||
+            file.name.endsWith('.xlsx')
+          ) {
+            console.log(`Extracting text from Excel: ${file.name}`);
+            content = await extractTextFromExcel(file);
+            extractionMethod = 'excel';
         } else if (
-          file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-          file.name.endsWith('.docx')
-        ) {
-          console.log(`Extracting text from DOCX: ${file.name}`);
-          content = await extractTextFromDocx(file);
-          extractionMethod = 'docx';
+            file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.name.endsWith('.docx')
+          ) {
+            console.log(`Extracting text from DOCX: ${file.name}`);
+            content = await extractTextFromDocx(file);
+            extractionMethod = 'docx';
         } else {
-          content = await file.text();
-          extractionMethod = 'text';
-        }
+            content = await file.text();
+            extractionMethod = 'text';
+          }
 
-        // ファイルタイプの判定（議事録やGSNの自動検出）
-        const lowerFileName = file.name.toLowerCase();
-        console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
-        if (content.length > 0) {
-          console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
-          console.log(content.substring(0, PREVIEW_LENGTH));
-          if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
-        }
+          // ファイルタイプの判定（議事録やGSNの自動検出）
+          const lowerFileName = file.name.toLowerCase();
+          console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
+          if (content.length > 0) {
+            console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
+            console.log(content.substring(0, PREVIEW_LENGTH));
+            if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
+          }
         const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
 
-        newFiles.push({
-          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          name: file.name,
-          type,
-          content,
-          uploadedAt: new Date(),
-          includeFullText: false,
-          metadata: {
-            originalType: file.type,
-            extractionMethod,
-            size: file.size,
-            confidence: ocrConfidence,
-            gsnValidation: null,
+          newFiles.push({
+            id: crypto.randomUUID(),
+            name: file.name,
+            type,
+            content,
+            uploadedAt: new Date(),
+            includeFullText: false,
+            metadata: {
+              originalType: file.type,
+              extractionMethod,
+              size: file.size,
+              confidence: ocrConfidence,
+              gsnValidation: null,
             isGSN: false,
             userDesignatedGSN: false
-          }
-        });
+            }
+          });
+
+        } catch (error) {
+          console.error(`Failed to process ${file.name}:`, error);
+          alert(`${file.name}の処理に失敗しました。`);
+        }
       }
       
+    if (newFiles.length > 0) {  
       onUpload(newFiles);
+    }
+      
       setProcessingStatus('');
     } catch (error) {
       console.error('File processing error:', error);
@@ -434,19 +351,19 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       setIsProcessing(false);
       setProcessingStatus('');
     }
-  }, [onUpload]);
+  }, [files, onUpload]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'text/*': ['.txt', '.csv'],
       'application/pdf': ['.pdf'],
-      'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls'],
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff']
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
     },
-    multiple: true,
+    disabled: isProcessing,
   });
 
   const getFileIcon = (file: UploadedFile) => {
@@ -505,9 +422,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             </p>
           </div>
         ) : isDragActive ? (
-          <p className="text-blue-600 dark:text-blue-400 font-medium">
-            ファイルをドロップしてください
-          </p>
+          <p className="text-blue-600 dark:text-blue-400">ここにドロップ...</p>
         ) : (
           <div>
             <p className="text-gray-600 dark:text-gray-300 font-medium">
@@ -542,7 +457,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                 {getFileIcon(file)}
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
-                    {file.name}
+                      {file.name}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     タイプ: {file.type === 'gsn' ? 'GSNファイル' : 

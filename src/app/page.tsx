@@ -41,9 +41,18 @@ export default function Home() {
   }, []);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
-    setFiles(prevFiles => [...prevFiles, ...newFiles]);
-    // ファイルが追加されたら知識ベースの状態をリセット
-    setKnowledgeBaseStatus('idle');
+    setFiles(prevFiles => {
+      // 既存ファイルと新規ファイルを結合
+      const allFiles = [...prevFiles, ...newFiles];
+      
+      // IDで重複を排除
+      const uniqueMap = new Map<string, UploadedFile>();
+      allFiles.forEach(file => {
+        uniqueMap.set(file.id, file);
+      });
+      
+      return Array.from(uniqueMap.values());
+    });
   };
 
   const handleFileRemove = (id: string) => {
