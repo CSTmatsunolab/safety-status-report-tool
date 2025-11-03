@@ -171,17 +171,9 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
 async function extractTextFromExcel(file: File): Promise<string> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    // ▼▼▼ ロジック反転 (4MB「未満」が通常処理) ▼▼▼
     if (file.size < CHUNK_THRESHOLD) {
-      // S3にアップロード
-      const s3Key = await uploadToS3(file);
-      
-      // S3から処理
-      const result = await processFileFromS3(s3Key, file.name, file.type);
-      
-      console.log('Excel file processed');
-      
-    return result.text || '';
-    } else {
       // 4MB未満は通常処理
       const formData = new FormData();
       formData.append('file', file);
@@ -189,7 +181,7 @@ async function extractTextFromExcel(file: File): Promise<string> {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 60000);
       
-      const response = await fetch('/api/excel-extract', {
+      const response = await fetch('/api/excel-extract', { // ← 正しいAPI
         method: 'POST',
         body: formData,
         signal: controller.signal
@@ -203,7 +195,14 @@ async function extractTextFromExcel(file: File): Promise<string> {
       
       const result = await response.json();
       return result.text || '';
+    } else {
+      // 4MB以上はS3経由
+      const s3Key = await uploadToS3(file);
+      const result = await processFileFromS3(s3Key, file.name, file.type);
+      console.log('Excel file processed via S3');
+      return result.text || '';
     }
+    // ▲▲▲ ロジック反転ここまで ▲▲▲
   } catch (error) {
     console.error('Excel extraction error:', error);
     if (error instanceof Error) {
@@ -216,34 +215,36 @@ async function extractTextFromExcel(file: File): Promise<string> {
 // Word処理
 async function extractTextFromDocx(file: File): Promise<string> {
   try {
+    console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
     if (file.size < CHUNK_THRESHOLD) {
-      console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       const formData = new FormData();
-        formData.append('file', file);
-        
-        const response = await fetch('/api/excel-extract', {
-          method: 'POST',
-          body: formData,
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Excel extraction failed: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        return result.text || '';
-      } 
-      // 4MB以上はS3経由
-      else {
-        const s3Key = await uploadToS3(file);
-        const result = await processFileFromS3(s3Key, file.name, file.type);
-        return result.text || '';
+      formData.append('file', file);
+      
+      const response = await fetch('/api/docx-extract', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Word extraction failed: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Word extraction error:', error);
-      if (error instanceof Error) {
-        alert(`Wordファイルの処理に失敗しました: ${error.message}`);
-      }
+      
+      const result = await response.json();
+      return result.text || '';
+    } 
+    // 4MB以上はS3経由
+    else {
+      const s3Key = await uploadToS3(file);
+      const result = await processFileFromS3(s3Key, file.name, file.type);
+      console.log('Word file processed via S3');
+      return result.text || '';
+    }
+  } catch (error) {
+    console.error('Word extraction error:', error);
+    if (error instanceof Error) {
+      alert(`Wordファイルの処理に失敗しました: ${error.message}`);
+    }
     return '';
   }
 }

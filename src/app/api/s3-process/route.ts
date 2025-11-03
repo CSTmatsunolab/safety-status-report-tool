@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFileFromS3, deleteFileFromS3 } from '@/lib/s3-utils';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
-import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
+import { MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import pdf from 'pdf-parse-new';
@@ -16,7 +16,6 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
   try {
     // まず埋め込みテキストを抽出
     const pdfData = await pdf(buffer, {
-      max: PDF_OCR_MAX_PAGES,
     });
 
     const embeddedText = pdfData.text.trim();
@@ -27,7 +26,6 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
       return {
         text: embeddedText,
         method: 'embedded-text',
-        confidence: 0.95
       };
     }
 
@@ -99,7 +97,6 @@ async function processImageWithOCR(buffer: Buffer) {
     return {
       text: fullText,
       method: 'vision-ocr'
-      // 注: textDetectionは信頼度を提供しない
     };
 
   } catch (error) {
