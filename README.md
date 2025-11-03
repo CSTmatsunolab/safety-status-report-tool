@@ -6,13 +6,14 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 
 - **ファイルアップロード**: PDF、テキスト、CSV、Excel、Word、画像ファイル（JPG, PNG等）など多様な形式に対応
 - **OCR機能**: Google Cloud Vision APIを使用した画像・画像ベースPDFからのテキスト抽出
+- **大容量ファイル対応 (AWS S3)**: 4MBを超えるファイルをAWS S3経由で安全に処理
 - **RAG機能**: 大量のドキュメントから関連情報を効率的に抽出
 - **動的な情報抽出**: ドキュメント量とステークホルダーに応じた最適な情報量の調整
 - **全文使用機能**: 重要なファイルを確実にAIに渡すための全文コンテキスト使用オプション
 - **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
 - **ステークホルダー管理**: ステークホルダーの追加・編集・削除機能
 - **構成カスタマイズ機能**: レポート構成の追加・編集・削除機能
-- **レトリック戦略**: ステークホルダーに応じた説得手法（データ駆動型、論理的推論型など）の自動選択
+- **レトリック戦略**: ステークホルダーに応じた説得手法の自動選択
 - **AI活用**: Claude APIを使用した高品質なレポート作成
 - **多様な出力形式**: PDF、HTML、Word（docx）形式でのダウンロード
 - **編集機能**: 生成後のレポートを手動で編集可能
@@ -27,472 +28,208 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - Anthropic Claude APIキー
 - OpenAI APIキー（エンベディング用）
 - Google Cloud Vision APIキー（OCR用）
+- **AWS S3バケット**（大容量ファイル処理用）
 - ChromaDB（ローカルインストール）または Pinecone APIキー
 
 ### インストール手順
 
-1. **リポジトリのクローン**
-   ```bash
-   git clone https://github.com/CSTmatsunolab/safety-status-report-tool.git
-   cd safety-status-report-tool
-   ```
-
-2. **依存関係のインストール**
-   ```bash
-   npm install
-   ```
-
-3. **環境変数の設定**
-   
-   プロジェクトルートに`.env.local`ファイルを作成し、以下を追加：
-   ```bash
-   # 必須
-   ANTHROPIC_API_KEY=your_claude_api_key_here
-   OPENAI_API_KEY=your_openai_api_key_here
-   
-   # OCR機能用（画像/画像ベースPDF処理に必要）
-   GOOGLE_CLOUD_VISION_KEY='{
-     "type": "service_account",
-     "project_id": "your-project-id",
-     "private_key_id": "your-key-id",
-     "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-     "client_email": "your-service-account@your-project-id.iam.gserviceaccount.com",
-     "client_id": "your-client-id",
-     "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-     "token_uri": "https://oauth2.googleapis.com/token",
-     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-     "client_x509_cert_url": "your-cert-url"
-   }'
-   
-   # ベクトルストア設定
-   VECTOR_STORE=chromadb # または 'pinecone', 'memory'
-   
-   # ChromaDB使用時
-   CHROMA_URL=http://localhost:8000
-   
-   # Pinecone使用時
-   PINECONE_API_KEY=your_pinecone_api_key
-   PINECONE_INDEX_NAME=ssr-index
-   ```
-
-4. **Google Cloud Vision APIのセットアップ**
-   
-   a. [Google Cloud Console](https://console.cloud.google.com/)でプロジェクトを作成
-   
-   b. Vision APIを有効化：
-   ```bash
-   # Google Cloud CLIを使用する場合
-   gcloud services enable vision.googleapis.com
-   ```
-   
-   c. サービスアカウントキーを作成：
-   - IAMと管理 > サービスアカウント
-   - 新しいサービスアカウントを作成
-   - JSONキーをダウンロード
-   - キーの内容を`GOOGLE_CLOUD_VISION_KEY`環境変数に設定
-
-5. **ChromaDBの起動（ChromaDB使用時）**
-   ```bash
-   # 別ターミナルでChromaDBを起動
-   docker run -p 8000:8000 chromadb/chroma
-   ```
-
-6. **開発サーバーの起動**
-   ```bash
-   npm run dev
-   ```
-
-7. **ブラウザでアクセス**
-   
-   [http://localhost:3000](http://localhost:3000) を開く
-
-### ビルドと本番環境
-
+#### 1. リポジトリのクローン
 ```bash
-# プロダクションビルド
-npm run build
-
-# 本番サーバーの起動
-npm start
+git clone https://github.com/CSTmatsunolab/safety-status-report-tool.git
+cd safety-status-report-tool
 ```
+
+#### 2. 依存関係のインストール
+```bash
+npm install
+```
+
+#### 3. 環境変数の設定
+
+プロジェクトルートに`.env.local`ファイルを作成し、以下を追加：
+```bash
+# 必須
+ANTHROPIC_API_KEY=your_claude_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
+
+# OCR機能用（画像/画像ベースPDF処理に必要）
+GOOGLE_CLOUD_VISION_KEY='{ "type": "service_account", ... }' # Google CloudからダウンロードしたJSONキーの内容
+
+# ベクトルストア設定
+VECTOR_STORE=chromadb # または 'pinecone', 'memory'
+
+# ChromaDB使用時
+CHROMA_URL=http://localhost:8000
+
+# Pinecone使用時
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_INDEX_NAME=ssr-index
+
+# AWS S3設定 (4MB以上のファイル処理に必要)
+AWS_REGION=your_s3_bucket_region
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+AWS_S3_BUCKET_NAME=your_s3_bucket_name
+
+# S3クリーンアップAPI用 (Vercel Cronなどで使用)
+CLEANUP_AUTH_TOKEN=your_secure_random_token
+```
+
+#### 4. Google Cloud Vision APIのセットアップ
+
+- Google Cloud Consoleでプロジェクトを作成し、Vision APIを有効化します
+- サービスアカウントキー（JSON）を作成し、`GOOGLE_CLOUD_VISION_KEY`環境変数に設定します
+
+#### 5. AWS S3のセットアップ
+
+- AWSコンソールでS3バケットを作成します
+- IAMユーザーを作成し、S3バケットへの `PutObject`, `GetObject`, `DeleteObject`, `ListBucket` 権限を付与します
+- バケットのCORS設定を行い、アプリケーションのドメインからの `PUT` リクエストを許可します
+- IAMユーザーのアクセス情報を `.env.local` に設定します
+
+#### 6. ChromaDBの起動（ChromaDB使用時）
+```bash
+# 別ターミナルでChromaDBを起動
+docker run -p 8000:8000 chromadb/chroma
+```
+
+#### 7. 開発サーバーの起動
+```bash
+npm run dev
+```
+
+ブラウザで http://localhost:3000 を開く
+
+### Vercelへのデプロイ（推奨）
+
+1. プロジェクトをVercelにインポートします
+2. Vercelのプロジェクト設定で、上記の`.env.local`の内容を環境変数としてすべて登録します
+3. **Cronジョブの設定**:
+   - Vercelのダッシュボードで「Cron Jobs」タブに移動します
+   - S3の一時ファイルを自動削除するため、以下のジョブを登録します（例: 1日1回実行）
+     - スケジュール: `0 0 * * *`
+     - エンドポイント: `https://your-deployment-url.vercel.app/api/s3-cleanup`
+     - 方法: `POST`
+     - Authorizationヘッダー: `Bearer [CLEANUP_AUTH_TOKENで設定した値]`
 
 ## 使い方
 
 ### 基本的な使用フロー
 
-1. **ドキュメントのアップロード**
-   - GSNファイル、議事録、仕様書などをドラッグ&ドロップまたは選択してアップロード
-   - 複数ファイルの同時アップロードに対応
-   - **画像ファイル（JPG, PNG等）やスキャンPDFも自動的にOCR処理**
-   - **「全文使用」オプション**: 各ファイルごとに全文をコンテキストに含めるかRAGで抽出するかを選択可能
-   - **GSNファイルの指定**: GSNチェックボックスでGSNファイルを明示的に指定可能
-
-2. **ステークホルダーの選択**
-   - デフォルトまたはカスタムステークホルダーから対象を選択
-
-3. **構成の選択**
-   - 推奨構成、他ステークホルダー向け構成、カスタム構成から選択
-
-4. **ナレッジベース構築（自動）**
-   - アップロードされたファイルが自動的にチャンク分割され、ベクトルストアに保存
-
-5. **レポート生成**
-   - 「レポートを生成」ボタンをクリック
-   - RAGが関連情報を抽出し、AIがステークホルダー向けにカスタマイズされたSSRを生成
-
-6. **レポートの編集・出力**
-   - 生成されたレポートをプレビュー画面で確認
-   - 必要に応じて編集
-   - PDF、HTML、Word（docx）形式でダウンロード
+1. **ドキュメントのアップロード**: GSNファイル、議事録、仕様書などをアップロードします
+2. **ステークホルダーの選択**: デフォルトまたはカスタムステークホルダーから対象を選択します
+3. **構成の選択**: 推奨構成、またはカスタム構成を選択します
+4. **ナレッジベース構築**: 「知識ベースを構築」ボタンをクリック（RAG使用時）
+5. **レポート生成**: 「レポートを生成」ボタンをクリックします
+6. **レポートの編集・出力**: 生成されたレポートを編集、またはPDF、HTML、Word形式でダウンロードします
 
 ### 全文使用機能について
 
-#### 概要
-アップロードした各ファイルに対して「全文使用」トグルスイッチを提供。これにより、特定のファイルの全内容を確実にAIのコンテキストに含めることができます。
-**GSNファイルはこれをONにすることを推奨します。**
+各ファイルには「全文使用」トグルがあり、RAG（関連部分の抽出）を使わず、ファイルの全内容をAIのコンテキストに含めることができます。GSNファイルや短い重要文書はこれをONにすることを推奨します。
 
-#### 使用推奨ケース
-- **数値データ**: CSV、Excelファイルなど数値が重要なファイル
-- **GSNファイル**: 構造的な関係性が重要な文書
-- **小容量ファイル**: 5,000文字以下のファイル
-- **重要な仕様書**: 詳細な技術仕様が記載された文書
+- **ON**: ファイルの全内容をAIに渡します（RAGを経由しない）
+- **OFF**: RAGによって関連部分のみを抽出してAIに渡します（デフォルト）
 
-#### 動作の仕組み
-- **全文使用ON**: ファイルの全内容をそのままAIに渡す（RAGを経由しない）
-- **全文使用OFF**: RAGによって関連部分のみを抽出してAIに渡す（デフォルト）
-
-#### コンテキスト制限
-- 技術者向け: 最大80,000文字
-- その他: 最大50,000文字
-- 全文使用ファイルの合計文字数がこの制限を超えないよう注意してください
-
-#### 全文使用機能の注意点
-
-##### メモリ不足エラー
-大量のファイルで全文使用を有効にすると、コンテキスト制限を超える可能性があります。
-- エラーメッセージが表示された場合は、一部のファイルの全文使用を無効にしてください
-- 優先度の高いファイルのみ全文使用を有効にすることを推奨
-
-##### パフォーマンス
-- 全文使用を有効にしたファイルが多いと、レポート生成に時間がかかる場合があります
-- RAGを使用する方が、大量の文書から効率的に情報を抽出できます
+**注意**: 全文使用ファイルの合計がコンテキスト制限（技術系: 約8万文字, その他: 約5万文字）を超えるとエラーになる場合があります。
 
 ### GSNファイルの明示的な指定
 
-#### 新機能: GSNチェックボックス
-各アップロードファイルに「GSN」チェックボックスが追加され、GSNファイルを明示的に指定できるようになりました。
-
-#### 使用方法
-1. ファイルをアップロード
-2. GSNファイルの横にある「GSN」チェックボックスにチェック
-3. レポート構成にGSN専用セクションが自動追加される
-
-#### GSN指定の優先順位
-システムは以下の順序でGSNファイルを識別：
-1. **明示的指定**（最優先）: GSNチェックボックスがONのファイル
-2. **自動検出**: ファイル名に"GSN"を含むファイル
-3. **OCR後の内容検出**: G1, S1などのGSN要素を含むファイル
+各ファイルに「GSN」チェックボックスがあり、GSNファイルを明示的に指定できます。GSNファイルが指定されると、レポート構成にGSN専用セクションが自動追加されます。
 
 ### レポート構成のカスタマイズ機能
 
-#### カスタム構成の作成
-レポート生成時に、独自のレポート構成を作成・保存・管理できるようになりました。
+レポート構成選択画面で「カスタム構成を作成」をクリックすると、独自の構成を定義できます。
 
-##### 機能詳細
-- **ドラッグ&ドロップ**: セクションの順序をドラッグで簡単に並び替え
-- **動的セクション管理**: セクションの追加・削除が自由自在
-- **永続化**: 作成したカスタム構成はローカルストレージに保存され、次回以降も利用可能
-- **削除機能**: 不要になったカスタム構成は個別に削除可能
-
-##### 使用方法
-1. レポート構成選択画面で「カスタム構成を作成」をクリック
-2. 構成名と説明を入力
-3. セクション名を順番に入力（ドラッグで順序変更可能）
-4. 「この構成を使用」をクリック
-
-#### GSNセクションの自動追加
-GSNファイルがアップロードされると、選択した構成に応じて適切なGSN分析セクションが自動的に追加されます。
-
-##### 構成別のGSN追加セクション
-- **経営向けレポート**: 
-  - GSN目標達成状況サマリー
-  - 主要リスク制御戦略
-- **技術詳細レポート**: 
-  - GSN構造分析
-  - Goal-Strategy-Evidence対応表
-  - 技術的ギャップ分析
-- **問題解決型レポート**: 
-  - 未達成Goal分析
-  - 対策Strategy提案
-- **リスク重視レポート**: 
-  - GSNコンテキスト分析
-  - 未解決Assumptionリスト
-
-#### 動的構成プレビュー
-- GSNファイルの有無により、最終的なレポート構成がリアルタイムで更新
-- GSN分析セクションは青色のバッジで視覚的に識別
-- 総章数とGSNセクション数が明確に表示
-
-#### 推奨ステークホルダーの可視化
-各レポート構成に推奨ステークホルダーが設定され、UIで確認できるようになりました。
-
-##### 拡張された推奨マッピング
-| レポート構成 | 推奨ステークホルダー |
-|---|---|
-| **経営向けレポート** | CxO/経営層, 事業部門 |
-| **技術詳細レポート** | 技術専門家, アーキテクト, R&D |
-| **データ駆動型** | CxO/経営層, 事業部門, 財務部門, 営業部門 |
-| **問題解決型** | 製品部門, リスク・安全管理者, 品質保証部門, オペレーション部門 |
-| **ナラティブ型** | プロジェクトマネージャー, マーケティング部門, 人事部門 |
-| **リスク重視** | リスク・安全管理者, セキュリティ部門, コンプライアンス部門, 法務部門 |
-
-#### インタラクティブな情報表示
-- 情報アイコン（ⓘ）をクリックで詳細情報を展開表示
-- 推奨ステークホルダーとGSNセクションを統合表示
-- モバイルフレンドリーなタップ操作対応
-
-### カスタムステークホルダーIDの拡張
+- セクションの順序をドラッグ&ドロップで並び替えできます
+- 作成した構成はローカルストレージに保存され、次回以降も利用可能です
 
 ### OCR機能について
 
-#### 対応形式
-- **画像ファイル**: JPG, JPEG, PNG, GIF, BMP, TIFF（Google Cloud Vision対応の画像タイプ）
-- **画像ベースPDF**: スキャンされたPDFや画像として保存されたPDF
-
-#### OCR処理の仕組み
-1. **PDFファイル**:
-   - まず埋め込みテキストの抽出を試みる
-   - テキストが100文字未満の場合、Google Cloud Vision APIでOCR実行
-   - 最大5ページまで処理（API制限）
-
-2. **画像ファイル**:
-   - 直接Google Cloud Vision APIでテキスト抽出
-   - 日本語・英語の両方に対応
-
-#### GSNファイルの特別処理
-GSNファイルと判定された場合（ファイル名に"GSN"を含む、またはGSNチェックボックスがON）、以下の整形を自動実行：
-- GSN要素（G1, S1, C1等）の識別と整形
-- 接続関係（→）の明確化
-- 余分な空白の削除
-
-### OCR設定のカスタマイズ
-
-`src/lib/config/constants.ts`で以下の設定を調整可能：
-
-```typescript
-// PDFのOCR処理最大ページ数（Vision API制限: 最大5ページ）
-export const PDF_OCR_MAX_PAGES = 5;
-
-// 埋め込みテキストを採用する最小文字数
-export const MIN_EMBEDDED_TEXT_LENGTH = 100;
-
-// OCR信頼度の閾値
-export const OCR_CONFIG = {
-  minConfidenceThreshold: 70, // 許容する最小信頼度（%）
-  lowConfidenceWarning: 50,   // 低信頼度警告の閾値（%）
-};
-```
+- **対応形式**: 画像ファイル（JPG, PNG等）、画像ベースPDF
+- **仕組み**: PDFはまず埋め込みテキストを試し、文字が少ない場合（100文字未満）にGoogle Cloud Vision APIでOCRを実行します。画像ファイルは直接OCRを実行します
+- **GSN処理**: GSNファイルと判定された場合、OCRテキストからGSN要素（G1, S1等）を識別し、自動で整形します
 
 ### RAG機能の詳細
 
-#### 検索クエリの高度化
-システムは単純なキーワード検索ではなく、以下の高度な検索戦略を採用：
-
-##### 自動生成される5つの検索パターン
-1. **基本クエリ**: ロールと関心事の組み合わせ
-2. **関心事フォーカス**: ロールを除いた関心事のみ
-3. **同義語展開**: 「リスク管理」→「ハザード」「危険評価」など
-4. **ロール特化用語**: 技術者には「GSN アシュアランスケース」を追加
-5. **英語クエリ**: 英語文書対応のための自動翻訳
-
-##### 多言語対応
-- 入力言語を自動判定（日本語/英語/混在）
-- 英語役職を日本語に自動変換（例：Product Manager → プロダクトマネージャー）
-- 関心事の自動翻訳（例：cost reduction → コスト削減）
-- 技術用語（CI/CD、Kubernetes等）はそのまま保持
-
-#### 動的な情報抽出
-- チャンク総数の30%を基準に、関連情報を動的に抽出
-- **技術系ステークホルダー**（Technical Fellows、Architect、R&D）: 1.2倍に調整
-- **経営系ステークホルダー**（CxO、Business）: 0.7倍に調整
-- **製品系ステークホルダー**（Product）: 1.0倍（標準）
-- ベクトルストアの種類に応じた上限設定（ChromaDB: 30、Pinecone: 50、メモリ: 20）
-
-#### 適応的取得アルゴリズム
-動的K値（取得文書数）を確実に取得するための3段階検索：
-- **Phase 1**: 初期取得（K値の100%を目標）
-- **Phase 2**: 拡張取得（不足時は150%まで拡張）
-- **Phase 3**: 深層取得（さらに200%まで検索）
-
-文書総数の80%を上限として設定し、重複を除去した上で正確にK件を返却。
-達成率90%以上を維持。
-
-#### カスタムステークホルダーの自動最適化
-役割名から分野を自動推測し、専門検索用語を追加：
-- 品質/QA → 「品質保証、テスト、バグ、検証」
-- セキュリティ → 「脆弱性、攻撃、防御、ゼロトラスト」
-- データ分析 → 「BI、データガバナンス、KPI」
-
-#### ベクトルストアの選択
-- **ChromaDB**（デフォルト）: ローカル環境で動作、セットアップが簡単、コサイン類似度使用
-- **Pinecone**: クラウドベース、大規模データに最適、コサイン類似度使用
-- **メモリ**: 開発・テスト用、永続化なし
+- **検索クエリの高度化**: ステークホルダーの役割や関心事に基づき、同義語展開、専門用語追加、英語クエリなど、最大5つの検索パターンを自動生成します
+- **動的な情報抽出**: 全体の文書量とステークホルダーのタイプ（技術系/経営系）に応じて、AIに渡す関連情報の量（K値）を動的に調整します
+- **ベクトルストアの選択**: `.env.local`の`VECTOR_STORE`で `chromadb` (デフォルト), `pinecone`, `memory` を選択可能です
 
 ### ステークホルダー管理
 
-ステークホルダー設定ページ（`/stakeholder-settings`）では、以下の操作が可能です：
+`/stakeholder-settings` ページで、カスタムステークホルダーの追加・削除が可能です。
 
-#### ステークホルダーの追加
-1. 「新しいステークホルダーを追加」ボタンをクリック
-2. 以下の情報を入力：
-   - **ID**: ステークホルダーのID
-   - **役職名**: ステークホルダーの役職（例：プロジェクトマネージャー）
-   - **関心事**: ステークホルダーが重視する項目（複数追加可能）
-3. 「保存」ボタンをクリック
-
-#### ステークホルダーの削除
-1. 削除したいステークホルダーの「削除」ボタンをクリック
-2. 確認ダイアログで「削除」を選択
-
-**注意**: デフォルトのステークホルダー（初期設定の6つ）は削除できません。
-
-#### 新しいステークホルダーID
-カスタムステークホルダー作成時に、以下のIDが自動的に認識され、適切な構成が推奨されます：
-
-#### ID命名規則
-- **使用可能文字**: 英数字、ハイフン（-）、アンダースコア（_）
-- **文字数**: 3〜30文字
-- **大文字小文字**: 区別される（Case Sensitive）
-- **プレフィックス**: カスタムIDには自動的に`custom_`が付与
-
-### レポート生成の詳細機能
-
-#### レトリック戦略
-システムはステークホルダーの役職と関心事に基づいて、最適なレトリック戦略を自動選択します：
-
-- **データ駆動型説得法**: CxO、事業部門、製品部門向け
-- **論理的推論型**: 技術専門家、アーキテクト向け  
-- **権威依拠型**: R&D部門向け
-- **感情訴求型**: 営業・マーケティング向け
-- **問題解決型**: リスク・安全管理者向け
-- **ナラティブ型**: プロジェクトマネージャー向け
-
-#### GSN分析機能
-GSNファイルが含まれている場合、レポートでは以下の分析が行われます：
-- 各Goal（G）ノードの達成状況評価
-- Strategy（S）ノードの妥当性と実効性の検証
-- Solution（Sn）やContext（C）の裏付け確認
-- 未達成ノードのギャップ分析と対策提案
-- GSN構造全体の論理的整合性評価
-
-#### レポート形式
-- **文体**: すべてのレポートは「である調」で統一（です・ます調は使用しない）
-- **図表指示**: レポート内で`[図表: 説明]`形式で図表の挿入位置を指示
-- **構成**: ステークホルダーとレトリック戦略に応じて最適化された章構成
+**ID命名規則**: 英数字、ハイフン（-）、アンダースコア（_）のみ使用可能（3〜30文字）。大文字小文字は区別されます。
 
 ### RAGログ機能
 
-#### ログファイルの自動生成
-RAG検索の結果は`logs/rag/`ディレクトリに自動保存され、デバッグと改善に活用できます。
-
-#### ログ内容
-- **検索パラメータ**: クエリ、K値、ベクトルストアタイプ
-- **統計情報**: 取得文書数、文字数、ファイル別内訳
-- **ドキュメント詳細**: 各チャンクのメタデータ、スコア、プレビュー
-- **全文使用ファイル情報**: 全文使用として含まれたファイルのリスト
-
-#### ログファイル形式
-```
-logs/rag/
-├── rag_[stakeholder-id]_[timestamp].json  # 詳細ログ
-└── summary.jsonl                         # サマリーログ
-```
-
-## デフォルトステークホルダー
-
-システムには以下の6つのデフォルトステークホルダーが設定されています：
-
-- **CxO / 経営層**: ビジネスへの影響、リスク管理、戦略的意思決定
-- **Technical Fellows / 技術専門家**: 技術的詳細、実装の妥当性、イノベーション
-- **Architect / アーキテクト**: システム設計、統合性、技術スタック
-- **Business Division / 事業部門**: 市場価値、顧客満足度、収益性
-- **Product Division / 製品部門**: 製品品質、ユーザー体験、競合優位性
-- **R&D Division / 研究開発部門**: 技術革新、研究成果、将来性
+RAG検索の結果は`logs/rag/`ディレクトリにJSON形式で自動保存されます。検索クエリ、取得したチャンク、スコアなどを確認でき、デバッグに役立ちます。
 
 ## フォルダ構成
-
 ```
 safety-status-report-tool/
 ├── src/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── build-knowledge-base/
-│   │   │   │   └── route.ts         # ナレッジベース構築API
 │   │   │   ├── generate-report/
-│   │   │   │   └── route.ts         # レポート生成API
 │   │   │   ├── export-html/
-│   │   │   │   └── route.ts         # HTML出力API
 │   │   │   ├── export-docx/
-│   │   │   │   └── route.ts         # Word出力API
 │   │   │   ├── export-pdf/
-│   │   │   │   └── route.ts         # PDF出力API
 │   │   │   ├── pdf-extract/
-│   │   │   │   └── route.ts         # PDFテキスト抽出API（OCR対応）
 │   │   │   ├── google-vision-ocr/
-│   │   │   │   └── route.ts         # 画像OCR API
-│   │   │   └── excel-extract/
-│   │   │       └── route.ts         # Excelテキスト抽出API
-│   │   │   └── docx-extract/
-│   │   │       └── route.ts         # Wordテキスト抽出API
+│   │   │   ├── excel-extract/
+│   │   │   ├── docx-extract/
+│   │   │   ├── s3-upload/         # [NEW]
+│   │   │   ├── s3-process/        # [NEW]
+│   │   │   └── s3-cleanup/        # [NEW]
 │   │   │
 │   │   ├── components/
-│   │   │   ├── FileUpload.tsx               # ファイルアップロードUI
-│   │   │   ├── StakeholderSelect.tsx        # ステークホルダー選択UI
-│   │   │   ├── ReportPreview.tsx            # レポートプレビュー
-│   │   │   ├── ReportEditor.tsx             # レポート編集機能
-│   │   │   ├── ReportStructureSelector.tsx  # カスタム構成機能
-│   │   │   ├── ThemeProvider.tsx            # テーマ管理(next-themesプロバイダーラッパー)
-│   │   │   └── ThemeToggle.tsx              # ライト/ダーク/システムモード切り替えUI
+│   │   │   ├── FileUpload.tsx
+│   │   │   ├── StakeholderSelect.tsx
+│   │   │   ├── ReportPreview.tsx
+│   │   │   ├── ReportEditor.tsx
+│   │   │   ├── ReportStructureSelector.tsx
+│   │   │   └── ThemeToggle.tsx
 │   │   │
 │   │   ├── stakeholder-settings/
-│   │   │   └── page.tsx             # ステークホルダー設定メインページ
+│   │   │   └── page.tsx
 │   │   │
-│   │   ├── layout.tsx               # アプリケーションレイアウト
-│   │   ├── page.tsx                 # メインページ
-│   │   └── globals.css              # グローバルスタイル
+│   │   ├── layout.tsx
+│   │   ├── page.tsx
+│   │   └── globals.css
 │   │
 │   ├── lib/
 │   │   ├── config/
-│   │   │   └── constants.ts              # アプリケーション設定値
-│   │   ├── stakeholders.ts               # ステークホルダー管理ロジック
-│   │   ├── vector-store.ts               # ベクトルストア管理
-│   │   ├── direct-chroma-store.ts        # ChromaDB直接実装
-│   │   ├── embeddings.ts                 # エンベディング設定
-│   │   ├── google-cloud-auth.ts          # Google Cloud認証
-│   │   ├── text-processing.ts            # テキスト処理ユーティリティ
-│   │   ├── vision-api-utils.ts           # Vision APIエラーハンドリング
-│   │   ├── pdf-exporter.ts               # PDF出力処理
-│   │   ├── report-prompts.ts             # プロンプトテンプレート
-│   │   ├── rag-utils.ts                  # RAGユーティリティ（ログ機能含む）
-│   │   ├── rhetoric-strategies.ts        # レトリック戦略
-│   │   ├── query-enhancer.ts             # 検索クエリ拡張機能
-│   │   └── report-structures.ts          # レポート構成管理
+│   │   │   └── constants.ts
+│   │   ├── stakeholders.ts
+│   │   ├── vector-store.ts
+│   │   ├── direct-chroma-store.ts
+│   │   ├── embeddings.ts
+│   │   ├── google-cloud-auth.ts
+│   │   ├── text-processing.ts
+│   │   ├── vision-api-utils.ts
+│   │   ├── pdf-exporter.ts
+│   │   ├── report-prompts.ts
+│   │   ├── rag-utils.ts
+│   │   ├── rhetoric-strategies.ts
+│   │   ├── query-enhancer.ts
+│   │   ├── report-structures.ts
+│   │   └── s3-utils.ts            # [NEW]
 │   │
 │   └── types/
-│       └── index.ts                 # TypeScript型定義
+│       └── index.ts
 │
 ├── logs/
-│   └── rag/                        # RAGログ保存ディレクトリ
-│       ├── rag_*.json              # 詳細ログファイル
-│       └── summary.jsonl           # サマリーログ
+│   └── rag/
 │
 ├── public/
-├── .env.local                       # 環境変数（Gitには含めない）
+├── .env.local
 ├── .gitignore
-├── next.config.js                   # Next.js設定
+├── next.config.js
 ├── package.json
-├── tailwind.config.ts              # Tailwind CSS設定
-├── tsconfig.json                   # TypeScript設定
+├── tailwind.config.ts
+├── tsconfig.json
 └── README.md
 ```
 
@@ -501,128 +238,47 @@ safety-status-report-tool/
 - **フレームワーク**: Next.js 14 (App Router)
 - **言語**: TypeScript
 - **スタイリング**: Tailwind CSS
-- **AI/LLM**: 
-  - Anthropic Claude API (Claude 3 Haiku) - レポート生成
-  - OpenAI API (text-embedding-3-small) - エンベディング
-  - Google Cloud Vision API - OCR処理
+- **AI/LLM**:
+  - Anthropic Claude API (Claude 3 Haiku)
+  - OpenAI API (text-embedding-3-small)
+  - Google Cloud Vision API
 - **RAG/ベクトルストア**:
   - ChromaDB（デフォルト）
   - Pinecone（オプション）
-  - LangChain - ベクトルストア抽象化
+  - LangChain
 - **ファイル処理**:
+  - AWS S3 (SDK V3)
   - PDF生成: Puppeteer
   - PDF抽出: pdf-parse-new
-  - OCR: @google-cloud/vision
   - Excel処理: xlsx
   - Word抽出: mammoth
   - Word生成: docx
-- **UI**: React 18
-- **データ永続化**: 
-  - ローカルストレージ（カスタムステークホルダー用）
-  - ベクトルストア（ドキュメント用）
-  - ファイルシステム（RAGログ用）
+- **UI**: React 18, react-dropzone, @hello-pangea/dnd
+- **データ永続化**: ローカルストレージ, ベクトルストア, ファイルシステム（ログ用）
 
 ## トラブルシューティング
 
 ### レポートが期待通りに生成されない場合
 
-#### レトリック戦略が適切でない場合
-- カスタムステークホルダーの場合、役職名に「技術」「エンジニア」「経営」「営業」などのキーワードを含めることで、より適切な戦略が選択されます
-
-#### GSN分析が不十分な場合  
-- GSNファイルは「全文使用」を有効にすることを推奨
-- GSNチェックボックスをONにして明示的に指定
-- ファイル名に"GSN"を含めることで、自動的にGSN用の処理が適用されます
-
-### 検索結果が不十分な場合
-
-#### 症状
-- 重要な情報が検索されない
-- 関連性の低い文書が多く含まれる
-
-#### 対処法
-1. **ステークホルダーの役割を明確に記載**
-   - 「技術部門」より「ソフトウェア開発部門」の方が精度向上
-   - 英語名でも自動的に日本語検索に対応
-
-2. **関心事を具体的に設定**
-   - 「品質」より「ソフトウェア品質保証」が効果的
-   - 複数の関心事を設定（最大3つが優先的に使用）
-
-3. **全文使用オプションの活用**
-   - 確実に含めたい重要文書は「全文使用」を有効化
-
-#### 検索ログの確認
-`logs/rag/`フォルダに保存される検索ログで以下を確認可能：
-- 生成された拡張クエリ
-- 各クエリでの検索結果
-- K値達成率
-- 最終的に選択された文書リスト
+- **GSN分析が不十分**: GSNファイルは「全文使用」をONにし、「GSN」チェックボックスをONにしてください
+- **情報が不足**: RAGがうまく機能していない可能性があります。「ステークホルダー管理」で関心事をより具体的に設定してください
 
 ### OCR関連のエラー
 
-#### Google Cloud Vision API認証エラー
-```
-Error: 7 UNAUTHENTICATED
-```
-- サービスアカウントキーが正しく設定されているか確認
-- 環境変数`GOOGLE_CLOUD_VISION_KEY`にJSONキー全体が設定されているか確認
-- Vision APIが有効化されているか確認
+- **認証エラー**: `GOOGLE_CLOUD_VISION_KEY`が正しいか、Vision APIが有効か確認してください
+- **クォータ制限**: 無料枠の制限に達した可能性があります。時間をおいて試すか、画像（PNG/JPG）に変換してアップロードしてください
+- **PDFページ数制限**: 4MB未満のPDFはOCR処理が最大5ページに制限されます
 
-#### APIクォータ制限エラー
-```
-Error: 8 RESOURCE_EXHAUSTED
-```
-- 無料枠の制限に達した可能性があります
-- Google Cloud Consoleでクォータを確認
-- 時間をおいて再試行するか、有料プランにアップグレード
+### AWS S3関連エラー
 
-#### PDFページ数制限エラー
-```
-Error: 3 INVALID_ARGUMENT: At most 5 pages in one call please.
-```
-- Google Cloud Vision APIは1回の呼び出しで最大5ページまで
-- 対処法：
-  1. PDFを5ページ以下に分割
-  2. 各ページを画像（PNG/JPG）として保存
-  3. 重要なページのみ抽出
-
-#### 画像ベースPDFからテキストを抽出できない場合
-以下の方法を試してください：
-1. **PDFを画像として保存**: 各ページをPNG/JPG形式で保存し、画像ファイルとしてアップロード
-2. **Google Drive経由**: PDFをGoogle Driveで開き、Googleドキュメントに変換
-3. **Adobe Acrobat**: OCR処理を実行後、テキストPDFとして保存
+- **認証エラー (403)**: AWSのIAMキー、シークレット、リージョン、バケット名が正しいか、CORS設定が許可されているか確認してください
+- **ファイルアップロード失敗**: `AWS_S3_BUCKET_NAME` と `AWS_REGION` が正しいか、IAMユーザーが `PutObject` 権限を持っているか確認してください
 
 ### ChromaDB接続エラー
-- ChromaDBが起動しているか確認（`docker ps`）
-- ポート8000が使用可能か確認
-- `CHROMA_URL`環境変数が正しく設定されているか確認
 
-### エンベディングエラー
-- OpenAI APIキーが有効か確認
-- APIの利用制限に達していないか確認
+ChromaDBがローカルで起動しているか（`docker ps`）、`CHROMA_URL`が正しいか確認してください。
 
 ### 大きなファイルの処理
-- ファイルは1000文字ごとのチャンクに分割されます
-- 非常に大きなファイルは処理に時間がかかる場合があります
-- コンテキスト制限により、技術者向けは80,000文字、その他は50,000文字まで
-- 画像ファイルは10MB以下を推奨
-- ファイルが4MB以上の場合は、Vercel Blobストレージを経由して処理されます
 
-### レポート生成が遅い場合
-- ベクトルストアの検索に時間がかかっている可能性があります
-- ChromaDBからPineconeへの切り替えを検討してください
-- Claude APIの応答が遅い場合は、しばらく待つか再試行してください
-
-### カスタムステークホルダーが表示されない場合
-- ブラウザのローカルストレージをクリアして再度追加
-- プライベートブラウジングモードでは永続化されません
-- 異なるブラウザ間ではステークホルダー情報は共有されません
-
-## 制限事項
-
-- **PDF OCR**: 最大5ページまで（Google Cloud Vision API制限）
-- **画像サイズ**: 10MB以下推奨
-- **対応言語**: 日本語・英語
-- **同時アップロード**: ブラウザのメモリに依存
-- **大容量PDF**: 4MB以上のPDFファイルは自動的にVercel Blobストレージ経由で処理
+- 4MB以上のファイルはAWS S3を経由します。アップロードと処理に時間がかかる場合があります
+- 画像ファイルは10MB以下を推奨します
