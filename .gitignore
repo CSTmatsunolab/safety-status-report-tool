@@ -40,9 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# ChromaDB data
-chromadb_data/
-
 # Google Cloud credentials
 /credentials/
 *.json

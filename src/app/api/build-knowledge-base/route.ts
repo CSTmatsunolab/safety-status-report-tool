@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Building knowledge base for stakeholder:', stakeholderId);
     console.log('Processing files:', files.length);
-    console.log('Using vector store:', process.env.VECTOR_STORE || 'chromadb');
+    console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
 
     // エンベディングモデルの初期化
     const embeddings = createEmbeddings();
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       documentCount: documents.length,
-      vectorStore: process.env.VECTOR_STORE || 'chromadb',
+      vectorStore: process.env.VECTOR_STORE || 'pinecone',
     });
   } catch (error) {
     console.error('Knowledge base building error:', error);

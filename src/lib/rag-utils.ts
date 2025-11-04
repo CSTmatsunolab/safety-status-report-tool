@@ -48,7 +48,6 @@ export function getDynamicK(
   // ストアタイプ別の上限
   const limits: Record<string, number> = {
     'pinecone': 50,
-    'chromadb-direct': 30,
     'memory': 20
   };
   
@@ -181,12 +180,12 @@ export function saveRAGLog(data: RAGLogData): string | null {
     // サマリーログも作成
     saveSummaryLog(data, fileName, logDir);
     
-    console.log(`✅ RAG検索結果を保存しました: ${logPath}`);
-    console.log(`📊 サマリー: ${data.relevantDocs.length}件のドキュメント, ${data.contextLength.toLocaleString()}文字`);
+    console.log(`RAG検索結果を保存しました: ${logPath}`);
+    console.log(`サマリー: ${data.relevantDocs.length}件のドキュメント, ${data.contextLength.toLocaleString()}文字`);
     
     return logPath;
   } catch (error) {
-    console.error('❌ ログファイルの保存に失敗:', error);
+    console.error('ログファイルの保存に失敗:', error);
     return null;
   }
 }

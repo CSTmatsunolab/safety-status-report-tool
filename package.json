@@ -6,11 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "db:start": "docker-compose -f docker-compose.dev.yml up -d",
-    "db:stop": "docker-compose -f docker-compose.dev.yml down",
-    "db:reset": "docker-compose -f docker-compose.dev.yml down -v && docker-compose -f docker-compose.dev.yml up -d",
-    "dev:full": "npm run db:start && npm run dev"
+    "lint": "next lint"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",
@@ -24,7 +20,6 @@
     "@langchain/pinecone": "^0.2.0",
     "@langchain/textsplitters": "^0.0.3",
     "@pinecone-database/pinecone": "^5.1.2",
-    "chromadb": "^3.0.15",
     "docx": "^9.5.1",
     "langchain": "^0.3.34",
     "mammoth": "^1.11.0",

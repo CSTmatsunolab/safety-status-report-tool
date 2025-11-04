@@ -40,7 +40,7 @@ async function performRAGSearch(
   let contextContent = '';
   let relevantDocs: Document[] = [];
 
-  if (vectorStoreType === 'pinecone' || vectorStoreType === 'chromadb') {
+  if (vectorStoreType === 'pinecone') {
     try {
       const embeddings = createEmbeddings();
       const vectorStore = await VectorStoreFactory.getExistingStore(
@@ -339,7 +339,7 @@ export async function POST(request: NextRequest) {
     
     const safeFiles = files || [];
     console.log('Generating report for:', stakeholder.role);
-    console.log('Using vector store:', process.env.VECTOR_STORE || 'memory');
+    console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
 
     // ファイルの分類
     const fullTextFiles = safeFiles.filter(f => f.includeFullText);
@@ -347,7 +347,7 @@ export async function POST(request: NextRequest) {
     console.log(`Files breakdown: ${fullTextFiles.length} full-text, ${ragTargetFiles.length} RAG target`);
 
     // RAG検索の実行
-    const vectorStoreType = process.env.VECTOR_STORE || 'memory';
+    const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
     const { contextContent: ragContent } = await performRAGSearch(
       stakeholder,
       vectorStoreType,

@@ -7,7 +7,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - **ファイルアップロード**: PDF、テキスト、CSV、Excel、Word、画像ファイル（JPG, PNG等）など多様な形式に対応
 - **OCR機能**: Google Cloud Vision APIを使用した画像・画像ベースPDFからのテキスト抽出
 - **大容量ファイル対応 (AWS S3)**: 4MBを超えるファイルをAWS S3経由で安全に処理
-- **RAG機能**: 大量のドキュメントから関連情報を効率的に抽出
+- **RAG機能(Pinecone)**: 大量のドキュメントから関連情報を効率的に抽出
 - **動的な情報抽出**: ドキュメント量とステークホルダーに応じた最適な情報量の調整
 - **全文使用機能**: 重要なファイルを確実にAIに渡すための全文コンテキスト使用オプション
 - **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
@@ -29,7 +29,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - OpenAI APIキー（エンベディング用）
 - Google Cloud Vision APIキー（OCR用）
 - **AWS S3バケット**（大容量ファイル処理用）
-- ChromaDB（ローカルインストール）または Pinecone APIキー
+- Pinecone APIキー
 
 ### インストール手順
 
@@ -56,10 +56,7 @@ OPENAI_API_KEY=your_openai_api_key_here
 GOOGLE_CLOUD_VISION_KEY='{ "type": "service_account", ... }' # Google CloudからダウンロードしたJSONキーの内容
 
 # ベクトルストア設定
-VECTOR_STORE=chromadb # または 'pinecone', 'memory'
-
-# ChromaDB使用時
-CHROMA_URL=http://localhost:8000
+VECTOR_STORE=pinecone # または 'memory'
 
 # Pinecone使用時
 PINECONE_API_KEY=your_pinecone_api_key
@@ -87,13 +84,7 @@ CLEANUP_AUTH_TOKEN=your_secure_random_token
 - バケットのCORS設定を行い、アプリケーションのドメインからの `PUT` リクエストを許可します
 - IAMユーザーのアクセス情報を `.env.local` に設定します
 
-#### 6. ChromaDBの起動（ChromaDB使用時）
-```bash
-# 別ターミナルでChromaDBを起動
-docker run -p 8000:8000 chromadb/chroma
-```
-
-#### 7. 開発サーバーの起動
+#### 6. 開発サーバーの起動
 ```bash
 npm run dev
 ```
@@ -153,7 +144,7 @@ npm run dev
 
 - **検索クエリの高度化**: ステークホルダーの役割や関心事に基づき、同義語展開、専門用語追加、英語クエリなど、最大5つの検索パターンを自動生成します
 - **動的な情報抽出**: 全体の文書量とステークホルダーのタイプ（技術系/経営系）に応じて、AIに渡す関連情報の量（K値）を動的に調整します
-- **ベクトルストアの選択**: `.env.local`の`VECTOR_STORE`で `chromadb` (デフォルト), `pinecone`, `memory` を選択可能です
+- **ベクトルストアの選択**: `.env.local`の`VECTOR_STORE`で`pinecone` (デフォルト), `memory` を選択可能です
 
 ### ステークホルダー管理
 
@@ -243,8 +234,7 @@ safety-status-report-tool/
   - OpenAI API (text-embedding-3-small)
   - Google Cloud Vision API
 - **RAG/ベクトルストア**:
-  - ChromaDB（デフォルト）
-  - Pinecone（オプション）
+  - Pinecone（デフォルト）
   - LangChain
 - **ファイル処理**:
   - AWS S3 (SDK V3)
@@ -273,10 +263,6 @@ safety-status-report-tool/
 
 - **認証エラー (403)**: AWSのIAMキー、シークレット、リージョン、バケット名が正しいか、CORS設定が許可されているか確認してください
 - **ファイルアップロード失敗**: `AWS_S3_BUCKET_NAME` と `AWS_REGION` が正しいか、IAMユーザーが `PutObject` 権限を持っているか確認してください
-
-### ChromaDB接続エラー
-
-ChromaDBがローカルで起動しているか（`docker ps`）、`CHROMA_URL`が正しいか確認してください。
 
 ### 大きなファイルの処理
 
