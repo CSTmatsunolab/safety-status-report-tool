@@ -4,8 +4,13 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
+import * as XLSX from 'xlsx';
+import * as mammoth from 'mammoth';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
+
+// ファイルサイズの閾値
+const S3_THRESHOLD = 4 * 1024 * 1024; // 4MB - これ以上はS3経由
 
 interface FileUploadProps {
   files: UploadedFile[];
@@ -14,8 +19,6 @@ interface FileUploadProps {
   onToggleFullText: (id: string, includeFullText: boolean) => void;
   onToggleGSN?: (id: string, isGSN: boolean) => void;
 }
-
-const CHUNK_THRESHOLD = 4 * 1024 * 1024; // 4MB
 
 // S3アップロード用の関数
 async function uploadToS3(file: File): Promise<string> {
@@ -62,7 +65,7 @@ async function processFileFromS3(
       key,
       fileName,
       fileType,
-      deleteAfterProcess: true,
+      deleteAfterProcess: false,
     }),
   });
 
@@ -74,11 +77,27 @@ async function processFileFromS3(
   return await response.json();
 }
 
+// ファイルタイプの判定
+function isDirectlyReadable(file: File): boolean {
+  const readableTypes = [
+    'text/plain',
+    'text/csv',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+  
+  const readableExtensions = ['.txt', '.csv', '.xlsx', '.xls', '.docx'];
+  
+  return readableTypes.includes(file.type) || 
+         readableExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+}
+
 async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    if (file.size < CHUNK_THRESHOLD) {
+    if (file.size < S3_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -117,11 +136,11 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
   }
 }
 
-// PDF処理
-async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number }> {
+async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number; s3Key?: string }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    if (file.size < CHUNK_THRESHOLD) {
+    
+    if (file.size < S3_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -147,8 +166,9 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
       return {
         text: result.text || '',
-        method: result.method || 'vision-ocr',
-        confidence: result.confidence
+        method: result.method || 's3',
+        confidence: result.confidence,
+        s3Key: result.method === 'embedded-text' ? s3Key : undefined
       };
     }
     
@@ -167,85 +187,63 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
   }
 }
 
-// Excel処理
-async function extractTextFromExcel(file: File): Promise<string> {
+async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string }> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    // ▼▼▼ ロジック反転 (4MB「未満」が通常処理) ▼▼▼
-    if (file.size < CHUNK_THRESHOLD) {
-      // 4MB未満は通常処理
-      const formData = new FormData();
-      formData.append('file', file);
+    if (file.size < S3_THRESHOLD) {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 60000);
-      
-      const response = await fetch('/api/excel-extract', { // ← 正しいAPI
-        method: 'POST',
-        body: formData,
-        signal: controller.signal
+      let allText = '';
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        allText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
       });
       
-      clearTimeout(timeout);
-      
-      if (!response.ok) {
-        throw new Error(`Excel extraction failed: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      return result.text || '';
+      return { text: allText };
     } else {
-      // 4MB以上はS3経由
+      console.log('Large Excel file, using S3...');
       const s3Key = await uploadToS3(file);
+      
+      // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
-      console.log('Excel file processed via S3');
-      return result.text || '';
+      
+      return {
+        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
+        s3Key: s3Key // S3キーを保存
+      };
     }
-    // ▲▲▲ ロジック反転ここまで ▲▲▲
   } catch (error) {
     console.error('Excel extraction error:', error);
-    if (error instanceof Error) {
-      alert(`Excelの処理に失敗しました: ${error.message}`);
-    }
-    return '';
+    return { text: '' };
   }
 }
 
-// Word処理
-async function extractTextFromDocx(file: File): Promise<string> {
+async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string }> {
   try {
     console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-
-    if (file.size < CHUNK_THRESHOLD) {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/docx-extract', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Word extraction failed: ${response.status}`);
-      }
-      
-      const result = await response.json();
-      return result.text || '';
-    } 
-    // 4MB以上はS3経由
-    else {
+    
+    if (file.size < S3_THRESHOLD) {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return { text: result.value };
+    } else {
+      console.log('Large Word file, using S3...');
       const s3Key = await uploadToS3(file);
+      
+      // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
-      console.log('Word file processed via S3');
-      return result.text || '';
+      
+      return {
+        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
+        s3Key: s3Key // S3キーを保存
+      };
     }
   } catch (error) {
     console.error('Word extraction error:', error);
-    if (error instanceof Error) {
-      alert(`Wordファイルの処理に失敗しました: ${error.message}`);
-    }
-    return '';
+    return { text: '' };
   }
 }
 
@@ -272,6 +270,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let content = '';
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
+          let s3Key: string | undefined;
 
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -292,15 +291,41 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             file.name.endsWith('.xlsx')
           ) {
             console.log(`Extracting text from Excel: ${file.name}`);
-            content = await extractTextFromExcel(file);
+            const excelResult = await extractTextFromExcel(file);
+            content = excelResult.text;
+            if (excelResult.s3Key) {
+              s3Key = excelResult.s3Key;
+            }
             extractionMethod = 'excel';
         } else if (
             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             file.name.endsWith('.docx')
           ) {
             console.log(`Extracting text from DOCX: ${file.name}`);
-            content = await extractTextFromDocx(file);
+            const docxResult = await extractTextFromDocx(file);
+            content = docxResult.text;
+            if (docxResult.s3Key) {
+              s3Key = docxResult.s3Key;
+            }
             extractionMethod = 'docx';
+        } else if (
+            file.type === 'text/csv' || 
+            file.type === 'text/plain' || 
+            file.name.endsWith('.csv') || 
+            file.name.endsWith('.txt')
+          ) {
+            if (file.size < S3_THRESHOLD) {
+              content = await file.text();
+            } else {
+              // 大きなCSV/TXTファイルはS3に保存
+              console.log(`Large text file (${file.name}), using S3...`);
+              s3Key = await uploadToS3(file);
+              
+              // プレビュー用に最初の部分だけ取得  
+              const preview = await file.text();
+              content = preview.substring(0, PREVIEW_LENGTH);
+            }
+            extractionMethod = 'text';
         } else {
             content = await file.text();
             extractionMethod = 'text';
@@ -314,13 +339,29 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             console.log(content.substring(0, PREVIEW_LENGTH));
             if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
           }
-        const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
+          const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
+          
+          // S3参照ファイルはcontentを空にする判定
+          const isDirectlyReadable = (file: File): boolean => {
+            const readableTypes = [
+              'text/plain',
+              'text/csv', 
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              'application/vnd.ms-excel',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ];
+            
+            const readableExtensions = ['.txt', '.csv', '.xlsx', '.xls', '.docx'];
+            
+            return readableTypes.includes(file.type) || 
+                   readableExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
+          };
 
           newFiles.push({
             id: crypto.randomUUID(),
             name: file.name,
             type,
-            content,
+            content: s3Key && isDirectlyReadable(file) ? '' : content,
             uploadedAt: new Date(),
             includeFullText: false,
             metadata: {
@@ -329,8 +370,10 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               size: file.size,
               confidence: ocrConfidence,
               gsnValidation: null,
-            isGSN: false,
-            userDesignatedGSN: false
+              isGSN: false,
+              userDesignatedGSN: false,
+              s3Key: s3Key,
+              contentPreview: s3Key ? content : undefined
             }
           });
 
@@ -468,7 +511,11 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                         ユーザー指定
                       </span>
                     )}
-                    {file.content.length > 0 ? (
+                    {file.metadata?.s3Key ? (
+                      <span className="ml-2">
+                        (S3保存済み {file.metadata?.contentPreview ? `- ${file.metadata.contentPreview.length.toLocaleString()} 文字プレビュー` : ''})
+                      </span>
+                    ) : file.content.length > 0 ? (
                       <span className="ml-2">
                         ({file.content.length.toLocaleString()} 文字)
                       </span>
@@ -486,7 +533,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                 {/* 1. チェックボックス・グループ (縦並び) */}
                 <div className="flex flex-col items-start space-y-1">
                   
-                  {/* GSNチェックボックス (mr-2を削除) */}
+                  {/* GSNチェックボックス */}
                   {onToggleGSN && (
                     <label className="flex items-center cursor-pointer">
                       <input
@@ -543,7 +590,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           )}
 
           {/* 画像ベースPDFの警告メッセージ */}
-          {files.some(f => f.content.length === 0) && (
+          {files.some(f => !f.metadata?.s3Key && f.content.length === 0) && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
               <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                 一部のファイルからテキストを抽出できませんでした

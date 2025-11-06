@@ -56,4 +56,6 @@ export interface FileMetadata {
   gsnValidation?: GSNValidationResult | null;
   isGSN?: boolean;
   userDesignatedGSN: boolean;
+  s3Key?: string;
+  contentPreview?: string;
 }

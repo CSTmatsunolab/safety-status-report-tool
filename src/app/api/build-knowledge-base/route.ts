@@ -1,9 +1,138 @@
+// src/app/api/build-knowledge-base/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { Document } from '@langchain/core/documents';
 import { UploadedFile } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
+import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import * as XLSX from 'xlsx';
+import * as mammoth from 'mammoth';
+
+// S3クライアントの初期化
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'ap-northeast-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+  },
+});
+
+const S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || 'safety-report-uploads-2024';
+
+// 最大文字数制限
+const MAX_CONTENT_CHARS = 80000; // 8万文字
+
+// コンテンツを賢く切り詰める関数
+function truncateContent(text: string, fileType: string, fileName: string): { 
+  content: string; 
+  truncated: boolean; 
+  originalLength: number;
+} {
+  if (text.length <= MAX_CONTENT_CHARS) {
+    return { 
+      content: text, 
+      truncated: false, 
+      originalLength: text.length 
+    };
+  }
+
+  console.log(`Truncating ${fileName}: ${text.length} -> ${MAX_CONTENT_CHARS} chars`);
+
+  let truncatedContent = '';
+
+  // CSVやExcelの場合は行単位で切り詰め
+  if (fileType.includes('csv') || fileType.includes('excel') || fileType.includes('spreadsheet')) {
+    const lines = text.split('\n');
+    let currentLength = 0;
+    
+    for (const line of lines) {
+      if (currentLength + line.length + 1 > MAX_CONTENT_CHARS) {
+        truncatedContent += '\n[残りのデータ行は省略されました]';
+        break;
+      }
+      truncatedContent += (currentLength > 0 ? '\n' : '') + line;
+      currentLength += line.length + 1;
+    }
+  } 
+  // テキストファイルは段落単位で切り詰め
+  else if (fileType.includes('text') || fileType.includes('plain')) {
+    const paragraphs = text.split('\n\n');
+    let currentLength = 0;
+    
+    for (const paragraph of paragraphs) {
+      if (currentLength + paragraph.length + 2 > MAX_CONTENT_CHARS) {
+        truncatedContent += '\n\n[文書の続きは省略されました]';
+        break;
+      }
+      truncatedContent += (currentLength > 0 ? '\n\n' : '') + paragraph;
+      currentLength += paragraph.length + 2;
+    }
+  }
+  // その他のファイルは文字単位で切り詰め
+  else {
+    truncatedContent = text.substring(0, MAX_CONTENT_CHARS) + '\n\n[内容が大きすぎるため省略されました]';
+  }
+
+  return {
+    content: truncatedContent,
+    truncated: true,
+    originalLength: text.length
+  };
+}
+
+// S3からファイルコンテンツを取得
+async function getContentFromS3(key: string, fileType: string, fileName: string): Promise<{
+  content: string;
+  truncated: boolean;
+  originalLength: number;
+}> {
+  try {
+    console.log(`Fetching content from S3: ${key}`);
+    
+    const command = new GetObjectCommand({
+      Bucket: S3_BUCKET_NAME,
+      Key: key,
+    });
+
+    const response = await s3Client.send(command);
+    const buffer = await response.Body?.transformToByteArray();
+    
+    if (!buffer) {
+      throw new Error('Failed to get file content from S3');
+    }
+
+    let text = '';
+
+    // ファイルタイプに応じて処理
+    if (fileType.includes('excel') || fileType.includes('spreadsheet') || key.endsWith('.xlsx') || key.endsWith('.xls')) {
+      // Excelファイルの処理
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        text += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
+      });
+      
+    } else if (fileType.includes('word') || key.endsWith('.docx')) {
+      // Wordファイルの処理
+      const result = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
+      text = result.value;
+      
+    } else {
+      // テキスト/CSVファイル
+      text = new TextDecoder().decode(buffer);
+    }
+
+    // コンテンツを制限内に収める
+    return truncateContent(text, fileType, fileName);
+    
+  } catch (error) {
+    console.error(`Error fetching from S3: ${key}`, error);
+    throw error;
+  }
+}
 
 // グローバルストレージ（メモリストアの参照を保持）
 const globalStores: Map<string, unknown> = 
@@ -29,15 +158,16 @@ export async function POST(request: NextRequest) {
     // エンベディングモデルの初期化
     const embeddings = createEmbeddings();
 
-    // テキストスプリッターの設定
+    // テキストスプリッターの設定（チャンクサイズを調整）
     const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 1000,
-      chunkOverlap: 200,
+      chunkSize: 500,     // 小さめのチャンク
+      chunkOverlap: 100,
       separators: ['\n\n', '\n', '。', '．', '！', '？', ' '],
     });
 
     // 全ファイルからドキュメントを作成
     const documents: Document[] = [];
+    const warnings: string[] = [];
     
     for (const file of files) {
       // 全文使用ファイルはスキップ
@@ -46,14 +176,56 @@ export async function POST(request: NextRequest) {
         continue;
       }
       
-      if (file.content && file.content.length > 0) {
+      let fileContent = file.content;
+      let truncated = false;
+      let originalLength = fileContent?.length || 0;
+      
+      // S3参照の場合はコンテンツを取得
+      if (file.metadata?.s3Key && !file.content) {
+        console.log(`Fetching content for ${file.name} from S3: ${file.metadata.s3Key}`);
+        
+        try {
+          const result = await getContentFromS3(
+            file.metadata.s3Key,
+            file.metadata.originalType || file.type,
+            file.name
+          );
+          
+          fileContent = result.content;
+          truncated = result.truncated;
+          originalLength = result.originalLength;
+          
+          if (truncated) {
+            const warning = `${file.name}: 大きすぎるため ${originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
+            warnings.push(warning);
+            console.warn(warning);
+          }
+          
+        } catch (error) {
+          console.error(`Failed to fetch S3 content for ${file.name}:`, error);
+          // プレビューがある場合はそれを使用
+          fileContent = file.metadata.contentPreview || '';
+        }
+      } else if (fileContent) {
+        // メモリ内のコンテンツも制限を適用
+        const result = truncateContent(fileContent, file.type, file.name);
+        if (result.truncated) {
+          fileContent = result.content;
+          const warning = `${file.name}: ${result.originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
+          warnings.push(warning);
+          console.warn(warning);
+        }
+      }
+      
+      if (fileContent && fileContent.length > 0) {
         // テキストをチャンクに分割
         const chunks = await textSplitter.createDocuments(
-          [file.content],
+          [fileContent],
           [{
             fileName: file.name,
             fileType: file.type,
-            uploadedAt: file.uploadedAt.toString()
+            uploadedAt: file.uploadedAt.toString(),
+            truncated: truncated
           }]
         );
         
@@ -75,41 +247,75 @@ export async function POST(request: NextRequest) {
 
     console.log('Created document chunks:', documents.length);
     
+    // チャンクが多すぎる場合の追加制限
+    const MAX_CHUNKS = 500;
+    if (documents.length > MAX_CHUNKS) {
+      const warning = `チャンク数が多すぎるため、${documents.length} から ${MAX_CHUNKS} に制限しました`;
+      warnings.push(warning);
+      console.warn(warning);
+      documents.length = MAX_CHUNKS;
+    }
+    
     // チャンクが0の場合の処理
     if (documents.length === 0) {
       console.log('No documents to store in vector database (all files are full-text)');
       
-      // 空のベクトルストアを作成せず、成功レスポンスを返す
       return NextResponse.json({
         success: true,
         documentCount: 0,
         vectorStore: 'none',
-        message: 'All files are set to full-text mode, skipping vector store'
+        message: 'All files are set to full-text mode, skipping vector store',
+        warnings: warnings.length > 0 ? warnings : undefined
       });
     }
 
     // ベクトルストアにドキュメントを保存
-    const vectorStore = await VectorStoreFactory.fromDocuments(
-      documents,
-      embeddings,
-      { stakeholderId, embeddings }
-    );
-  
-    const storeKey = `ssr_${stakeholderId.replace(/-/g, '_')}`;
-    globalStores.set(storeKey, vectorStore);
-    console.log(`Saved memory store to global storage with key: ${storeKey}`);
+    try {
+      const vectorStore = await VectorStoreFactory.fromDocuments(
+        documents,
+        embeddings,
+        { stakeholderId, embeddings }
+      );
+    
+      const storeKey = `ssr_${stakeholderId.replace(/-/g, '_')}`;
+      globalStores.set(storeKey, vectorStore);
+      console.log(`Saved memory store to global storage with key: ${storeKey}`);
 
-    console.log('Knowledge base built successfully');
+      console.log('Knowledge base built successfully');
 
-    return NextResponse.json({
-      success: true,
-      documentCount: documents.length,
-      vectorStore: process.env.VECTOR_STORE || 'pinecone',
-    });
+      return NextResponse.json({
+        success: true,
+        documentCount: documents.length,
+        vectorStore: process.env.VECTOR_STORE || 'pinecone',
+        warnings: warnings.length > 0 ? warnings : undefined
+      });
+      
+    } catch (embedError) {
+      // エンベディングエラーの場合
+      console.error('Embedding error:', embedError);
+      
+      // エラーメッセージを改善
+      if (embedError instanceof Error && embedError.message.includes('max_tokens_per_request')) {
+        return NextResponse.json(
+          { 
+            error: 'ファイルサイズが大きすぎます。より小さいファイルをアップロードしてください。',
+            details: 'エンベディング処理のトークン制限を超えました',
+            warnings 
+          },
+          { status: 400 }
+        );
+      }
+      
+      throw embedError;
+    }
+    
   } catch (error) {
     console.error('Knowledge base building error:', error);
     return NextResponse.json(
-      { error: 'Failed to build knowledge base', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        error: 'Failed to build knowledge base', 
+        details: error instanceof Error ? error.message : 'Unknown error' 
+      },
       { status: 500 }
     );
   }
