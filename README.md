@@ -338,7 +338,7 @@ safety-status-report-tool/
 │   │   │   │── docx-extract/
 │   │   │   │   └── route.ts          # Wordテキスト抽出API
 │   │   │   ├── s3-upload/            # S3アップロード
-│   │   │   ├── s3-process/           #  
+│   │   │   ├── s3-process/           # S3上のファイル処理API 
 │   │   │   └── s3-cleanup/           # S3クリーン
 │   │   │
 │   │   ├── components/
