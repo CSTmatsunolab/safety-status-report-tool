@@ -9,7 +9,7 @@ import ReportPreview from './components/ReportPreview';
 import { ThemeToggle } from './components/ThemeToggle';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
-import { FiDatabase, FiCheckCircle, FiLoader, FiSettings } from 'react-icons/fi';
+import { FiDatabase, FiCheckCircle, FiLoader, FiSettings, FiTrash2 } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
@@ -27,7 +27,7 @@ export default function Home() {
   const [recommendedStructureId, setRecommendedStructureId] = useState<string>('');
   const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
   const [browserId, setBrowserId] = useState<string>('');
-  const [showDebugInfo, setShowDebugInfo] = useState(false); // デバッグパネル用（オプション）
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const id = getBrowserId();
@@ -157,6 +157,112 @@ export default function Home() {
     }
   };
 
+  const deleteKnowledgeBase = async () => {
+    if (!selectedStakeholder) return;
+    
+    setIsDeleting(true);
+    
+    try {
+      // まず現在のデータ状況を確認
+      let vectorCount = 0;
+      let hasData = false;
+      
+      try {
+        const statsResponse = await fetch(
+          `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&browserId=${browserId}`,
+          { method: 'GET' }
+        );
+        
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json();
+          vectorCount = stats.vectorCount || 0;
+          hasData = vectorCount > 0;
+        }
+      } catch (error) {
+        console.log('Stats check skipped:', error);
+      }
+      
+      // 確認メッセージをデータ有無に応じて調整
+      const namespace = selectedStakeholder.id.startsWith('custom_') ? 
+        `custom_${browserId.substring(0, 8)}_${selectedStakeholder.id.substring(7)}` : 
+        `${selectedStakeholder.id}_${browserId.substring(0, 8)}`;
+      
+      let confirmMessage;
+      if (hasData) {
+        confirmMessage = 
+          `【知識ベースの削除確認】\n\n` +
+          `対象: ${selectedStakeholder.role}\n` +
+          `ネームスペース: ${namespace}...\n` +
+          `現在のデータ: ${vectorCount.toLocaleString()} ベクトル\n\n` +
+          `⚠️ この操作は取り消せません。本当に削除しますか？`;
+      } else if (knowledgeBaseStatus === 'ready') {
+        confirmMessage = 
+          `【知識ベースのリセット確認】\n\n` +
+          `対象: ${selectedStakeholder.role}\n` +
+          `ネームスペース: ${namespace}...\n\n` +
+          `データをリセットしますか？`;
+      } else {
+        confirmMessage = 
+          `【知識ベースのクリア確認】\n\n` +
+          `対象: ${selectedStakeholder.role}\n` +
+          `ネームスペース: ${namespace}...\n\n` +
+          `念のためクリア処理を実行しますか？`;
+      }
+      
+      if (!confirm(confirmMessage)) {
+        setIsDeleting(false);
+        return;
+      }
+      
+      // 削除実行
+      const response = await fetch('/api/delete-knowledge-base', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          stakeholderId: selectedStakeholder.id,
+          browserId: browserId,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Knowledge base deletion failed');
+      }
+      
+      const result = await response.json();
+      if (!response.ok && !result.wasAlreadyEmpty) {
+        throw new Error(result.error || 'Knowledge base deletion failed');
+      }
+      
+      console.log('Knowledge base deleted:', result);
+      
+      setKnowledgeBaseStatus('idle');
+      
+      if (result.wasAlreadyEmpty) {
+        alert(`${selectedStakeholder.role}の知識ベースは既にクリアされています。`);
+      } else if (hasData) {
+        alert(
+          `削除完了\n\n` +
+          `対象: ${selectedStakeholder.role}\n` +
+          `削除されたデータ: ${vectorCount.toLocaleString()} ベクトル\n` +
+          `残りのベクトル: ${result.remainingVectors || 0}`
+        );
+      } else {
+        alert(`${selectedStakeholder.role}の知識ベースをクリアしました。`);
+      }
+      
+    } catch (error) {
+      console.error('Knowledge base deletion error:', error);
+      alert(
+        `削除に失敗しました\n\n` +
+        `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+
   const handleGenerateReport = async () => {
     if (!selectedStakeholder || !selectedStructure) return;
     // ファイルがある場合のみナレッジベース構築
@@ -197,6 +303,7 @@ export default function Home() {
   const handleStakeholderSelect = (stakeholder: Stakeholder) => {
     setSelectedStakeholder(stakeholder);
     setKnowledgeBaseStatus('idle');
+    setIsDeleting(false);
     
     // 推奨構成を取得して設定
     const recommended = getSimpleRecommendedStructure(
@@ -272,44 +379,114 @@ export default function Home() {
                 onSelect={handleStakeholderSelect}
               />
 
-              {/* RAG知識ベース構築ステータス */}
-              {selectedStakeholder && files.length > 0 && (
+              {selectedStakeholder && (
                 <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 transition-all">
+                  
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       RAG知識ベース
                     </span>
-                    {knowledgeBaseStatus === 'idle' && (
+                    
+                    <div className="flex items-center gap-3">
+                      {/* ステータス表示と構築ボタン */}
+                      {knowledgeBaseStatus === 'idle' && files.length > 0 && (
+                        <button
+                          onClick={buildKnowledgeBase}
+                          disabled={isKnowledgeBaseBuilding || isDeleting}
+                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                        >
+                          <FiDatabase />
+                          構築する
+                        </button>
+                      )}
+                      
+                      {knowledgeBaseStatus === 'idle' && files.length === 0 && (
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          構築はファイルが必要
+                        </span>
+                      )}
+                      
+                      {knowledgeBaseStatus === 'building' && (
+                        <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                          <FiLoader className="animate-spin" />
+                          構築中...
+                        </span>
+                      )}
+                      
+                      {knowledgeBaseStatus === 'ready' && (
+                        <>
+                          <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                            <FiCheckCircle />
+                            準備完了
+                          </span>
+                          {files.length > 0 && (
+                            <button
+                              onClick={buildKnowledgeBase}
+                              disabled={isKnowledgeBaseBuilding || isDeleting}
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                              title="知識ベースを再構築"
+                            >
+                              <FiDatabase />
+                              再構築
+                            </button>
+                          )}
+                        </>
+                      )}
+                      
+                      {knowledgeBaseStatus === 'error' && (
+                        <>
+                          <span className="text-sm text-red-600 dark:text-red-400">
+                            エラー
+                          </span>
+                          {files.length > 0 && (
+                            <button
+                              onClick={buildKnowledgeBase}
+                              disabled={isKnowledgeBaseBuilding || isDeleting}
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                              title="再試行"
+                            >
+                              <FiDatabase />
+                              再試行
+                            </button>
+                          )}
+                        </>
+                      )}
+
                       <button
-                        onClick={buildKnowledgeBase}
-                        disabled={isKnowledgeBaseBuilding}
-                        className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors"
+                        onClick={deleteKnowledgeBase}
+                        disabled={isDeleting || isKnowledgeBaseBuilding}
+                        className="p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={`${selectedStakeholder.role}の知識ベースをリセット`}
                       >
-                        <FiDatabase />
-                        構築する
+                        {isDeleting ? (
+                          <FiLoader className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <FiTrash2 className="w-4 h-4" />
+                        )}
                       </button>
-                    )}
-                    {knowledgeBaseStatus === 'building' && (
-                      <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                        <FiLoader className="animate-spin" />
-                        構築中...
-                      </span>
-                    )}
-                    {knowledgeBaseStatus === 'ready' && (
-                      <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                        <FiCheckCircle />
-                        準備完了
-                      </span>
-                    )}
-                    {knowledgeBaseStatus === 'error' && (
-                      <span className="text-sm text-red-600 dark:text-red-400">
-                        エラー
-                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
+                    <p>
+                      <span className="font-medium text-gray-600 dark:text-gray-300">Namespace:</span> 
+                      <code className="text-xs bg-gray-200 dark:bg-gray-700 p-1 rounded ml-1">
+                        {selectedStakeholder.id.startsWith('custom_') ? 
+                          `custom_${selectedStakeholder.id.substring(7)}_${browserId.substring(0, 8)}...` : 
+                          `${selectedStakeholder.id}_${browserId.substring(0, 8)}...`}
+                      </code>
+                    </p>
+                    <p>
+                      RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します
+                    </p>
+                    {/* ステータスに応じた追加メッセージ */}
+                    {knowledgeBaseStatus === 'idle' && files.length === 0 && (
+                      <p className="text-amber-600 dark:text-amber-400">
+                        構築にはファイルのアップロードが必要です。削除はいつでも実行できます。
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します
-                  </p>
+
                 </div>
               )}
             </div>
