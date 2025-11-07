@@ -13,6 +13,7 @@ import { FiDatabase, FiCheckCircle, FiLoader, FiSettings } from 'react-icons/fi'
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
+import { getBrowserId, resetBrowserId } from '@/lib/browser-id';
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -25,8 +26,14 @@ export default function Home() {
   const [selectedStructure, setSelectedStructure] = useState<ReportStructureTemplate | null>(null);
   const [recommendedStructureId, setRecommendedStructureId] = useState<string>('');
   const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
+  const [browserId, setBrowserId] = useState<string>('');
+  const [showDebugInfo, setShowDebugInfo] = useState(false); // デバッグパネル用（オプション）
 
   useEffect(() => {
+    const id = getBrowserId();
+    setBrowserId(id);
+    console.log('Browser ID:', id);
+
     // カスタムステークホルダーを読み込む
     const saved = localStorage.getItem('customStakeholders');
     if (saved) {
@@ -127,6 +134,7 @@ export default function Home() {
         body: JSON.stringify({
           files,
           stakeholderId: selectedStakeholder.id,
+          browserId: browserId,
         }),
       });
       
@@ -136,6 +144,9 @@ export default function Home() {
       
       const result = await response.json();
       console.log('Knowledge base built:', result);
+      if (result.namespace) {
+      console.log('Namespace used:', result.namespace);
+      }
       setKnowledgeBaseStatus('ready');
     } catch (error) {
       console.error('Knowledge base building error:', error);
@@ -164,7 +175,8 @@ export default function Home() {
           fullTextFileIds: files
             .filter(file => file.includeFullText)
             .map(file => file.id),
-          reportStructure: selectedStructure
+          reportStructure: selectedStructure,
+          browserId: browserId,
         }),
       });
 

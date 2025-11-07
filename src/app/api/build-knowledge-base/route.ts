@@ -8,6 +8,7 @@ import { createEmbeddings } from '@/lib/embeddings';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
+import { generateNamespace } from '@/lib/browser-id';  // ファイル冒頭でインポート
 
 // S3クライアントの初期化
 const s3Client = new S3Client({
@@ -141,7 +142,7 @@ const globalStores: Map<string, unknown> =
 
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholderId }: { files: UploadedFile[]; stakeholderId: string } = 
+    const { files, stakeholderId, browserId }: { files: UploadedFile[]; stakeholderId: string; browserId?: string; } = 
       await request.json();
     
     if (!files || files.length === 0) {
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
 
     // テキストスプリッターの設定（チャンクサイズを調整）
     const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 500,     // 小さめのチャンク
+      chunkSize: 1000,
       chunkOverlap: 100,
       separators: ['\n\n', '\n', '。', '．', '！', '？', ' '],
     });
@@ -258,6 +259,7 @@ export async function POST(request: NextRequest) {
     
     // チャンクが0の場合の処理
     if (documents.length === 0) {
+      const namespace = generateNamespace(stakeholderId, browserId);
       console.log('No documents to store in vector database (all files are full-text)');
       
       return NextResponse.json({
@@ -265,7 +267,8 @@ export async function POST(request: NextRequest) {
         documentCount: 0,
         vectorStore: 'none',
         message: 'All files are set to full-text mode, skipping vector store',
-        warnings: warnings.length > 0 ? warnings : undefined
+        warnings: warnings.length > 0 ? warnings : undefined,
+        namespace: namespace
       });
     }
 
@@ -274,10 +277,12 @@ export async function POST(request: NextRequest) {
       const vectorStore = await VectorStoreFactory.fromDocuments(
         documents,
         embeddings,
-        { stakeholderId, embeddings }
+        { stakeholderId, embeddings, browserId }
       );
     
-      const storeKey = `ssr_${stakeholderId.replace(/-/g, '_')}`;
+      const namespace = generateNamespace(stakeholderId, browserId);
+      const storeKey = `ssr_${namespace.replace(/-/g, '_')}`;
+
       globalStores.set(storeKey, vectorStore);
       console.log(`Saved memory store to global storage with key: ${storeKey}`);
 

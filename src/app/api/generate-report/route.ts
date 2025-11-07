@@ -13,6 +13,7 @@ import { getDynamicK, saveRAGLog, type RAGLogData } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
 import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
 import { processGSNText } from '@/lib/text-processing';
+import { generateNamespace } from '@/lib/browser-id';
 
 function isVectorStore(obj: unknown): obj is VectorStore {
   return (
@@ -35,7 +36,8 @@ const anthropic = new Anthropic({
 async function performRAGSearch(
   stakeholder: Stakeholder,
   vectorStoreType: string,
-  fullTextFiles: UploadedFile[]
+  fullTextFiles: UploadedFile[],
+  browserId?: string
 ): Promise<{ contextContent: string; relevantDocs: Document[] }> {
   let contextContent = '';
   let relevantDocs: Document[] = [];
@@ -45,7 +47,8 @@ async function performRAGSearch(
       const embeddings = createEmbeddings();
       const vectorStore = await VectorStoreFactory.getExistingStore(
         embeddings,
-        stakeholder.id
+        stakeholder.id,
+        browserId
       );
       
       if (vectorStore) {
@@ -156,7 +159,8 @@ async function performRAGSearch(
     }
   } else {
     // メモリストアの場合
-    const storeKey = `ssr_${stakeholder.id.replace(/-/g, '_')}`;
+    const namespace = generateNamespace(stakeholder.id, browserId);
+    const storeKey = `ssr_${namespace}`; 
     const vectorStoreCandidate = globalStores.get(storeKey);
     
     if (isVectorStore(vectorStoreCandidate)) {
@@ -166,7 +170,7 @@ async function performRAGSearch(
       try {
         const stats = await VectorStoreFactory.getVectorStoreStats(
           vectorStore, 
-          stakeholder.id
+          stakeholder.id,
         );
         console.log('Vector store stats:', stats);
         
@@ -323,11 +327,12 @@ async function generateReportWithClaude(
 //メインのPOSTハンドラ
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholder, fullTextFileIds, reportStructure }: { 
+    const { files, stakeholder, fullTextFileIds, reportStructure, browserId }: { 
       files: UploadedFile[]; 
       stakeholder: Stakeholder;
       fullTextFileIds?: string[];
       reportStructure?: ReportStructureTemplate;
+      browserId?: string;
     } = await request.json();
     
     if (!stakeholder) {
@@ -351,7 +356,8 @@ export async function POST(request: NextRequest) {
     const { contextContent: ragContent } = await performRAGSearch(
       stakeholder,
       vectorStoreType,
-      fullTextFiles
+      fullTextFiles,
+      browserId
     );
 
     // 全文使用ファイルの追加
