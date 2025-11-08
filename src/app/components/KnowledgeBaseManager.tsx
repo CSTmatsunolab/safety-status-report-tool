@@ -1,7 +1,7 @@
 // src/components/KnowledgeBaseManager.tsx
-// 知識ベース管理用の専用コンポーネント（オプション）
+// 知識ベース管理用の専用コンポーネント
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2, FiInfo } from 'react-icons/fi';
 import { Stakeholder } from '@/types';
 
@@ -24,17 +24,8 @@ export function KnowledgeBaseManager({
   const [stats, setStats] = useState<{ vectorCount: number } | null>(null);
   const [showStats, setShowStats] = useState(false);
 
-  // ステークホルダーが変更されたらステータスをリセット
-  useEffect(() => {
-    setStatus('idle');
-    setStats(null);
-    if (stakeholder && browserId) {
-      checkExistingKnowledgeBase();
-    }
-  }, [stakeholder?.id, browserId]);
-
   // 既存の知識ベースをチェック
-  const checkExistingKnowledgeBase = async () => {
+  const checkExistingKnowledgeBase = useCallback(async () => {
     if (!stakeholder || !browserId) return;
     
     try {
@@ -53,8 +44,17 @@ export function KnowledgeBaseManager({
     } catch (error) {
       console.error('Failed to check knowledge base:', error);
     }
-  };
+  }, [stakeholder, browserId]);
 
+    // ステークホルダーが変更されたらステータスをリセット
+  useEffect(() => {
+    setStatus('idle');
+    setStats(null);
+    if (stakeholder && browserId) {
+      checkExistingKnowledgeBase();
+    }
+  }, [stakeholder, browserId, checkExistingKnowledgeBase]);
+  
   // 知識ベースを構築
   const buildKnowledgeBase = async () => {
     if (!stakeholder || filesCount === 0) return;

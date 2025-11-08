@@ -9,7 +9,7 @@ import { generateNamespace } from './browser-id';
 export interface VectorStoreConfig {
   stakeholderId: string;
   embeddings: Embeddings;
-  browserId?: string; // ブラウザID（オプション）
+  browserId?: string;
 }
 
 // ベクトルストア統計情報のインターフェース
@@ -213,7 +213,7 @@ export class VectorStoreFactory {
       
       const pineconeIndex = pinecone.index(indexName);
       
-      // 既存のネームスペースをクリア（オプション）
+      // 既存のネームスペースをクリア
       if (process.env.CLEAR_NAMESPACE_BEFORE_INSERT === 'true') {
         try {
           console.log(`Clearing existing vectors in namespace: ${namespace}`);

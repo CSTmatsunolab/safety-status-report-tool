@@ -3,9 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { generateNamespace } from '@/lib/browser-id';
 
-/**
- * 指定されたステークホルダーのPineconeネームスペースを削除
- */
+//指定されたステークホルダーのPineconeネームスペースを削除
 export async function DELETE(request: NextRequest) {
   try {
     const { stakeholderId, browserId } = await request.json();
@@ -55,9 +53,15 @@ export async function DELETE(request: NextRequest) {
         console.log(`Deleting all vectors in namespace: ${namespace}`);
         try {
           await pineconeIndex.namespace(namespace).deleteAll();
-        } catch (deleteError: any) {
-          // 404エラーの場合は成功として扱う（既に空のネームスペース）
-          if (deleteError.message?.includes('404') || deleteError.message?.includes('Not Found')) {
+        } catch (deleteError: unknown) {
+          let errorMessage = '';
+          if (typeof deleteError === 'object' && deleteError !== null && 'message' in deleteError) {
+            errorMessage = (deleteError as { message: string }).message;
+          } else if (deleteError) {
+            errorMessage = deleteError.toString();
+          }
+
+          if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
             console.log(`Namespace ${namespace} is already empty or doesn't exist, treating as success`);
             return NextResponse.json({
               success: true,
@@ -156,7 +160,7 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-// オプション: GET メソッドで現在のデータ統計を取得
+// GET メソッドで現在のデータ統計を取得
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);

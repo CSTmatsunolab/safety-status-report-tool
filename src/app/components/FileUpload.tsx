@@ -395,7 +395,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       setIsProcessing(false);
       setProcessingStatus('');
     }
-  }, [files, onUpload]);
+  }, [onUpload]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

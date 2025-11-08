@@ -36,7 +36,6 @@ export const GSN_CONFIG = {
     justification: /\b(J\d+)\s*[:：]\s*/g,
   },
   
-  // GSN処理オプション
   enableAutoFormatting: true, // 自動フォーマット有効化
   preserveOriginalSpacing: false, // 元の空白を保持するか
 };
