@@ -121,9 +121,21 @@ export default function Home() {
   };
 
   // 知識ベースを構築する関数
-  const buildKnowledgeBase = async () => {
+  const buildKnowledgeBase = async (isTriggeredByReportGeneration = false) => {
     if (!selectedStakeholder || files.length === 0) return;
-    
+
+    if (knowledgeBaseStatus === 'idle' && !isTriggeredByReportGeneration) {
+      const confirmMessage = 
+        "「レポートを生成」ボタンを押すと、知識ベースは自動的に構築されます。\n\n" +
+        "今ここで手動で構築すると、レポート生成時に再度処理が実行されるため、基本的には不要です。\n" +
+        "（レポート生成をせずに、事前のデータ準備だけを行いたい場合は「OK」を押してください）\n\n" +
+        "続行しますか？";
+      
+      if (!confirm(confirmMessage)) {
+        return; // ユーザーがキャンセルしたら処理を中断
+      }
+    }
+
     setIsKnowledgeBaseBuilding(true);
     setKnowledgeBaseStatus('building');
     
@@ -192,20 +204,17 @@ export default function Home() {
         confirmMessage = 
           `【知識ベースの削除確認】\n\n` +
           `対象: ${selectedStakeholder.role}\n` +
-          `ネームスペース: ${namespace}...\n` +
           `現在のデータ: ${vectorCount.toLocaleString()} ベクトル\n\n` +
           `⚠️ この操作は取り消せません。本当に削除しますか？`;
       } else if (knowledgeBaseStatus === 'ready') {
         confirmMessage = 
           `【知識ベースのリセット確認】\n\n` +
           `対象: ${selectedStakeholder.role}\n` +
-          `ネームスペース: ${namespace}...\n\n` +
           `データをリセットしますか？`;
       } else {
         confirmMessage = 
-          `【知識ベースのクリア確認】\n\n` +
+          `【データベースのクリア確認】\n\n` +
           `対象: ${selectedStakeholder.role}\n` +
-          `ネームスペース: ${namespace}...\n\n` +
           `念のためクリア処理を実行しますか？`;
       }
       
@@ -267,7 +276,7 @@ export default function Home() {
     if (!selectedStakeholder || !selectedStructure) return;
     // ファイルがある場合のみナレッジベース構築
     if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
-      await buildKnowledgeBase();
+      await buildKnowledgeBase(true);
       if (knowledgeBaseStatus === 'error') return;
     }
     setIsGenerating(true);
@@ -276,7 +285,7 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          files: files,  // 空配列でもOK
+          files: files,
           stakeholder: selectedStakeholder,
           fullTextFileIds: files
             .filter(file => file.includeFullText)
@@ -391,7 +400,7 @@ export default function Home() {
                       {/* ステータス表示と構築ボタン */}
                       {knowledgeBaseStatus === 'idle' && files.length > 0 && (
                         <button
-                          onClick={buildKnowledgeBase}
+                          onClick={() => buildKnowledgeBase()}
                           disabled={isKnowledgeBaseBuilding || isDeleting}
                           className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                         >
@@ -421,7 +430,7 @@ export default function Home() {
                           </span>
                           {files.length > 0 && (
                             <button
-                              onClick={buildKnowledgeBase}
+                              onClick={() => buildKnowledgeBase()}
                               disabled={isKnowledgeBaseBuilding || isDeleting}
                               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                               title="知識ベースを再構築"
@@ -440,7 +449,7 @@ export default function Home() {
                           </span>
                           {files.length > 0 && (
                             <button
-                              onClick={buildKnowledgeBase}
+                              onClick={() => buildKnowledgeBase()}
                               disabled={isKnowledgeBaseBuilding || isDeleting}
                               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                               title="再試行"
@@ -461,7 +470,10 @@ export default function Home() {
                         {isDeleting ? (
                           <FiLoader className="w-4 h-4 animate-spin" />
                         ) : (
-                          <FiTrash2 className="w-4 h-4" />
+                          <span className="flex items-center gap-1">
+                            <FiTrash2 className="w-4 h-4" />
+                            データリセット                         
+                          </span>
                         )}
                       </button>
                     </div>
@@ -469,12 +481,7 @@ export default function Home() {
                   
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
                     <p>
-                      <span className="font-medium text-gray-600 dark:text-gray-300">Namespace:</span> 
-                      <code className="text-xs bg-gray-200 dark:bg-gray-700 p-1 rounded ml-1">
-                        {selectedStakeholder.id.startsWith('custom_') ? 
-                          `custom_${selectedStakeholder.id.substring(7)}_${browserId.substring(0, 8)}...` : 
-                          `${selectedStakeholder.id}_${browserId.substring(0, 8)}...`}
-                      </code>
+                      <span className="font-medium text-gray-600 dark:text-gray-300">ステークホルダー : {selectedStakeholder.role}</span> 
                     </p>
                     <p>
                       RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します
