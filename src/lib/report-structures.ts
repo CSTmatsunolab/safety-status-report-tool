@@ -163,14 +163,17 @@ export function getRecommendedStructure(
 }
 
 export function getSimpleRecommendedStructure(
-  stakeholderId: string,
+  stakeholder: Stakeholder,
   files: { name: string; type: string; metadata?: { isGSN?: boolean } }[] = []
 ): ReportStructureTemplate {
   // GSNファイルチェック
   const hasGSNFile = files.some(f => 
     f.type === 'gsn' || f.name.toLowerCase().includes('gsn') || f.metadata?.isGSN
   );
-  
+
+  const stakeholderId = stakeholder.id; // IDを取得
+  const stakeholderRole = stakeholder.role;
+
   // ステークホルダーIDに基づいて推奨構成を検索
   const recommended = DEFAULT_REPORT_STRUCTURES.find(structure =>
     structure.recommendedFor?.includes(stakeholderId)
@@ -182,18 +185,25 @@ export function getSimpleRecommendedStructure(
   
   // カスタムステークホルダーの場合、キーワードで判定
   if (stakeholderId.startsWith('custom_')) {
+    const idLower = stakeholderId.toLowerCase();
+    const roleLower = stakeholderRole.toLowerCase(); // Roleの小文字も用意
+
     // リスク関連
-    if (stakeholderId.toLowerCase().includes('risk') || 
-        stakeholderId.toLowerCase().includes('security') ||
-        stakeholderId.toLowerCase().includes('qa')) {
+    if (idLower.includes('risk') || roleLower.includes('リスク') ||
+        idLower.includes('security') || roleLower.includes('セキュリティ') ||
+        idLower.includes('qa') || roleLower.includes('品質') ||
+        idLower.includes('danger') || roleLower.includes('危険')||
+        idLower.includes('hazard') || roleLower.includes('脅威')) {
       const riskStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === 'risk-focused');
       if (riskStructure) return riskStructure;
     }
     
     // 技術関連
-    if (stakeholderId.toLowerCase().includes('tech') || 
-        stakeholderId.toLowerCase().includes('engineer') ||
-        stakeholderId.toLowerCase().includes('dev')) {
+    if (idLower.includes('tech') || roleLower.includes('技術') ||
+        idLower.includes('engineer') || roleLower.includes('エンジニア') ||
+        idLower.includes('dev') || roleLower.includes('開発') ||
+        idLower.includes('r-and-d') || roleLower.includes('研究') ||
+        idLower.includes('r_and_d')) { 
       const techStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === 'technical-detailed');
       if (techStructure) return techStructure;
     }

@@ -1,6 +1,10 @@
 // src/lib/rrf-fusion.ts
 import { Document } from '@langchain/core/documents';
 import { VectorStore } from '@langchain/core/vectorstores';
+import { PineconeStore } from '@langchain/pinecone';
+import { Embeddings } from '@langchain/core/embeddings';
+import { createSparseVector } from './sparse-vector-utils';
+import { type ScoredPineconeRecord } from '@pinecone-database/pinecone';
 
 /**
  * RRF設定インターフェース（シンプル化）
@@ -20,11 +24,19 @@ interface DocumentWithScore {
   ranks: Map<string, number>;
 }
 
+interface HybridSearchMetadata extends Record<string, unknown> {
+  pageContent?: string;
+  fileName?: string;
+  chunkIndex?: number;
+}
+
 /**
  * Adaptive RRF検索（統一版）
  * ステークホルダーに応じて自動的に重みを調整
+ * Pineconeの場合はハイブリッド検索、それ以外は密ベクトル検索を使用
  * 
  * @param vectorStore - ベクトルストア
+ * @param embeddings - エンベディングモデル
  * @param queries - クエリ配列
  * @param dynamicK - getDynamicK()で計算された動的K値
  * @param stakeholderType - ステークホルダータイプ
@@ -32,6 +44,7 @@ interface DocumentWithScore {
  */
 export async function performAdaptiveRRFSearch(
   vectorStore: VectorStore,
+  embeddings: Embeddings,
   queries: string[],
   dynamicK: number,
   stakeholderType: string
@@ -44,7 +57,10 @@ export async function performAdaptiveRRFSearch(
   const searchK = Math.max(20, Math.ceil(dynamicK * 1.5));
   const rrfConstant = 60;  // 固定値
   
-  console.log(`🎯 Adaptive RRF Search:`);
+  // PineconeStoreかどうかを判定
+  const isPinecone = vectorStore instanceof PineconeStore;
+  
+  console.log(`🎯 Adaptive RRF Search ${isPinecone ? '(Hybrid)' : '(Dense only)'}:`);
   console.log(`  - Stakeholder: ${stakeholderType}`);
   console.log(`  - Queries: ${queries.length}`);
   console.log(`  - Dynamic K (topK): ${dynamicK}`);
@@ -54,11 +70,13 @@ export async function performAdaptiveRRFSearch(
   // RRF検索の実行
   return executeRRFSearch(
     vectorStore,
+    embeddings,
     queries,
     dynamicK,
     searchK,
     rrfConstant,
-    weights
+    weights,
+    stakeholderType
   );
 }
 
@@ -85,7 +103,6 @@ function getWeightsForStakeholder(stakeholderType: string, queryCount: number): 
     default:
       // カスタムステークホルダーの処理
       if (stakeholderType.startsWith('custom_')) {
-        // カスタムの場合、均等またはロール名から推測
         return getCustomStakeholderWeights(stakeholderType, queryCount);
       }
       // デフォルト：均等な重み
@@ -120,15 +137,34 @@ function getCustomStakeholderWeights(stakeholderId: string, queryCount: number):
  */
 async function executeRRFSearch(
   vectorStore: VectorStore,
+  embeddings: Embeddings,
   queries: string[],
   topK: number,
   searchK: number,
   rrfConstant: number,
-  weights: number[]
+  weights: number[],
+  stakeholderType: string
 ): Promise<Document[]> {
   
   const documentScores = new Map<string, DocumentWithScore>();
   
+  // PineconeStoreの場合のハイブリッド検索設定を取得
+  let pineconeIndex = null;
+  let namespace = '';
+  
+  if (vectorStore instanceof PineconeStore) {
+    try {
+      pineconeIndex = vectorStore.pineconeIndex;
+      namespace = vectorStore.namespace || '';
+      
+      if (!pineconeIndex) {
+        console.warn('⚠️ PineconeIndex not available, falling back to dense search');
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not access Pinecone properties:', error);
+    }
+  }
+
   // 各クエリで検索を実行
   for (let queryIndex = 0; queryIndex < queries.length; queryIndex++) {
     const query = queries[queryIndex];
@@ -137,18 +173,51 @@ async function executeRRFSearch(
     console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
     
     try {
-      // searchK件のドキュメントを取得
       let results: Array<[Document, number]> = [];
       
-      if ('similaritySearchWithScore' in vectorStore && 
-          typeof vectorStore.similaritySearchWithScore === 'function') {
-        // スコア付きで検索
-        results = await vectorStore.similaritySearchWithScore(query, searchK);
+      if (pineconeIndex) {
+        // ===== Pineconeハイブリッド検索 =====
+        try {
+          // 1. クエリの密ベクトルと疎ベクトルを生成
+          const denseVector = await embeddings.embedQuery(query);
+          const sparseVector = await createSparseVector(query);
+
+          // 2. Pineconeのハイブリッド検索を実行
+          const namespacedIndex = pineconeIndex.namespace(namespace);
+          const queryResponse = await namespacedIndex.query({
+            vector: denseVector,
+            sparseVector: sparseVector,
+            topK: searchK,
+            includeMetadata: true,
+          });
+          if (queryResponse.matches) {
+            queryResponse.matches.forEach((match: ScoredPineconeRecord) => {
+              const metadata = match.metadata as HybridSearchMetadata | undefined;
+              const pageContent = (metadata?.pageContent as string) || '';
+              
+              // メタデータのコピーを作成
+              const cleanMetadata = { ...metadata };
+              delete cleanMetadata.pageContent;
+
+              results.push([
+                new Document({
+                  pageContent: pageContent,
+                  metadata: cleanMetadata,
+                }),
+                match.score || 0
+              ]);
+            });
+            
+            console.log(`    Hybrid search found ${results.length} documents`);
+          }
+        } catch (hybridError) {
+          console.warn(`    ⚠️ Hybrid search failed, falling back to dense search:`, hybridError);
+          // Pinecone経由でも密ベクトルのみの検索にフォールバック
+          results = await performDenseSearch(vectorStore, query, searchK);
+        }
       } else {
-        // 通常の検索（スコアなし）
-        const docs = await vectorStore.similaritySearch(query, searchK);
-        // 順位ベースの疑似スコア生成
-        results = docs.map((doc, idx) => [doc, 1.0 - (idx / searchK)]);
+        // ===== 通常の密ベクトル検索（メモリストアなど） =====
+        results = await performDenseSearch(vectorStore, query, searchK);
       }
       
       // 各ドキュメントにRRFスコアを計算
@@ -176,7 +245,7 @@ async function executeRRFSearch(
         docData.rrfScore += rrfContribution;
       });
       
-      console.log(`    Found ${results.length} documents`);
+      console.log(`    Total unique documents so far: ${documentScores.size}`);
       
     } catch (error) {
       console.error(`  ❌ Search failed for query "${query}":`, error);
@@ -205,6 +274,44 @@ async function executeRRFSearch(
       }
     });
   });
+}
+
+/**
+ * 通常の密ベクトル検索を実行
+ */
+async function performDenseSearch(
+  vectorStore: VectorStore,
+  query: string,
+  searchK: number
+): Promise<Array<[Document, number]>> {
+  
+  // similaritySearchWithScoreが利用可能な場合
+  if ('similaritySearchWithScore' in vectorStore && 
+      typeof vectorStore.similaritySearchWithScore === 'function') {
+    try {
+      const results = await vectorStore.similaritySearchWithScore(query, searchK);
+      console.log(`    Dense search found ${results.length} documents`);
+      return results;
+    } catch (error) {
+      console.warn(`    Dense search with score failed:`, error);
+    }
+  }
+  
+  // similaritySearchのみの場合（スコアなし）
+  if ('similaritySearch' in vectorStore && 
+      typeof vectorStore.similaritySearch === 'function') {
+    try {
+      const docs = await vectorStore.similaritySearch(query, searchK);
+      console.log(`    Dense search (no score) found ${docs.length} documents`);
+      // 順位ベースの疑似スコアを生成
+      return docs.map((doc, idx) => [doc, 1.0 - (idx / searchK)]);
+    } catch (error) {
+      console.error(`    Dense search failed:`, error);
+    }
+  }
+  
+  console.error('    No search method available on vectorStore');
+  return [];
 }
 
 /**

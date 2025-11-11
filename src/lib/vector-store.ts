@@ -3,8 +3,9 @@ import { Embeddings } from '@langchain/core/embeddings';
 import { VectorStore } from '@langchain/core/vectorstores';
 import { MemoryVectorStore } from 'langchain/vectorstores/memory';
 import { PineconeStore } from '@langchain/pinecone';
-import { Pinecone } from '@pinecone-database/pinecone';
+import { Pinecone, type RecordMetadata } from '@pinecone-database/pinecone';
 import { generateNamespace } from './browser-id';
+import { createSparseVector, type SparseValues } from './sparse-vector-utils';
 
 export interface VectorStoreConfig {
   stakeholderId: string;
@@ -19,6 +20,13 @@ export interface VectorStoreStats {
   storeType: string;
   namespace: string;
 }
+
+type PineconeUpsertRecord = {
+  id: string;
+  values: number[];
+  sparseValues?: SparseValues;
+  metadata?: RecordMetadata;
+};
 
 export class VectorStoreFactory {
   private static memoryStores: Map<string, MemoryVectorStore> = new Map();
@@ -174,7 +182,7 @@ export class VectorStoreFactory {
     // ユニークなネームスペースを生成
     const namespace = generateNamespace(config.stakeholderId, config.browserId);
     
-    console.log(`Creating Pinecone store with configuration:`);
+    console.log(`Creating Pinecone store (Hybrid) with configuration:`);
     console.log(`- Namespace: ${namespace}`);
     console.log(`- StakeholderId: ${config.stakeholderId}`);
     console.log(`- BrowserId: ${config.browserId || 'auto-generated'}`);
@@ -224,14 +232,52 @@ export class VectorStoreFactory {
         }
       }
       
-      // ドキュメントをPineconeに保存
-      const vectorStore = await PineconeStore.fromDocuments(docs, embeddings, {
-        pineconeIndex,
-        namespace: namespace, // ユニークなネームスペースを使用
-      });
-      
       console.log(`Pinecone store created successfully with namespace: ${namespace}`);
+      console.log(`Generating dense vectors for ${docs.length} documents...`);
+      // 1. 全ドキュメントの密ベクトルを生成
+      const denseVectors = await embeddings.embedDocuments(
+        docs.map(doc => doc.pageContent)
+      );
+
+      console.log(`Generating sparse vectors (async) for ${docs.length} documents...`);
       
+      // Promise.all を使って疎ベクトルを並列生成
+      const sparseVectors = await Promise.all(
+        docs.map(doc => createSparseVector(doc.pageContent))
+      );
+
+      console.log('Preparing for upsert...');
+      // 2. Upsert用のVectorオブジェクト配列を作成
+      const vectors: PineconeUpsertRecord[] = [];
+      for (let i = 0; i < docs.length; i++) {
+        const doc = docs[i];
+        
+        // 3. メタデータに pageContent を含める
+        const { loc, ...otherMetadata } = doc.metadata;
+        const metadata: RecordMetadata = {
+          ...otherMetadata,
+          pageContent: doc.pageContent, 
+        };
+
+        const originalFileName = (doc.metadata.fileName as string) || 'unknown_file';
+        const sanitizedFileName = originalFileName.replace(/[^a-zA-Z0-9_.-]/g, '_'); 
+        const vectorId = `${namespace}_${sanitizedFileName}_${doc.metadata.chunkIndex || i}`;
+
+        vectors.push({
+          id: vectorId,
+          values: denseVectors[i],
+          sparseValues: sparseVectors[i],
+          metadata: metadata,
+        });
+      }
+
+      // 5. Pineconeに一括Upsert
+      // (本番環境では、100件ずつのバッチ処理に分けることを推奨)
+      console.log(`Upserting ${vectors.length} hybrid vectors to namespace "${namespace}"...`);
+      await pineconeIndex.namespace(namespace).upsert(vectors);
+
+      console.log(`Pinecone store (Hybrid) created successfully with namespace: ${namespace}`);
+
       // インデックスの統計情報を表示
       try {
         const stats = await pineconeIndex.describeIndexStats();
@@ -245,7 +291,10 @@ export class VectorStoreFactory {
       // Pineconeのインデックス更新を待つ
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      return vectorStore;
+      return new PineconeStore(embeddings, {
+        pineconeIndex,
+        namespace: namespace,
+      });
       
     } catch (error) {
       console.error('Error with Pinecone store:', error);

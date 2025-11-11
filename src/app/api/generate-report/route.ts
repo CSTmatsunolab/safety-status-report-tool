@@ -84,6 +84,7 @@ async function performRAGSearch(
             
             relevantDocs = await performAdaptiveRRFSearch(
               vectorStore,
+              embeddings,
               enhancedQueries,
               realisticK,
               stakeholder.id

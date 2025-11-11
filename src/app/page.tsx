@@ -316,7 +316,7 @@ export default function Home() {
     
     // 推奨構成を取得して設定
     const recommended = getSimpleRecommendedStructure(
-      stakeholder.id, 
+      stakeholder, 
       files
     );
     setRecommendedStructureId(recommended.id);
