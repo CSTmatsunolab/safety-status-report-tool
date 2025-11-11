@@ -1,0 +1,309 @@
+// src/lib/rrf-fusion.ts
+import { Document } from '@langchain/core/documents';
+import { VectorStore } from '@langchain/core/vectorstores';
+
+/**
+ * RRF設定インターフェース（シンプル化）
+ * 
+ * @param searchK - 各クエリで検索するドキュメント数（デフォルト: dynamicK * 1.5）
+ * @param rrfConstant - RRFアルゴリズムの定数K（デフォルト: 60）
+ */
+export interface RRFConfig {
+  searchK?: number;      
+  rrfConstant?: number;  
+}
+
+interface DocumentWithScore {
+  document: Document;
+  rrfScore: number;
+  queryScores: Map<string, number>;
+  ranks: Map<string, number>;
+}
+
+/**
+ * Adaptive RRF検索（統一版）
+ * ステークホルダーに応じて自動的に重みを調整
+ * 
+ * @param vectorStore - ベクトルストア
+ * @param queries - クエリ配列
+ * @param dynamicK - getDynamicK()で計算された動的K値
+ * @param stakeholderType - ステークホルダータイプ
+ * @returns ランク付けされたドキュメント
+ */
+export async function performAdaptiveRRFSearch(
+  vectorStore: VectorStore,
+  queries: string[],
+  dynamicK: number,
+  stakeholderType: string
+): Promise<Document[]> {
+  
+  // ステークホルダーに応じた重み設定
+  const weights = getWeightsForStakeholder(stakeholderType, queries.length);
+  
+  // 動的K値に基づいて検索数を計算
+  const searchK = Math.max(20, Math.ceil(dynamicK * 1.5));
+  const rrfConstant = 60;  // 固定値
+  
+  console.log(`🎯 Adaptive RRF Search:`);
+  console.log(`  - Stakeholder: ${stakeholderType}`);
+  console.log(`  - Queries: ${queries.length}`);
+  console.log(`  - Dynamic K (topK): ${dynamicK}`);
+  console.log(`  - Search K: ${searchK}`);
+  console.log(`  - Weights: [${weights.map(w => w.toFixed(1)).join(', ')}]`);
+  
+  // RRF検索の実行
+  return executeRRFSearch(
+    vectorStore,
+    queries,
+    dynamicK,
+    searchK,
+    rrfConstant,
+    weights
+  );
+}
+
+/**
+ * ステークホルダー別の重みを取得
+ */
+function getWeightsForStakeholder(stakeholderType: string, queryCount: number): number[] {
+  switch(stakeholderType) {
+    case 'technical-fellows':
+    case 'architect':
+    case 'r-and-d':
+      // 技術系：最初のクエリ（完全な専門用語）を重視
+      return Array(queryCount).fill(1.0).map((_, idx) => idx === 0 ? 1.5 : 1.0);
+    
+    case 'cxo':
+    case 'business':
+      // ビジネス系：シンプルなクエリを重視
+      return Array(queryCount).fill(1.0).map((_, idx) => idx < 2 ? 1.2 : 0.8);
+    
+    case 'product':
+      // プロダクト：バランス型だが最初を少し重視
+      return Array(queryCount).fill(1.0).map((_, idx) => idx === 0 ? 1.2 : 1.0);
+    
+    default:
+      // カスタムステークホルダーの処理
+      if (stakeholderType.startsWith('custom_')) {
+        // カスタムの場合、均等またはロール名から推測
+        return getCustomStakeholderWeights(stakeholderType, queryCount);
+      }
+      // デフォルト：均等な重み
+      return Array(queryCount).fill(1.0);
+  }
+}
+
+/**
+ * カスタムステークホルダーの重み推定
+ */
+function getCustomStakeholderWeights(stakeholderId: string, queryCount: number): number[] {
+  const lower = stakeholderId.toLowerCase();
+  
+  // 技術系のキーワード
+  if (lower.includes('tech') || lower.includes('engineer') || 
+      lower.includes('開発') || lower.includes('技術')) {
+    return Array(queryCount).fill(1.0).map((_, idx) => idx === 0 ? 1.4 : 1.0);
+  }
+  
+  // ビジネス系のキーワード
+  if (lower.includes('business') || lower.includes('経営') || 
+      lower.includes('exec') || lower.includes('営業')) {
+    return Array(queryCount).fill(1.0).map((_, idx) => idx < 2 ? 1.2 : 0.9);
+  }
+  
+  // デフォルト：均等
+  return Array(queryCount).fill(1.0);
+}
+
+/**
+ * RRF検索の実行処理
+ */
+async function executeRRFSearch(
+  vectorStore: VectorStore,
+  queries: string[],
+  topK: number,
+  searchK: number,
+  rrfConstant: number,
+  weights: number[]
+): Promise<Document[]> {
+  
+  const documentScores = new Map<string, DocumentWithScore>();
+  
+  // 各クエリで検索を実行
+  for (let queryIndex = 0; queryIndex < queries.length; queryIndex++) {
+    const query = queries[queryIndex];
+    const weight = weights[queryIndex] || 1.0;
+    
+    console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
+    
+    try {
+      // searchK件のドキュメントを取得
+      let results: Array<[Document, number]> = [];
+      
+      if ('similaritySearchWithScore' in vectorStore && 
+          typeof vectorStore.similaritySearchWithScore === 'function') {
+        // スコア付きで検索
+        results = await vectorStore.similaritySearchWithScore(query, searchK);
+      } else {
+        // 通常の検索（スコアなし）
+        const docs = await vectorStore.similaritySearch(query, searchK);
+        // 順位ベースの疑似スコア生成
+        results = docs.map((doc, idx) => [doc, 1.0 - (idx / searchK)]);
+      }
+      
+      // 各ドキュメントにRRFスコアを計算
+      results.forEach(([doc, originalScore], rank) => {
+        const docId = generateDocumentId(doc);
+        
+        if (!documentScores.has(docId)) {
+          documentScores.set(docId, {
+            document: doc,
+            rrfScore: 0,
+            queryScores: new Map(),
+            ranks: new Map()
+          });
+        }
+        
+        const docData = documentScores.get(docId)!;
+        
+        // クエリ毎の情報を保存
+        docData.queryScores.set(query, originalScore);
+        docData.ranks.set(query, rank + 1); // ランクは1から開始
+        
+        // RRFスコアを計算して加算
+        // RRF formula: weight * (1 / (rrfConstant + rank))
+        const rrfContribution = weight / (rrfConstant + rank + 1);
+        docData.rrfScore += rrfContribution;
+      });
+      
+      console.log(`    Found ${results.length} documents`);
+      
+    } catch (error) {
+      console.error(`  ❌ Search failed for query "${query}":`, error);
+    }
+  }
+  
+  // RRFスコアでソートして上位topK件を返す
+  const sortedDocs = Array.from(documentScores.values())
+    .sort((a, b) => b.rrfScore - a.rrfScore)
+    .slice(0, topK);
+  
+  console.log(`✅ RRF completed: ${sortedDocs.length} documents returned from ${documentScores.size} unique documents`);
+  
+  // メタデータにRRF情報を追加して返す
+  return sortedDocs.map(({ document, rrfScore, queryScores, ranks }) => {
+    return new Document({
+      pageContent: document.pageContent,
+      metadata: {
+        ...document.metadata,
+        rrfScore: rrfScore,
+        rrfRanks: Array.from(ranks.entries()).map(([q, r]) => ({ 
+          query: q.substring(0, 30) + '...', 
+          rank: r 
+        })),
+        rrfQueryCount: queryScores.size
+      }
+    });
+  });
+}
+
+/**
+ * ドキュメントの一意なIDを生成
+ */
+function generateDocumentId(doc: Document): string {
+  const fileName = doc.metadata?.fileName || 'unknown';
+  const chunkIndex = doc.metadata?.chunkIndex ?? -1;
+  
+  if (chunkIndex >= 0) {
+    return `${fileName}_chunk_${chunkIndex}`;
+  }
+  
+  // チャンクインデックスがない場合は、コンテンツの先頭部分をハッシュ化
+  const contentHash = hashString(doc.pageContent.substring(0, 100));
+  return `${fileName}_${contentHash}`;
+}
+
+/**
+ * 簡易ハッシュ関数
+ */
+function hashString(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
+ * RRF結果の統計情報を取得
+ */
+export function getRRFStatistics(documents: Document[]): {
+  averageRRFScore: number;
+  averageQueryCoverage: number;
+  documentsByFile: Map<string, number>;
+} {
+  if (documents.length === 0) {
+    return {
+      averageRRFScore: 0,
+      averageQueryCoverage: 0,
+      documentsByFile: new Map()
+    };
+  }
+  
+  const documentsByFile = new Map<string, number>();
+  let totalRRFScore = 0;
+  let totalQueryCoverage = 0;
+  
+  documents.forEach(doc => {
+    totalRRFScore += doc.metadata?.rrfScore || 0;
+    totalQueryCoverage += doc.metadata?.rrfQueryCount || 0;
+    
+    const fileName = doc.metadata?.fileName || 'unknown';
+    documentsByFile.set(fileName, (documentsByFile.get(fileName) || 0) + 1);
+  });
+  
+  return {
+    averageRRFScore: totalRRFScore / documents.length,
+    averageQueryCoverage: totalQueryCoverage / documents.length,
+    documentsByFile
+  };
+}
+
+/**
+ * デバッグ用：RRF結果の詳細を表示
+ */
+export function debugRRFResults(documents: Document[]): void {
+  console.log('\n' + '='.repeat(50));
+  console.log('📊 RRF Debug Information');
+  console.log('='.repeat(50));
+  
+  const stats = getRRFStatistics(documents);
+  
+  console.log('\n📈 Statistics:');
+  console.log(`  - Total documents: ${documents.length}`);
+  console.log(`  - Average RRF Score: ${stats.averageRRFScore.toFixed(4)}`);
+  console.log(`  - Average Query Coverage: ${stats.averageQueryCoverage.toFixed(2)}`);
+  
+  console.log('\n📁 Documents by file:');
+  stats.documentsByFile.forEach((count, file) => {
+    console.log(`  - ${file}: ${count} chunks`);
+  });
+  
+  console.log('\n🏆 Top 5 documents:');
+  documents.slice(0, 5).forEach((doc, idx) => {
+    console.log(`\n  ${idx + 1}. ${doc.metadata?.fileName} (chunk ${doc.metadata?.chunkIndex})`);
+    console.log(`     RRF Score: ${doc.metadata?.rrfScore?.toFixed(4)}`);
+    console.log(`     Query Coverage: ${doc.metadata?.rrfQueryCount} queries`);
+    
+    if (doc.metadata?.rrfRanks && doc.metadata.rrfRanks.length > 0) {
+      console.log('     Top ranks:');
+      doc.metadata.rrfRanks.slice(0, 2).forEach((rankInfo: { query: string; rank: number }) => {
+        console.log(`       - "${rankInfo.query}": rank ${rankInfo.rank}`);
+      });
+    }
+  });
+  
+  console.log('\n' + '='.repeat(50) + '\n');
+}

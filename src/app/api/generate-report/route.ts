@@ -14,6 +14,7 @@ import { buildCompleteUserPrompt } from '@/lib/report-prompts';
 import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
 import { processGSNText } from '@/lib/text-processing';
 import { generateNamespace } from '@/lib/browser-id';
+import { performAdaptiveRRFSearch, debugRRFResults, getRRFStatistics } from '@/lib/rrf-fusion';
 
 function isVectorStore(obj: unknown): obj is VectorStore {
   return (
@@ -53,22 +54,20 @@ async function performRAGSearch(
       
       if (vectorStore) {
         const stats = await VectorStoreFactory.getVectorStoreStats(
-          vectorStore, 
-          stakeholder.id
+          vectorStore,
+          stakeholder.id,
+          browserId
         );
         
         console.log('Vector store stats:', stats);
         
         if (stats.totalDocuments > 0) {
-          // 動的K値の計算
-          const targetK = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+          // ===== 動的K値の計算 =====
+          const dynamicK = getDynamicK(stats.totalDocuments, stakeholder, stats.storeType);
+          const realisticK = Math.min(dynamicK, Math.floor(stats.totalDocuments * 0.8));
           
-          // 現実的なK値の設定（文書総数の80%を上限）
-          const realisticK = Math.min(targetK, Math.floor(stats.totalDocuments * 0.8));
+          console.log(`📊 Dynamic K: ${dynamicK}, Realistic K: ${realisticK}`);
           
-          console.log(`Target K: ${targetK}, Realistic K: ${realisticK}`);
-          
-          // クエリ拡張
           const queryEnhancer = new CustomStakeholderQueryEnhancer();
           const enhancedQueries = queryEnhancer.enhanceQuery(stakeholder, {
             maxQueries: 5,
@@ -77,60 +76,71 @@ async function performRAGSearch(
             includeRoleTerms: true
           });
           
-          const originalQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
-          console.log('Original query:', originalQuery);
           console.log('Enhanced queries:', enhancedQueries);
           
-          // 適応的な取得
-          const allDocs: Document[] = [];
-          const seenDocIds = new Set<string>();
-          
-          // フェーズ別の取得戦略
-          const phases = [
-            { multiplier: 1.0, description: "Initial fetch" },
-            { multiplier: 1.5, description: "Extended fetch" },
-            { multiplier: 2.0, description: "Deep fetch" }
-          ];
-          
-          for (const phase of phases) {
-            if (allDocs.length >= realisticK) break;
+          const useRRF = process.env.USE_RRF !== 'false';
+          if (useRRF && enhancedQueries.length > 1) {
+            console.log('Using Adaptive RRF Search');
             
-            const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
-            console.log(`${phase.description}: fetching ${phaseK} docs per query`);
+            relevantDocs = await performAdaptiveRRFSearch(
+              vectorStore,
+              enhancedQueries,
+              realisticK,
+              stakeholder.id
+            );
             
-            for (const query of enhancedQueries) {
-              if (allDocs.length >= realisticK * 1.2) break;
+            // デバッグ情報の出力
+            if (process.env.NODE_ENV === 'development') {
+              debugRRFResults(relevantDocs);
+              const stats = getRRFStatistics(relevantDocs);
+              console.log('RRF Statistics:', stats);
+            }
+            
+          } else {
+            // ===== 従来のフェーズ戦略 =====
+            console.log('Using legacy phase-based search');
+            
+            const allDocs: Document[] = [];
+            const seenDocIds = new Set<string>();
+            
+            const phases = [
+              { multiplier: 1.0, description: "Initial fetch" },
+              { multiplier: 1.5, description: "Extended fetch" },
+              { multiplier: 2.0, description: "Deep fetch" }
+            ];
+            
+            for (const phase of phases) {
+              if (allDocs.length >= realisticK) break;
               
-              try {
-                const results = await vectorStore.similaritySearch(query, phaseK);
+              const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
+              console.log(`${phase.description}: fetching ${phaseK} docs per query`);
+              
+              for (const query of enhancedQueries) {
+                if (allDocs.length >= realisticK * 1.2) break;
                 
-                results.forEach((doc: Document) => {
-                  const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
-                  if (!seenDocIds.has(docId)) {
-                    seenDocIds.add(docId);
-                    allDocs.push(doc);
-                  }
-                });
-                
-              } catch (error) {
-                console.error(`Search failed for query "${query}":`, error);
+                try {
+                  const results = await vectorStore.similaritySearch(query, phaseK);
+                  
+                  results.forEach((doc: Document) => {
+                    const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
+                    if (!seenDocIds.has(docId)) {
+                      seenDocIds.add(docId);
+                      allDocs.push(doc);
+                    }
+                  });
+                } catch (error) {
+                  console.error(`Search failed for query "${query}":`, error);
+                }
               }
             }
             
-            console.log(`Phase complete: ${allDocs.length} unique docs collected`);
-            
-            if (allDocs.length >= realisticK) {
-              break;
-            }
+            relevantDocs = allDocs
+              .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
+              .slice(0, realisticK);
           }
           
-          // 正確にK件を選択
-          relevantDocs = allDocs
-            .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
-            .slice(0, realisticK);
-          
-          const achievementRate = (relevantDocs.length / targetK) * 100;
-          console.log(`K値達成率: ${achievementRate.toFixed(1)}% (${relevantDocs.length}/${targetK})`);
+          const achievementRate = (relevantDocs.length / dynamicK) * 100;
+          console.log(`K値達成率: ${achievementRate.toFixed(1)}% (${relevantDocs.length}/${dynamicK})`);
           
           if (relevantDocs.length > 0) {
             contextContent = '=== RAG抽出内容 ===\n\n' + 
@@ -142,7 +152,8 @@ async function performRAGSearch(
             const logData: RAGLogData = {
               stakeholder,
               searchQuery: enhancedQueries.join(' | '),
-              k: targetK,
+              enhancedQueries,
+              k: dynamicK,
               totalChunks: stats.totalDocuments,
               vectorStoreType: stats.storeType,
               relevantDocs,
@@ -169,8 +180,9 @@ async function performRAGSearch(
       
       try {
         const stats = await VectorStoreFactory.getVectorStoreStats(
-          vectorStore, 
+          vectorStore,
           stakeholder.id,
+          browserId
         );
         console.log('Vector store stats:', stats);
         
@@ -249,8 +261,31 @@ async function performRAGSearch(
   return { contextContent, relevantDocs };
 }
 
-//全文使用ファイルをコンテキストに追加
+// キーワード抽出ヘルパー関数
+function extractKeywordsFromConcerns(concerns: string[]): string[] {
+  const keywords: string[] = [];
+  
+  concerns.forEach(concern => {
+    // GSN要素を抽出
+    const gsnPattern = /\b([GgSsCcJj]\d+)\b/g;
+    const gsnMatches = concern.match(gsnPattern);
+    if (gsnMatches) {
+      keywords.push(...gsnMatches);
+    }
+    
+    // 技術用語を抽出
+    const techTerms = ['AI', 'ML', 'API', 'DB', 'IoT', 'CI/CD', 'DevOps'];
+    techTerms.forEach(term => {
+      if (concern.toUpperCase().includes(term)) {
+        keywords.push(term);
+      }
+    });
+  });
+  
+  return [...new Set(keywords)];
+}
 
+//全文使用ファイルをコンテキストに追加
 function addFullTextToContext(
   contextContent: string,
   fullTextFiles: UploadedFile[]
