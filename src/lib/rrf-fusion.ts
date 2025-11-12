@@ -5,6 +5,7 @@ import { PineconeStore } from '@langchain/pinecone';
 import { Embeddings } from '@langchain/core/embeddings';
 import { createSparseVector } from './sparse-vector-utils';
 import { type ScoredPineconeRecord } from '@pinecone-database/pinecone';
+import { Stakeholder } from '@/types';
 
 /**
  * RRF設定インターフェース（シンプル化）
@@ -39,7 +40,7 @@ interface HybridSearchMetadata extends Record<string, unknown> {
  * @param embeddings - エンベディングモデル
  * @param queries - クエリ配列
  * @param dynamicK - getDynamicK()で計算された動的K値
- * @param stakeholderType - ステークホルダータイプ
+ * @param stakeholder - ステークホルダータイプ
  * @returns ランク付けされたドキュメント
  */
 export async function performAdaptiveRRFSearch(
@@ -47,11 +48,11 @@ export async function performAdaptiveRRFSearch(
   embeddings: Embeddings,
   queries: string[],
   dynamicK: number,
-  stakeholderType: string
+  stakeholder: Stakeholder
 ): Promise<Document[]> {
   
   // ステークホルダーに応じた重み設定
-  const weights = getWeightsForStakeholder(stakeholderType, queries.length);
+  const weights = getWeightsForStakeholder(stakeholder, queries.length);
   
   // 動的K値に基づいて検索数を計算
   const searchK = Math.max(20, Math.ceil(dynamicK * 1.5));
@@ -61,7 +62,7 @@ export async function performAdaptiveRRFSearch(
   const isPinecone = vectorStore instanceof PineconeStore;
   
   console.log(`🎯 Adaptive RRF Search ${isPinecone ? '(Hybrid)' : '(Dense only)'}:`);
-  console.log(`  - Stakeholder: ${stakeholderType}`);
+  console.log(`  - Stakeholder: ${stakeholder.id}`);
   console.log(`  - Queries: ${queries.length}`);
   console.log(`  - Dynamic K (topK): ${dynamicK}`);
   console.log(`  - Search K: ${searchK}`);
@@ -76,15 +77,15 @@ export async function performAdaptiveRRFSearch(
     searchK,
     rrfConstant,
     weights,
-    stakeholderType
+    stakeholder
   );
 }
 
 /**
  * ステークホルダー別の重みを取得
  */
-function getWeightsForStakeholder(stakeholderType: string, queryCount: number): number[] {
-  switch(stakeholderType) {
+function getWeightsForStakeholder(stakeholder: Stakeholder, queryCount: number): number[] {
+  switch(stakeholder.id) {
     case 'technical-fellows':
     case 'architect':
     case 'r-and-d':
@@ -102,8 +103,8 @@ function getWeightsForStakeholder(stakeholderType: string, queryCount: number): 
     
     default:
       // カスタムステークホルダーの処理
-      if (stakeholderType.startsWith('custom_')) {
-        return getCustomStakeholderWeights(stakeholderType, queryCount);
+      if (stakeholder.id.startsWith('custom_')) {
+        return getCustomStakeholderWeights(stakeholder, queryCount);
       }
       // デフォルト：均等な重み
       return Array(queryCount).fill(1.0);
@@ -113,22 +114,32 @@ function getWeightsForStakeholder(stakeholderType: string, queryCount: number): 
 /**
  * カスタムステークホルダーの重み推定
  */
-function getCustomStakeholderWeights(stakeholderId: string, queryCount: number): number[] {
-  const lower = stakeholderId.toLowerCase();
+function getCustomStakeholderWeights(stakeholder: Stakeholder, queryCount: number): number[] {
+  const idLower = stakeholder.id.toLowerCase();
+  const roleLower = stakeholder.role.toLowerCase();
   
   // 技術系のキーワード
-  if (lower.includes('tech') || lower.includes('engineer') || 
-      lower.includes('開発') || lower.includes('技術')) {
+  if (idLower.includes('tech') || roleLower.includes('技術') ||
+      idLower.includes('engineer') || roleLower.includes('エンジニア') ||
+      idLower.includes('dev') || roleLower.includes('開発') ||
+      idLower.includes('r-and-d') || roleLower.includes('研究')) {
     return Array(queryCount).fill(1.0).map((_, idx) => idx === 0 ? 1.4 : 1.0);
   }
   
-  // ビジネス系のキーワード
-  if (lower.includes('business') || lower.includes('経営') || 
-      lower.includes('exec') || lower.includes('営業')) {
+  // 2. リスク関連 (Risk/Security/QA)
+  if (idLower.includes('risk') || roleLower.includes('リスク') ||
+      idLower.includes('security') || roleLower.includes('セキュリティ') ||
+      idLower.includes('qa') || roleLower.includes('品質')) {
+    return Array(queryCount).fill(1.0).map((_, idx) => idx === 0 ? 1.4 : 1.0);
+  }
+
+  // 3. ビジネス関連 (Business)
+  if (idLower.includes('business') || roleLower.includes('経営') || 
+      idLower.includes('exec') || roleLower.includes('営業')) {
     return Array(queryCount).fill(1.0).map((_, idx) => idx < 2 ? 1.2 : 0.9);
   }
   
-  // デフォルト：均等
+  // 4. デフォルト：均等
   return Array(queryCount).fill(1.0);
 }
 
@@ -143,7 +154,7 @@ async function executeRRFSearch(
   searchK: number,
   rrfConstant: number,
   weights: number[],
-  stakeholderType: string
+  stakeholder: Stakeholder
 ): Promise<Document[]> {
   
   const documentScores = new Map<string, DocumentWithScore>();
@@ -240,7 +251,6 @@ async function executeRRFSearch(
         docData.ranks.set(query, rank + 1); // ランクは1から開始
         
         // RRFスコアを計算して加算
-        // RRF formula: weight * (1 / (rrfConstant + rank))
         const rrfContribution = weight / (rrfConstant + rank + 1);
         docData.rrfScore += rrfContribution;
       });

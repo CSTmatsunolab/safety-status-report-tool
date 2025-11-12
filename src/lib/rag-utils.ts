@@ -5,8 +5,13 @@ import { Document } from '@langchain/core/documents';
 import fs from 'fs';
 import path from 'path';
 
+export interface RRFStatistics {
+  averageRRFScore: number;
+  averageQueryCoverage: number;
+  documentsByFile: Map<string, number>;
+}
+
 //動的K値計算関数
- 
 export function getDynamicK(
   totalChunks: number, 
   stakeholder: Stakeholder,
@@ -108,6 +113,7 @@ export interface RAGLogData {
   contextLength: number;
   fullTextFiles: UploadedFile[];
   timestamp: Date;
+  rrfStatistics?: RRFStatistics;
 }
 
 //RAGログを保存する関数
@@ -123,6 +129,11 @@ export function saveRAGLog(data: RAGLogData): string | null {
     const timestamp = data.timestamp.toISOString().replace(/:/g, '-').slice(0, -5);
     const fileName = `rag_${data.stakeholder.id}_${timestamp}.json`;
     const logPath = path.join(logDir, fileName);
+
+    const serializeMap = (map: Map<string, number> | undefined): Record<string, number> | undefined => {
+      if (!map) return undefined;
+      return Object.fromEntries(map);
+    };
 
     // ログデータの構造化
     const logData = {
@@ -149,7 +160,13 @@ export function saveRAGLog(data: RAGLogData): string | null {
         totalCharacters: data.relevantDocs.reduce((sum, doc) => sum + doc.pageContent.length, 0),
         contextLength: data.contextLength,
         fullTextFilesCount: data.fullTextFiles.length,
-        fullTextCharacters: data.fullTextFiles.reduce((sum, file) => sum + file.content.length, 0)
+        fullTextCharacters: data.fullTextFiles.reduce((sum, file) => sum + file.content.length, 0),
+
+        rrfStatistics: data.rrfStatistics ? {
+          averageRRFScore: data.rrfStatistics.averageRRFScore,
+          averageQueryCoverage: data.rrfStatistics.averageQueryCoverage,
+          documentsByFile: serializeMap(data.rrfStatistics.documentsByFile)
+        } : undefined
       },
       
       // ファイル別の統計

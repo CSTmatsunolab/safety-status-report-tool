@@ -1,7 +1,7 @@
 // src/lib/sparse-vector-utils.ts
-import { WordTokenizer } from 'natural'; // 英語用
-import * as kuromoji from 'kuromoji'; // 日本語用
-import path from 'path'; // 辞書パス指定に必要
+import { WordTokenizer } from 'natural';
+import * as kuromoji from 'kuromoji';
+import path from 'path';
 
 export interface SparseValues {
   indices: number[];
@@ -82,10 +82,7 @@ async function getKuromojiTokenizer(): Promise<kuromoji.Tokenizer<kuromoji.Ipadi
   return initPromise;
 }
 
-/**
- * 強化版：テキストから疎ベクトルを生成 (async に変更)
- * 英語 (WordTokenizer) と日本語 (Kuromoji) の両方を処理
- */
+//英語 (WordTokenizer) と日本語 (Kuromoji) の両方を処理
 export async function createSparseVector(text: string): Promise<SparseValues> {
   const tf = new Map<number, number>();
   const textLower = text.toLowerCase();
@@ -159,65 +156,4 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
   });
 
   return { indices, values };
-}
-
-/**
- * ステークホルダー別のalpha値を取得
- * alpha高い = セマンティック重視
- * alpha低い = キーワード重視
- */
-export function getOptimalAlpha(stakeholderType: string): number {
-  switch(stakeholderType) {
-    case 'technical-fellows':
-    case 'architect':
-    case 'r-and-d':
-      // 技術系：キーワード重視（GSN要素など）
-      return 0.4; // 密40%、疎60%
-      
-    case 'cxo':
-    case 'business':
-      // ビジネス系：意味重視
-      return 0.7; // 密70%、疎30%
-      
-    case 'product':
-      // プロダクト：バランス
-      return 0.5; // 密50%、疎50%
-      
-    default:
-      // カスタムステークホルダーの推測
-      if (stakeholderType.startsWith('custom_')) {
-        const lower = stakeholderType.toLowerCase();
-        if (lower.includes('tech') || lower.includes('engineer') || lower.includes('開発')) {
-          return 0.4;
-        }
-        if (lower.includes('business') || lower.includes('経営') || lower.includes('exec')) {
-          return 0.7;
-        }
-      }
-      return 0.5; // デフォルトはバランス型
-  }
-}
-
-/**
- * クエリ内容に基づいてalphaを動的調整
- */
-export function getDynamicAlpha(query: string, stakeholderType: string): number {
-  let baseAlpha = getOptimalAlpha(stakeholderType);
-  
-  // GSN要素を含む場合はキーワード検索を重視
-  const hasGSN = /\b[GgSsCcJj]\d+\b/.test(query);
-  if (hasGSN) {
-    baseAlpha = Math.max(0.3, baseAlpha - 0.2); // alpha下げる
-    console.log(`GSN detected in query: adjusting alpha to ${baseAlpha}`);
-  }
-  
-  // 技術用語が多い場合もキーワード重視
-  const techTermCount = Array.from(IMPORTANT_KEYWORDS.keys())
-    .filter(term => query.toLowerCase().includes(term)).length;
-  if (techTermCount >= 2) {
-    baseAlpha = Math.max(0.3, baseAlpha - 0.1);
-    console.log(`Multiple tech terms: adjusting alpha to ${baseAlpha}`);
-  }
-  
-  return baseAlpha;
 }

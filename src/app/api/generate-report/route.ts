@@ -9,7 +9,7 @@ import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
 import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report-structures';
 import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
-import { getDynamicK, saveRAGLog, type RAGLogData } from '@/lib/rag-utils';
+import { getDynamicK, saveRAGLog, type RAGLogData, type RRFStatistics } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
 import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
 import { processGSNText } from '@/lib/text-processing';
@@ -68,6 +68,7 @@ async function performRAGSearch(
           
           console.log(`📊 Dynamic K: ${dynamicK}, Realistic K: ${realisticK}`);
           
+          let rrfStats: RRFStatistics | undefined = undefined;
           const queryEnhancer = new CustomStakeholderQueryEnhancer();
           const enhancedQueries = queryEnhancer.enhanceQuery(stakeholder, {
             maxQueries: 5,
@@ -87,15 +88,21 @@ async function performRAGSearch(
               embeddings,
               enhancedQueries,
               realisticK,
-              stakeholder.id
+              stakeholder
             );
             
+            const enableRRFDebug = process.env.DEBUG_LOGGING === 'true';
+
             // デバッグ情報の出力
-            if (process.env.NODE_ENV === 'development') {
-              debugRRFResults(relevantDocs);
-              const stats = getRRFStatistics(relevantDocs);
-              console.log('RRF Statistics:', stats);
-            }
+            if (useRRF && enableRRFDebug && relevantDocs.length > 0) {
+            console.log('RRF Debugging Enabled...');
+            
+            // コンソール出力は debugRRFResults を維持
+            debugRRFResults(relevantDocs); 
+            
+            // ログファイル用に統計情報を取得
+            rrfStats = getRRFStatistics(relevantDocs);
+          }
             
           } else {
             // ===== 従来のフェーズ戦略 =====
@@ -149,20 +156,23 @@ async function performRAGSearch(
                 .map((doc: Document) => doc.pageContent)
                 .join('\n\n---\n\n');
 
-            // ログ保存
-            const logData: RAGLogData = {
-              stakeholder,
-              searchQuery: enhancedQueries.join(' | '),
-              enhancedQueries,
-              k: dynamicK,
-              totalChunks: stats.totalDocuments,
-              vectorStoreType: stats.storeType,
-              relevantDocs,
-              contextLength: contextContent.length,
-              fullTextFiles,
-              timestamp: new Date()
-            };
-            saveRAGLog(logData);
+            if (process.env.DEBUG_LOGGING === 'true') {
+              // ログ保存
+              const logData: RAGLogData = {
+                stakeholder,
+                searchQuery: enhancedQueries.join(' | '),
+                enhancedQueries,
+                k: dynamicK,
+                totalChunks: stats.totalDocuments,
+                vectorStoreType: stats.storeType,
+                relevantDocs,
+                contextLength: contextContent.length,
+                fullTextFiles,
+                timestamp: new Date(),
+                rrfStatistics: rrfStats
+              };
+              saveRAGLog(logData);
+            }
           }
         }
       }
@@ -238,19 +248,21 @@ async function performRAGSearch(
                 .map((doc: Document) => doc.pageContent)
                 .join('\n\n---\n\n');
 
-            // ログ保存
-            const logData: RAGLogData = {
-              stakeholder,
-              searchQuery: enhancedQueries.join(' | '),
-              k: targetK,
-              totalChunks: stats.totalDocuments,
-              vectorStoreType: stats.storeType,
-              relevantDocs,
-              contextLength: contextContent.length,
-              fullTextFiles,
-              timestamp: new Date()
-            };
-            saveRAGLog(logData);
+            if (process.env.DEBUG_LOGGING === 'true') {
+              // ログ保存
+              const logData: RAGLogData = {
+                stakeholder,
+                searchQuery: enhancedQueries.join(' | '),
+                k: targetK,
+                totalChunks: stats.totalDocuments,
+                vectorStoreType: stats.storeType,
+                relevantDocs,
+                contextLength: contextContent.length,
+                fullTextFiles,
+                timestamp: new Date()
+              };
+              saveRAGLog(logData);
+            }
           }
         }
       } catch (error) {
