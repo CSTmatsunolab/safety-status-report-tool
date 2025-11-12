@@ -24,7 +24,6 @@
     "kuromoji": "^0.1.2",
     "langchain": "^0.3.34",
     "mammoth": "^1.11.0",
-    "natural": "^8.1.0",
     "next": "15.4.6",
     "next-themes": "^0.4.6",
     "openai": "^5.12.2",
@@ -34,6 +33,7 @@
     "react-dom": "19.1.0",
     "react-dropzone": "^14.3.8",
     "react-icons": "^5.5.0",
+    "wink-tokenizer": "^5.3.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

@@ -1,5 +1,5 @@
 // src/lib/sparse-vector-utils.ts
-import { WordTokenizer } from 'natural';
+import WinkTokenizer from 'wink-tokenizer';
 import * as kuromoji from 'kuromoji';
 import path from 'path';
 
@@ -9,7 +9,7 @@ export interface SparseValues {
 }
 
 // 英語のトークナイザー
-const englishTokenizer = new WordTokenizer();
+const englishTokenizer = new WinkTokenizer();
 
 // 英語の重要キーワード
 const IMPORTANT_KEYWORDS = new Map<string, number>([
@@ -98,7 +98,7 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
   }
 
   // --- 2. 英語のトークン処理 ---
-  const englishTokens = englishTokenizer.tokenize(textLower);
+  const englishTokens = englishTokenizer.tokenize(textLower).map(t => t.value);
   if (englishTokens) {
     englishTokens.forEach(token => {
       if (token.length < 2) return;
