@@ -77,22 +77,6 @@ async function processFileFromS3(
   return await response.json();
 }
 
-// ファイルタイプの判定
-function isDirectlyReadable(file: File): boolean {
-  const readableTypes = [
-    'text/plain',
-    'text/csv',
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/vnd.ms-excel',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  ];
-  
-  const readableExtensions = ['.txt', '.csv', '.xlsx', '.xls', '.docx'];
-  
-  return readableTypes.includes(file.type) || 
-         readableExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
-}
-
 async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);

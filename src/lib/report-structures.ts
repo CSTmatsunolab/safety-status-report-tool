@@ -164,12 +164,7 @@ export function getRecommendedStructure(
 
 export function getSimpleRecommendedStructure(
   stakeholder: Stakeholder,
-  files: { name: string; type: string; metadata?: { isGSN?: boolean } }[] = []
 ): ReportStructureTemplate {
-  // GSNファイルチェック
-  const hasGSNFile = files.some(f => 
-    f.type === 'gsn' || f.name.toLowerCase().includes('gsn') || f.metadata?.isGSN
-  );
 
   const stakeholderId = stakeholder.id; // IDを取得
   const stakeholderRole = stakeholder.role;

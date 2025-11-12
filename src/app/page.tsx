@@ -13,7 +13,7 @@ import { FiDatabase, FiCheckCircle, FiLoader, FiSettings, FiTrash2 } from 'react
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
-import { getBrowserId, resetBrowserId } from '@/lib/browser-id';
+import { getBrowserId } from '@/lib/browser-id';
 
 export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -193,11 +193,6 @@ export default function Home() {
       } catch (error) {
         console.log('Stats check skipped:', error);
       }
-      
-      // 確認メッセージをデータ有無に応じて調整
-      const namespace = selectedStakeholder.id.startsWith('custom_') ? 
-        `custom_${browserId.substring(0, 8)}_${selectedStakeholder.id.substring(7)}` : 
-        `${selectedStakeholder.id}_${browserId.substring(0, 8)}`;
       
       let confirmMessage;
       if (hasData) {

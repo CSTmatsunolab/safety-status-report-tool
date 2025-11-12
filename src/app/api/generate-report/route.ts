@@ -11,7 +11,7 @@ import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report
 import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
 import { getDynamicK, saveRAGLog, type RAGLogData, type RRFStatistics } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
-import { CustomStakeholderQueryEnhancer } from '@/lib/query-enhancer';
+import { CustomStakeholderQueryEnhancer, debugQueryEnhancement } from '@/lib/query-enhancer';
 import { processGSNText } from '@/lib/text-processing';
 import { generateNamespace } from '@/lib/browser-id';
 import { performAdaptiveRRFSearch, debugRRFResults, getRRFStatistics } from '@/lib/rrf-fusion';
@@ -43,9 +43,9 @@ async function performRAGSearch(
   let contextContent = '';
   let relevantDocs: Document[] = [];
 
+  const embeddings = createEmbeddings();
   if (vectorStoreType === 'pinecone') {
     try {
-      const embeddings = createEmbeddings();
       const vectorStore = await VectorStoreFactory.getExistingStore(
         embeddings,
         stakeholder.id,
@@ -77,74 +77,33 @@ async function performRAGSearch(
             includeRoleTerms: true
           });
           
-          console.log('Enhanced queries:', enhancedQueries);
-          
-          const useRRF = process.env.USE_RRF !== 'false';
-          if (useRRF && enhancedQueries.length > 1) {
-            console.log('Using Adaptive RRF Search');
-            
-            relevantDocs = await performAdaptiveRRFSearch(
-              vectorStore,
-              embeddings,
-              enhancedQueries,
-              realisticK,
-              stakeholder
-            );
-            
-            const enableRRFDebug = process.env.DEBUG_LOGGING === 'true';
-
-            // デバッグ情報の出力
-            if (useRRF && enableRRFDebug && relevantDocs.length > 0) {
-            console.log('RRF Debugging Enabled...');
-            
-            // コンソール出力は debugRRFResults を維持
-            debugRRFResults(relevantDocs); 
-            
-            // ログファイル用に統計情報を取得
-            rrfStats = getRRFStatistics(relevantDocs);
+          if (process.env.DEBUG_LOGGING === 'true') {
+            debugQueryEnhancement(stakeholder, {
+              maxQueries: 5,
+              includeEnglish: true,
+              includeSynonyms: true,
+              includeRoleTerms: true
+            });
           }
+
+          console.log('Enhanced queries:', enhancedQueries);
+          console.log('Using Adaptive RRF Search');
+          
+          relevantDocs = await performAdaptiveRRFSearch(
+            vectorStore,
+            embeddings,
+            enhancedQueries,
+            realisticK,
+            stakeholder
+          );
             
-          } else {
-            // ===== 従来のフェーズ戦略 =====
-            console.log('Using legacy phase-based search');
-            
-            const allDocs: Document[] = [];
-            const seenDocIds = new Set<string>();
-            
-            const phases = [
-              { multiplier: 1.0, description: "Initial fetch" },
-              { multiplier: 1.5, description: "Extended fetch" },
-              { multiplier: 2.0, description: "Deep fetch" }
-            ];
-            
-            for (const phase of phases) {
-              if (allDocs.length >= realisticK) break;
-              
-              const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
-              console.log(`${phase.description}: fetching ${phaseK} docs per query`);
-              
-              for (const query of enhancedQueries) {
-                if (allDocs.length >= realisticK * 1.2) break;
-                
-                try {
-                  const results = await vectorStore.similaritySearch(query, phaseK);
-                  
-                  results.forEach((doc: Document) => {
-                    const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
-                    if (!seenDocIds.has(docId)) {
-                      seenDocIds.add(docId);
-                      allDocs.push(doc);
-                    }
-                  });
-                } catch (error) {
-                  console.error(`Search failed for query "${query}":`, error);
-                }
-              }
-            }
-            
-            relevantDocs = allDocs
-              .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
-              .slice(0, realisticK);
+          const enableRRFDebug = process.env.DEBUG_LOGGING === 'true';
+
+          // デバッグ情報の出力
+          if (enableRRFDebug && relevantDocs.length > 0) {
+            console.log('RRF Debugging Enabled...');
+            debugRRFResults(relevantDocs); 
+            rrfStats = getRRFStatistics(relevantDocs);
           }
           
           const achievementRate = (relevantDocs.length / dynamicK) * 100;
@@ -203,45 +162,22 @@ async function performRAGSearch(
           
           const queryEnhancer = new CustomStakeholderQueryEnhancer();
           const enhancedQueries = queryEnhancer.enhanceQuery(stakeholder);
-          
-          console.log('Enhanced queries for memory store:', enhancedQueries);
-          
-          const allDocs: Document[] = [];
-          const seenDocIds = new Set<string>();
-          
-          const phases = [
-            { multiplier: 1.0, description: "Initial fetch" },
-            { multiplier: 1.5, description: "Extended fetch" }
-          ];
-          
-          for (const phase of phases) {
-            if (allDocs.length >= realisticK) break;
-            
-            const phaseK = Math.ceil((realisticK * phase.multiplier) / enhancedQueries.length);
-            
-            for (const query of enhancedQueries) {
-              if (allDocs.length >= realisticK * 1.2) break;
-              
-              try {
-                const results = await vectorStore.similaritySearch(query, phaseK);
-                
-                results.forEach((doc: Document) => {
-                  const docId = `${doc.metadata?.fileName}_${doc.metadata?.chunkIndex}`;
-                  if (!seenDocIds.has(docId)) {
-                    seenDocIds.add(docId);
-                    allDocs.push(doc);
-                  }
-                });
-              } catch (error) {
-                console.error(`Search failed: ${error}`);
-              }
-            }
+
+          if (process.env.DEBUG_LOGGING === 'true') {
+            debugQueryEnhancement(stakeholder);
           }
-          
-          relevantDocs = allDocs
-            .sort((a, b) => (b.metadata?.score || 0) - (a.metadata?.score || 0))
-            .slice(0, realisticK);
-          
+
+          console.log('Enhanced queries for memory store:', enhancedQueries);
+
+          // RRF検索を呼び出す
+          console.log('Using Adaptive RRF Search (Memory)');
+          relevantDocs = await performAdaptiveRRFSearch(
+              vectorStore,
+              embeddings,
+              enhancedQueries,
+              realisticK,
+              stakeholder
+          );
           if (relevantDocs.length > 0) {
             contextContent = '=== RAG抽出内容 ===\n\n' + 
               relevantDocs
@@ -250,16 +186,19 @@ async function performRAGSearch(
 
             if (process.env.DEBUG_LOGGING === 'true') {
               // ログ保存
+              const rrfStats = getRRFStatistics(relevantDocs);
               const logData: RAGLogData = {
                 stakeholder,
                 searchQuery: enhancedQueries.join(' | '),
+                enhancedQueries: enhancedQueries,
                 k: targetK,
                 totalChunks: stats.totalDocuments,
                 vectorStoreType: stats.storeType,
                 relevantDocs,
                 contextLength: contextContent.length,
                 fullTextFiles,
-                timestamp: new Date()
+                timestamp: new Date(),
+                rrfStatistics: rrfStats
               };
               saveRAGLog(logData);
             }
@@ -272,30 +211,6 @@ async function performRAGSearch(
   }
 
   return { contextContent, relevantDocs };
-}
-
-// キーワード抽出ヘルパー関数
-function extractKeywordsFromConcerns(concerns: string[]): string[] {
-  const keywords: string[] = [];
-  
-  concerns.forEach(concern => {
-    // GSN要素を抽出
-    const gsnPattern = /\b([GgSsCcJj]\d+)\b/g;
-    const gsnMatches = concern.match(gsnPattern);
-    if (gsnMatches) {
-      keywords.push(...gsnMatches);
-    }
-    
-    // 技術用語を抽出
-    const techTerms = ['AI', 'ML', 'API', 'DB', 'IoT', 'CI/CD', 'DevOps'];
-    techTerms.forEach(term => {
-      if (concern.toUpperCase().includes(term)) {
-        keywords.push(term);
-      }
-    });
-  });
-  
-  return [...new Set(keywords)];
 }
 
 //全文使用ファイルをコンテキストに追加
@@ -375,7 +290,7 @@ async function generateReportWithClaude(
 //メインのPOSTハンドラ
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholder, fullTextFileIds, reportStructure, browserId }: { 
+    const { files, stakeholder, reportStructure, browserId }: { 
       files: UploadedFile[]; 
       stakeholder: Stakeholder;
       fullTextFileIds?: string[];

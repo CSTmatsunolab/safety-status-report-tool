@@ -258,7 +258,7 @@ async function executeRRFSearch(
       console.log(`    Total unique documents so far: ${documentScores.size}`);
       
     } catch (error) {
-      console.error(`  ❌ Search failed for query "${query}":`, error);
+      console.error(`  Search failed for query "${query}":`, error);
     }
   }
   
