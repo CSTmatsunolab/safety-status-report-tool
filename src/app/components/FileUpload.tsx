@@ -57,7 +57,13 @@ async function processFileFromS3(
   key: string,
   fileName: string,
   fileType: string
-): Promise<{ text: string; confidence?: number; method?: string }> {
+): Promise<{ 
+  text: string; 
+  confidence?: number; 
+  method?: string;
+  pdfBufferBase64?: string;
+  hasPdfBuffer?: boolean;
+}> {
   const response = await fetch('/api/s3-process', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -120,7 +126,7 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
   }
 }
 
-async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number; s3Key?: string }> {
+async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number; s3Key?: string; pdfBuffer?: Buffer; }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -138,21 +144,31 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
       }
       
       const result = await response.json();
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfBuffer = Buffer.from(arrayBuffer);
       return {
         text: result.text || '',
         method: result.method || 'embedded-text',
-        confidence: result.confidence
+        confidence: result.confidence,
+        pdfBuffer: pdfBuffer
       };
     } 
     // 4MB以上はS3経由
     else {
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
+      let pdfBuffer: Buffer | undefined;
+      if (result.hasPdfBuffer && result.pdfBufferBase64) {
+        pdfBuffer = Buffer.from(result.pdfBufferBase64, 'base64');
+        console.log(`PDF buffer restored from S3 for ${file.name} (${pdfBuffer.length} bytes)`);
+      }
+
       return {
         text: result.text || '',
         method: result.method || 's3',
         confidence: result.confidence,
-        s3Key: result.method === 'embedded-text' ? s3Key : undefined
+        s3Key: result.method === 'embedded-text' ? s3Key : undefined,
+        pdfBuffer: pdfBuffer
       };
     }
     
@@ -255,6 +271,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
           let s3Key: string | undefined;
+          let pdfBuffer: Buffer | undefined;
 
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -262,6 +279,15 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             content = result.text;
             extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
             ocrConfidence = result.confidence;
+
+            if (result.pdfBuffer) {
+              pdfBuffer = result.pdfBuffer;
+              console.log(`PDF buffer saved for ${file.name} (${pdfBuffer.length} bytes)`);
+            }
+            if (result.s3Key) {
+              s3Key = result.s3Key;
+            }
+
         } else if (file.type.startsWith('image/')) {
             console.log(`Extracting text from image: ${file.name}`);
             const result = await extractTextFromImage(file);
@@ -357,7 +383,11 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               isGSN: false,
               userDesignatedGSN: false,
               s3Key: s3Key,
-              contentPreview: s3Key ? content : undefined
+              contentPreview: s3Key ? content : undefined,
+              ...(pdfBuffer ? {
+                pdfBuffer: pdfBuffer,
+                isBase64: false
+              } : {})
             }
           });
 

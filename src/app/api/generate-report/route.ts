@@ -273,7 +273,7 @@ async function generateReportWithClaude(
   promptContent: string
 ): Promise<string> {
   const message = await anthropic.messages.create({
-    model: 'claude-3-haiku-20240307',
+    model: 'claude-sonnet-4-20250514',
     max_tokens: 4000,
     temperature: 0.7,
     messages: [

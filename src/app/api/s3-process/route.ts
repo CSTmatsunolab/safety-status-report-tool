@@ -11,6 +11,13 @@ import pdf from 'pdf-parse-new';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+interface ProcessResult {
+  text: string;
+  method: string;
+  confidence?: number;
+  pdfBuffer?: Buffer;
+}
+
 // PDFのOCR処理
 async function processPDFWithOCR(buffer: Buffer, fileName: string) {
   try {
@@ -26,6 +33,7 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
       return {
         text: embeddedText,
         method: 'embedded-text',
+        pdfBuffer: buffer
       };
     }
 
@@ -66,7 +74,8 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
     return {
       text: fullText,
       method: 'vision-ocr',
-      confidence: averageConfidence
+      confidence: averageConfidence,
+      pdfBuffer: buffer
     };
 
   } catch (error) {
@@ -166,7 +175,7 @@ export async function POST(request: NextRequest) {
     console.log(`File fetched: ${fileName} (${fileBuffer.length} bytes)`);
 
     // ファイルタイプに応じた処理
-    let result;
+    let result: ProcessResult;
     
     switch (fileType) {
       case 'application/pdf':
@@ -216,7 +225,12 @@ export async function POST(request: NextRequest) {
       success: true,
       ...result,
       fileName,
-      processedAt: new Date().toISOString()
+      processedAt: new Date().toISOString(),
+      // PDFの場合はBase64エンコードして送信
+      ...(result.pdfBuffer ? {
+        pdfBufferBase64: result.pdfBuffer.toString('base64'),
+        hasPdfBuffer: true
+      } : {})
     });
 
   } catch (error) {

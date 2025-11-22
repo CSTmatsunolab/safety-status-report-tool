@@ -252,14 +252,39 @@ export class VectorStoreFactory {
       for (let i = 0; i < docs.length; i++) {
         const doc = docs[i];
         
-        // 3. メタデータに pageContent を含める
-        const { loc, ...otherMetadata } = doc.metadata;
-        const metadata: RecordMetadata = {
-          ...otherMetadata,
-          pageContent: doc.pageContent, 
-        };
-
-        const originalFileName = (doc.metadata.fileName as string) || 'unknown_file';
+        // 3. メタデータから不要なフィールドを除外
+        const { loc, pdfBuffer, gsnValidation, ...otherMetadata } = doc.metadata;
+        
+        // Pineconeが受け付けるメタデータのみを保持
+        const cleanMetadata: RecordMetadata = {};
+        
+        for (const [key, value] of Object.entries(otherMetadata)) {
+          // Pineconeが受け付ける型のみを保持
+          if (value === null || value === undefined) {
+            continue;
+          }
+          
+          if (typeof value === 'string' || 
+              typeof value === 'number' || 
+              typeof value === 'boolean') {
+            cleanMetadata[key] = value;
+          } else if (Array.isArray(value) && 
+                    value.every(item => typeof item === 'string')) {
+            cleanMetadata[key] = value;
+          } else {
+            // オブジェクトや他の型は文字列化
+            try {
+              cleanMetadata[key] = JSON.stringify(value);
+            } catch (e) {
+              console.warn(`Skipping metadata field ${key}: cannot serialize`);
+            }
+          }
+        }
+        
+        // pageContentを追加（検索用）
+        cleanMetadata.pageContent = doc.pageContent;
+        
+        const originalFileName = (cleanMetadata.fileName as string) || 'unknown_file';
         const sanitizedFileName = originalFileName.replace(/[^a-zA-Z0-9_.-]/g, '_'); 
         const vectorId = `${namespace}_${sanitizedFileName}_${doc.metadata.chunkIndex || i}`;
 
@@ -267,7 +292,7 @@ export class VectorStoreFactory {
           id: vectorId,
           values: denseVectors[i],
           sparseValues: sparseVectors[i],
-          metadata: metadata,
+          metadata: cleanMetadata,
         });
       }
 

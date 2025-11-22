@@ -58,4 +58,6 @@ export interface FileMetadata {
   userDesignatedGSN: boolean;
   s3Key?: string;
   contentPreview?: string;
+  isBase64?: boolean;
+  [key: string]: unknown;
 }
