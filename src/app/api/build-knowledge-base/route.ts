@@ -250,8 +250,8 @@ export async function POST(request: NextRequest) {
       let truncated = false;
       let originalLength = 0;
       
-      // S3参照の場合はコンテンツを取得
-      if (file.metadata?.s3Key && !file.content) {
+      // S3参照の場合、またはcontentが空の場合はコンテンツを取得
+      if (file.metadata?.s3Key && (!file.content || file.content === '')) {
         console.log(`Fetching content for ${file.name} from S3: ${file.metadata.s3Key}`);
         
         try {
@@ -288,7 +288,7 @@ export async function POST(request: NextRequest) {
           console.error(`Failed to fetch S3 content for ${file.name}:`, error);
           fileContent = file.metadata.contentPreview || '';
         }
-      } else if (file.content) {
+      } else if (file.content && file.content !== '') {  // contentが空でない場合のみ処理
         // メモリ内のコンテンツを使用  
         // Vision-Guidedの場合はBufferが必要
         if (shouldUseVisionGuidedChunking(file.type, file.name, file.metadata || {})) {
@@ -352,6 +352,42 @@ export async function POST(request: NextRequest) {
               console.warn(warning);
             }
           }
+        }
+      }
+      
+      // contentが完全に空の場合の処理
+      if (!fileContent || (typeof fileContent === 'string' && fileContent === '')) {
+        console.log(`No content available for ${file.name}`);
+        
+        // contentOmittedForTransmissionフラグがある場合の特別処理
+        if (file.metadata?.contentOmittedForTransmission && file.metadata?.originalContentLength) {
+          console.log(`Content was omitted for transmission (original: ${file.metadata.originalContentLength} chars)`);
+          
+          // S3キーがなくても再取得を試みる
+          if (file.metadata?.s3Key) {
+            try {
+              console.log(`Attempting to fetch from S3: ${file.metadata.s3Key}`);
+              const result = await getContentFromS3(
+                file.metadata.s3Key,
+                file.metadata.originalType || file.type,
+                file.name
+              );
+              fileContent = result.content;
+              
+              if (result.pdfBuffer && file.metadata) {
+                file.metadata.pdfBuffer = result.pdfBuffer;
+              }
+            } catch (error) {
+              console.error(`Failed to retrieve content from S3:`, error);
+            }
+          }
+        }
+        
+        // それでもcontentがない場合は警告を出してスキップ
+        if (!fileContent || (typeof fileContent === 'string' && fileContent === '')) {
+          console.warn(`Skipping ${file.name} - no content available`);
+          warnings.push(`${file.name}: コンテンツが利用できません`);
+          continue; // 次のファイルへ
         }
       }
       

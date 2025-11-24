@@ -140,12 +140,22 @@ export default function Home() {
     setKnowledgeBaseStatus('building');
     
     try {
-      // リクエストサイズをチェック（デバッグ用）
+      // contentフィールドを削除または最小化したファイル配列を作成
+      const filesWithoutContent = files.map(file => ({
+        ...file,
+        content: '', // contentを完全に空にする
+        metadata: {
+          ...file.metadata,
+          // 元のコンテンツ長を記録（デバッグ用）
+          originalContentLength: file.content?.length || 0,
+          hasContent: !!file.content && file.content.length > 0
+        }
+      }));
+
       const requestBody = {
-        files,  // 固定長と同じく、filesをそのまま使用
+        files: filesWithoutContent, // contentを空にしたファイルを送信
         stakeholderId: selectedStakeholder.id,
         browserId: browserId,
-        // Max-Min用の追加パラメータ（最小限）
         chunkingStrategy: 'max-min',
         fullTextDocuments: files
           .filter((file) => file.includeFullText === true)
@@ -155,6 +165,11 @@ export default function Home() {
       const requestSize = JSON.stringify(requestBody).length;
       console.log(`Request size: ${(requestSize / (1024 * 1024)).toFixed(2)} MB`);
       
+      // デバッグ：元のサイズと比較
+      const originalSize = JSON.stringify({ files, stakeholderId: selectedStakeholder.id, browserId: browserId }).length;
+      console.log(`Original size would be: ${(originalSize / (1024 * 1024)).toFixed(2)} MB`);
+      console.log(`Size reduction: ${((1 - requestSize/originalSize) * 100).toFixed(1)}%`);
+      
       const response = await fetch('/api/build-knowledge-base', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,7 +177,6 @@ export default function Home() {
       });
       
       if (!response.ok) {
-        // エラーメッセージを改善
         let errorMessage = 'Knowledge base building failed';
         
         if (response.status === 413) {
