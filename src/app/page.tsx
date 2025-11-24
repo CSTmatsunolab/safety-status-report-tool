@@ -139,31 +139,109 @@ export default function Home() {
     setIsKnowledgeBaseBuilding(true);
     setKnowledgeBaseStatus('building');
     
-    try {
+   try {
+      // Vercel 413エラー対策：送信データのサイズを削減
+      const MAX_CONTENT_LENGTH = 50000; // 各ファイルのcontentの最大文字数（50KB）
+      
+      const filesForApi = files.map((file) => {
+        // contentが大きすぎる場合は切り詰める
+        let truncatedContent = file.content;
+        if (truncatedContent && truncatedContent.length > MAX_CONTENT_LENGTH) {
+          truncatedContent = truncatedContent.substring(0, MAX_CONTENT_LENGTH) + '... [truncated for transmission]';
+        }
+        
+        // S3キーがある場合はcontentを空にする
+        if (file.metadata?.s3Key) {
+          truncatedContent = '';
+        }
+        
+        // クリーンなオブジェクトを返す（pdfBufferは含めない）
+        return {
+          id: file.id,
+          name: file.name,
+          type: file.type,
+          content: truncatedContent,
+          uploadedAt: file.uploadedAt,
+          includeFullText: file.includeFullText,
+          metadata: {
+            ...file.metadata,
+            contentTruncated: file.content && file.content.length > MAX_CONTENT_LENGTH,
+            originalContentLength: file.content ? file.content.length : 0,
+          }
+        };
+      });
+
+      // デバッグ：リクエストサイズを確認
+      const requestBody = {
+        files: filesForApi,
+        stakeholderId: selectedStakeholder.id,
+        browserId: browserId,
+        fullTextDocuments: files
+          .filter((file) => file.includeFullText === true)  // 型注釈を削除
+          .map((file) => file.name),  // 型注釈を削除
+        chunkingStrategy: 'max-min' // Max-Minを明示的に指定
+      };
+      
+      const requestSize = JSON.stringify(requestBody).length;
+      console.log(`Request size: ${(requestSize / (1024 * 1024)).toFixed(2)} MB`);
+      
+      // 警告: 4MBを超える場合
+      if (requestSize > 4 * 1024 * 1024) {
+        console.warn(`Warning: Large request size (${(requestSize / (1024 * 1024)).toFixed(2)} MB)`);
+        
+        // さらに削減が必要な場合
+        filesForApi.forEach((file) => {
+          if (file.content && file.content.length > 10000) {
+            file.content = file.content.substring(0, 10000) + '... [heavily truncated]';
+          }
+        });
+        
+        const reducedSize = JSON.stringify({ ...requestBody, files: filesForApi }).length;
+        console.log(`Reduced request size: ${(reducedSize / (1024 * 1024)).toFixed(2)} MB`);
+      }
+
       const response = await fetch('/api/build-knowledge-base', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          files,
-          stakeholderId: selectedStakeholder.id,
-          browserId: browserId,
+          ...requestBody,
+          files: filesForApi
         }),
       });
       
       if (!response.ok) {
-        throw new Error('Knowledge base building failed');
+        let errorMessage = 'Knowledge base building failed';
+        
+        if (response.status === 413) {
+          errorMessage = 
+            'ファイルサイズが大きすぎます。以下の対策を試してください：\n' +
+            '1. 大きなPDFファイルを複数の小さなファイルに分割\n' +
+            '2. 画像を含むPDFの場合、テキストのみのPDFに変換\n' +
+            '3. 一度に処理するファイル数を減らす';
+        } else {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch {  // ここを修正：eを削除
+            // JSONパースエラーは無視
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
       
       const result = await response.json();
       console.log('Knowledge base built:', result);
       if (result.namespace) {
-      console.log('Namespace used:', result.namespace);
+        console.log('Namespace used:', result.namespace);
       }
       setKnowledgeBaseStatus('ready');
     } catch (error) {
       console.error('Knowledge base building error:', error);
       setKnowledgeBaseStatus('error');
-      alert('知識ベースの構築に失敗しました。');
+      
+      const errorMessage = error instanceof Error ? error.message : '知識ベースの構築に失敗しました。';
+      alert(errorMessage);
     } finally {
       setIsKnowledgeBaseBuilding(false);
     }
