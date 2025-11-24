@@ -139,23 +139,44 @@ export default function Home() {
     setIsKnowledgeBaseBuilding(true);
     setKnowledgeBaseStatus('building');
     
-   try {
+    try {
       // Vercel 413エラー対策：送信データのサイズを削減
-      const MAX_CONTENT_LENGTH = 50000; // 各ファイルのcontentの最大文字数（50KB）
-      
+      const MAX_CONTENT_LENGTH = 5000; // 5KBに制限（PDFは特に大きくなりやすいため）
+    
       const filesForApi = files.map((file) => {
-        // contentが大きすぎる場合は切り詰める
+        // PDFファイルの判定（file.nameとmetadataで判定）
+        const isPDF = file.name.toLowerCase().endsWith('.pdf') || 
+                      file.metadata?.extractionMethod === 'pdf';
+        
+        // デバッグログ
+        if (isPDF) {
+          console.log(`PDF detected: ${file.name}, content length: ${file.content?.length || 0}`);
+        }
+        
+        // S3キーがある、またはPDFで大きなコンテンツの場合
+        if (file.metadata?.s3Key || (isPDF && file.content && file.content.length > MAX_CONTENT_LENGTH)) {
+          console.log(`File ${file.name}: Using S3 reference or truncating large PDF content`);
+          return {
+            id: file.id,
+            name: file.name,
+            type: file.type,
+            content: '', // S3参照またはPDFの場合は空にする
+            uploadedAt: file.uploadedAt,
+            includeFullText: file.includeFullText,
+            metadata: {
+              ...file.metadata,
+              contentOmittedForTransmission: true,
+              originalContentLength: file.content ? file.content.length : 0,
+            }
+          };
+        }
+        
+        // その他のファイル
         let truncatedContent = file.content;
         if (truncatedContent && truncatedContent.length > MAX_CONTENT_LENGTH) {
-          truncatedContent = truncatedContent.substring(0, MAX_CONTENT_LENGTH) + '... [truncated for transmission]';
+          truncatedContent = truncatedContent.substring(0, MAX_CONTENT_LENGTH) + '... [truncated]';
         }
         
-        // S3キーがある場合はcontentを空にする
-        if (file.metadata?.s3Key) {
-          truncatedContent = '';
-        }
-        
-        // クリーンなオブジェクトを返す（pdfBufferは含めない）
         return {
           id: file.id,
           name: file.name,
@@ -171,14 +192,19 @@ export default function Home() {
         };
       });
 
+      // デバッグ出力を追加
+      filesForApi.forEach(f => {
+        console.log(`${f.name}: content length = ${f.content.length}, has S3 = ${!!f.metadata?.s3Key}`);
+      });
+
       // デバッグ：リクエストサイズを確認
       const requestBody = {
         files: filesForApi,
         stakeholderId: selectedStakeholder.id,
         browserId: browserId,
         fullTextDocuments: files
-          .filter((file) => file.includeFullText === true)  // 型注釈を削除
-          .map((file) => file.name),  // 型注釈を削除
+          .filter((file) => file.includeFullText === true)
+          .map((file) => file.name),
         chunkingStrategy: 'max-min' // Max-Minを明示的に指定
       };
       
@@ -191,8 +217,8 @@ export default function Home() {
         
         // さらに削減が必要な場合
         filesForApi.forEach((file) => {
-          if (file.content && file.content.length > 10000) {
-            file.content = file.content.substring(0, 10000) + '... [heavily truncated]';
+          if (file.content && file.content.length > 1000) {
+            file.content = file.content.substring(0, 1000) + '... [heavily truncated]';
           }
         });
         
@@ -222,7 +248,7 @@ export default function Home() {
           try {
             const errorData = await response.json();
             errorMessage = errorData.error || errorMessage;
-          } catch {  // ここを修正：eを削除
+          } catch {
             // JSONパースエラーは無視
           }
         }
