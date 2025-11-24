@@ -8,6 +8,7 @@ import { maxMinSemanticChunk } from './max-min-chunking';
 
 // 環境変数でアドバンスドチャンキングの有効/無効を制御
 const USE_ADVANCED_CHUNKING = process.env.USE_ADVANCED_CHUNKING === 'true';
+const USE_VISION_GUIDED_FOR_PDF = process.env.USE_VISION_GUIDED_FOR_PDF === 'true';
 
 // メタデータの型定義
 interface ChunkMetadata {
@@ -42,6 +43,7 @@ export async function chunkDocument(
   console.log(`Is Buffer: ${Buffer.isBuffer(contentOrBuffer)}`);
   console.log(`Has PDF Buffer in metadata: ${!!metadata.pdfBuffer}`);
   console.log(`Advanced Chunking: ${USE_ADVANCED_CHUNKING ? 'ENABLED' : 'DISABLED'}`);
+  console.log(`Vision-Guided for PDF: ${USE_VISION_GUIDED_FOR_PDF ? 'ENABLED' : 'DISABLED'}`);
   console.log(`Extraction Method: ${metadata.extractionMethod || 'N/A'}`);
   
   // 環境変数がfalseの場合は従来の固定長チャンキングを使用
@@ -59,6 +61,24 @@ export async function chunkDocument(
   // PDFの場合の処理戦略決定
   if (fileType === 'application/pdf' || fileName.toLowerCase().endsWith('.pdf')) {
     
+    // Vision-Guidedが無効の場合は直接Max-Minへ
+    if (!USE_VISION_GUIDED_FOR_PDF) {
+      console.log(`Strategy: Max-Min Semantic Chunking (Vision-Guided disabled for PDF)`);
+      console.log(`===================================\n`);
+      
+      const text = Buffer.isBuffer(contentOrBuffer)
+        ? contentOrBuffer.toString('utf-8')
+        : contentOrBuffer;
+        
+      return await maxMinSemanticChunkingStrategy(
+        text,
+        fileName,
+        embeddings,
+        metadata
+      );
+    }
+    
+    // Vision-Guidedが有効な場合の処理
     // ケース1: PDFバイナリが直接渡されている
     if (Buffer.isBuffer(contentOrBuffer)) {
       console.log(`Strategy: Vision-Guided Chunking (PDF Binary Available)`);
@@ -83,21 +103,23 @@ export async function chunkDocument(
       if (Buffer.isBuffer(metadata.pdfBuffer)) {
         pdfBuffer = metadata.pdfBuffer;
       } else {
-        // any型にキャストしてプロパティにアクセス
-        const pdfBufferAny = metadata.pdfBuffer as any;
-        
-        if (typeof pdfBufferAny === 'object' && pdfBufferAny.type === 'Buffer' && Array.isArray(pdfBufferAny.data)) {
+        const serializedBuffer = metadata.pdfBuffer as unknown; 
+        // 構造をチェック
+        if (
+          typeof serializedBuffer === 'object' && 
+          serializedBuffer !== null && 
+          (serializedBuffer as { type: unknown }).type === 'Buffer' && // 'type'プロパティをチェック
+          'data' in serializedBuffer && 
+          Array.isArray((serializedBuffer as { data: unknown }).data) // 'data'プロパティが配列であることをチェック
+        ) {
           // JSONシリアライズされたBufferオブジェクトの復元
-          pdfBuffer = Buffer.from(pdfBufferAny.data);
+          // 安全性を確認した上で、dataプロパティをnumber[]としてBufferを再構築
+          const bufferData = (serializedBuffer as { data: number[] }).data;
+          pdfBuffer = Buffer.from(bufferData);
           console.log(`Restored Buffer from serialized object (${pdfBuffer.length} bytes)`);
-        } else if (typeof pdfBufferAny === 'string') {
-          // Base64文字列の場合
-          pdfBuffer = Buffer.from(pdfBufferAny, 'base64');
-          console.log(`Restored Buffer from base64 string (${pdfBuffer.length} bytes)`);
         } else {
-          console.error(`Invalid pdfBuffer type: ${typeof pdfBufferAny}`, pdfBufferAny);
-          // Max-Minにフォールバック
-          console.log(`Falling back to Max-Min Semantic Chunking`);
+          // フォールバック
+          console.error(`Invalid pdfBuffer type, falling back to Max-Min`);
           const text = Buffer.isBuffer(contentOrBuffer)
             ? contentOrBuffer.toString('utf-8')
             : contentOrBuffer;
@@ -121,12 +143,11 @@ export async function chunkDocument(
     
     // ケース3: テキスト抽出済みだがバイナリがない場合
     console.log(`WARNING: PDF text extracted but no binary available for Vision-Guided processing`);
-    console.log(`Recommendation: Store original PDF buffer in metadata.pdfBuffer for better chunking`);
     console.log(`Falling back to Max-Min Semantic Chunking`);
     
     const text = Buffer.isBuffer(contentOrBuffer)
-    ? contentOrBuffer.toString('utf-8')
-    : contentOrBuffer;
+      ? contentOrBuffer.toString('utf-8')
+      : contentOrBuffer;
       
     return await maxMinSemanticChunkingStrategy(
       text,
@@ -136,16 +157,15 @@ export async function chunkDocument(
     );
   }
   
-  // 画像ファイルの処理
-  const imageTypes = [
-    'image/jpeg',
-    'image/jpg',
-    'image/png',
-    'image/webp',
-    'image/gif'
-  ];
+  // 画像ファイルの処理（Vision-Guidedのみ）
+  const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
   
   if (imageTypes.includes(fileType)) {
+    if (!USE_VISION_GUIDED_FOR_PDF) {
+      console.log(`Vision-Guided disabled, cannot process image files`);
+      return [];
+    }
+    
     if (Buffer.isBuffer(contentOrBuffer)) {
       console.log(`Strategy: Vision-Guided Chunking (Image)`);
       console.log(`===================================\n`);
@@ -299,7 +319,40 @@ async function maxMinSemanticChunkingStrategy(
 ): Promise<Document[]> {
   
   try {
-    const chunks = await maxMinSemanticChunk(text, embeddings);
+    // PDFかどうかを判定
+    const isPDF = metadata.extractionMethod === 'pdf' || 
+                  metadata.extractionMethod === 'ocr' ||
+                  fileName.toLowerCase().endsWith('.pdf');
+    
+    // PDFの場合は調整されたパラメータを使用
+    const config = isPDF ? {
+      hard_thr: 0.5,    // PDFは閾値を上げて結合を促進
+      init_const: 2.0,  // PDFは初期値を上げて結合を促進  
+      c: 0.9
+    } : {
+      hard_thr: 0.4,    // デフォルト値
+      init_const: 1.5,
+      c: 0.9
+    };
+    
+    // デバッグ情報
+    if (isPDF) {
+      console.log('PDF detected - using adjusted parameters for chunking');
+      console.log('Config:', config);
+    }
+    
+    // Max-Minチャンキングを実行（修正版のmax-min-chunking.tsを使用）
+    const chunks = await maxMinSemanticChunk(
+      text, 
+      embeddings,
+      config,
+      isPDF  // PDFフラグを渡す
+    );
+    
+    // チャンク数が多すぎる場合の警告
+    if (chunks.length > 100) {
+      console.warn(`Warning: ${chunks.length} chunks created. Consider adjusting parameters.`);
+    }
     
     return chunks.map((chunkText, index) => new Document({
       pageContent: chunkText,
@@ -308,7 +361,8 @@ async function maxMinSemanticChunkingStrategy(
         chunkIndex: index,
         totalChunks: chunks.length,
         chunkingMethod: 'max-min-semantic',
-        fileName: fileName
+        fileName: fileName,
+        isPDF: isPDF
       }
     }));
     
@@ -324,12 +378,12 @@ async function maxMinSemanticChunkingStrategy(
 export function getChunkingConfiguration() {
   return {
     mode: USE_ADVANCED_CHUNKING ? 'advanced' : 'traditional',
+    visionGuidedForPDF: USE_VISION_GUIDED_FOR_PDF,
     enabled: USE_ADVANCED_CHUNKING,
     strategies: USE_ADVANCED_CHUNKING 
-      ? ['vision-guided', 'max-min-semantic'] 
+      ? (USE_VISION_GUIDED_FOR_PDF ? ['vision-guided', 'max-min-semantic'] : ['max-min-semantic'])
       : ['fixed-size'],
     fixedChunkSize: 1000,
     fixedChunkOverlap: 100,
-    recommendation: 'Store original PDF buffer in metadata.pdfBuffer for optimal chunking'
   };
 }

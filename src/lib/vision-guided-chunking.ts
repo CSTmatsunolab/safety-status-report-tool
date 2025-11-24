@@ -12,6 +12,12 @@ const BATCH_SIZE = parseInt(process.env.VISION_BATCH_SIZE || '4'); // デフォ�
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 2000; // 2秒
 
+interface GenerativeModel {
+  generateContent(
+    contents: (string | { inlineData: { data: string; mimeType: string } })[]
+  ): Promise<{ response: { text(): string } }>;
+}
+
 // チャンクのメタデータ型定義
 interface ChunkMetadata {
   headingHierarchy: string[];
@@ -165,7 +171,7 @@ export async function processDocumentWithVision(
 async function processPDFInBatches(
   pdfBuffer: Buffer,
   fileName: string,
-  model: any
+  model: GenerativeModel
 ): Promise<VisionChunk[]> {
   
   // PDFをバッチに分割
@@ -243,7 +249,7 @@ async function processSingleBatch(
   context: BatchContext,
   isFirstBatch: boolean,
   isLastBatch: boolean,
-  model: any
+  model: GenerativeModel
 ): Promise<VisionChunk[]> {
   
   const base64Data = batchBuffer.toString('base64');
@@ -383,7 +389,7 @@ async function processSingleImage(
   imageBuffer: Buffer,
   fileName: string,
   fileType: string,
-  model: any
+  model: GenerativeModel
 ): Promise<VisionChunk[]> {
   
   const base64Data = imageBuffer.toString('base64');

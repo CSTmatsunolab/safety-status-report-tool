@@ -12,6 +12,53 @@ interface IVisionPage {
   blocks?: IVisionBlock[] | null;
 }
 
+/**
+ * PDFから抽出されたテキストの不要な改行を除去
+ * 日本語の文中で不自然に分割された改行を結合
+ */
+function cleanPDFText(text: string): string {
+  // 文末記号のパターン
+  const sentenceEnders = /[。！？.!?\n]/;
+  
+  // 行ごとに処理
+  const lines = text.split('\n');
+  const mergedLines: string[] = [];
+  let currentParagraph = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    // 空行は段落の区切りとして保持
+    if (!line) {
+      if (currentParagraph) {
+        mergedLines.push(currentParagraph);
+        currentParagraph = '';
+      }
+      continue;
+    }
+    
+    // 現在の段落が空、または前の行が文末記号で終わっている場合
+    if (!currentParagraph || currentParagraph.match(/[。！？.!?]$/)) {
+      if (currentParagraph) {
+        mergedLines.push(currentParagraph);
+      }
+      currentParagraph = line;
+    } else {
+      // 文中の改行は結合（日本語の場合はスペースなし、英語の場合はスペースあり）
+      const needsSpace = /[a-zA-Z]$/.test(currentParagraph) && /^[a-zA-Z]/.test(line);
+      currentParagraph += needsSpace ? ' ' + line : line;
+    }
+  }
+  
+  // 最後の段落を追加
+  if (currentParagraph) {
+    mergedLines.push(currentParagraph);
+  }
+  
+  // 段落間は改行2つで区切る
+  return mergedLines.join('\n\n').trim();
+}
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -35,14 +82,18 @@ export async function POST(request: NextRequest) {
     
     console.log(`PDF解析: ${file.name}, 埋め込みテキスト: ${data.text?.length || 0}文字`);
     
-    // 十分なテキストがある場合はそのまま返す
+    // 十分なテキストがある場合はクリーニング後に返す
     if (data.text && data.text.trim().length > MIN_EMBEDDED_TEXT_LENGTH) {
+      const cleanedText = cleanPDFText(data.text);
+      console.log(`テキストクリーニング: ${data.text.length}文字 → ${cleanedText.length}文字`);
+      
       return NextResponse.json({ 
-        text: data.text,
+        text: cleanedText,
         success: true,
         method: 'embedded-text',
         fileName: file.name,
-        textLength: data.text.length
+        textLength: cleanedText.length,
+        originalLength: data.text.length
       });
     }
     
@@ -120,12 +171,17 @@ export async function POST(request: NextRequest) {
         });
       }
       
+      // OCRテキストもクリーニング
+      const cleanedText = cleanPDFText(fullText);
+      console.log(`OCRテキストクリーニング: ${fullText.length}文字 → ${cleanedText.length}文字`);
+      
       return NextResponse.json({
-        text: fullText,
+        text: cleanedText,
         success: true,
         method: 'google-cloud-vision',
         fileName: file.name,
-        textLength: fullText.length,
+        textLength: cleanedText.length,
+        originalLength: fullText.length,
         confidence: averageConfidence,
         ocrPages: pages.length
       });
@@ -138,15 +194,18 @@ export async function POST(request: NextRequest) {
         data.text || ''
       );
       
+      // フォールバックテキストもクリーニング
+      const fallbackText = data.text ? cleanPDFText(data.text) : '';
+      
       return NextResponse.json({
-        text: data.text || '',
+        text: fallbackText,
         success: false,
         method: 'embedded-text-fallback',
         fileName: file.name,
         requiresOcr: true,
         error: errorInfo.message,
         message: errorInfo.message,
-        textLength: data.text?.length || 0
+        textLength: fallbackText.length
       });
     }
     
