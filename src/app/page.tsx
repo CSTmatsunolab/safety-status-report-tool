@@ -132,7 +132,7 @@ export default function Home() {
         "続行しますか？";
       
       if (!confirm(confirmMessage)) {
-        return;
+        return; // ユーザーがキャンセルしたら処理を中断
       }
     }
 
@@ -140,68 +140,30 @@ export default function Home() {
     setKnowledgeBaseStatus('building');
     
     try {
-      // contentフィールドを削除または最小化したファイル配列を作成
-      const filesWithoutContent = files.map(file => ({
-        ...file,
-        content: '', // contentを完全に空にする
-        metadata: {
-          ...file.metadata,
-          // 元のコンテンツ長を記録（デバッグ用）
-          originalContentLength: file.content?.length || 0,
-          hasContent: !!file.content && file.content.length > 0
-        }
-      }));
-
-      const requestBody = {
-        files: filesWithoutContent, // contentを空にしたファイルを送信
-        stakeholderId: selectedStakeholder.id,
-        browserId: browserId,
-        chunkingStrategy: 'max-min',
-        fullTextDocuments: files
-          .filter((file) => file.includeFullText === true)
-          .map((file) => file.name),
-      };
-      
-      const requestSize = JSON.stringify(requestBody).length;
-      console.log(`Request size: ${(requestSize / (1024 * 1024)).toFixed(2)} MB`);
-      
-      // デバッグ：元のサイズと比較
-      const originalSize = JSON.stringify({ files, stakeholderId: selectedStakeholder.id, browserId: browserId }).length;
-      console.log(`Original size would be: ${(originalSize / (1024 * 1024)).toFixed(2)} MB`);
-      console.log(`Size reduction: ${((1 - requestSize/originalSize) * 100).toFixed(1)}%`);
-      
       const response = await fetch('/api/build-knowledge-base', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          files,
+          stakeholderId: selectedStakeholder.id,
+          browserId: browserId,
+        }),
       });
       
       if (!response.ok) {
-        let errorMessage = 'Knowledge base building failed';
-        
-        if (response.status === 413) {
-          errorMessage = 
-            'ファイルサイズが大きすぎます。以下の対策を試してください：\n' +
-            '1. 大きなPDFファイルを複数の小さなファイルに分割\n' +
-            '2. 画像を含むPDFの場合、テキストのみのPDFに変換\n' +
-            '3. 一度に処理するファイル数を減らす';
-        }
-        
-        throw new Error(errorMessage);
+        throw new Error('Knowledge base building failed');
       }
       
       const result = await response.json();
       console.log('Knowledge base built:', result);
       if (result.namespace) {
-        console.log('Namespace used:', result.namespace);
+      console.log('Namespace used:', result.namespace);
       }
       setKnowledgeBaseStatus('ready');
     } catch (error) {
       console.error('Knowledge base building error:', error);
       setKnowledgeBaseStatus('error');
-      
-      const errorMessage = error instanceof Error ? error.message : '知識ベースの構築に失敗しました。';
-      alert(errorMessage);
+      alert('知識ベースの構築に失敗しました。');
     } finally {
       setIsKnowledgeBaseBuilding(false);
     }
