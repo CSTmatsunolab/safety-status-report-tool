@@ -132,7 +132,7 @@ export default function Home() {
         "続行しますか？";
       
       if (!confirm(confirmMessage)) {
-        return; // ユーザーがキャンセルしたら処理を中断
+        return;
       }
     }
 
@@ -140,102 +140,29 @@ export default function Home() {
     setKnowledgeBaseStatus('building');
     
     try {
-      // Vercel 413エラー対策：送信データのサイズを削減
-      const MAX_CONTENT_LENGTH = 5000; // 5KBに制限（PDFは特に大きくなりやすいため）
-    
-      const filesForApi = files.map((file) => {
-        // PDFファイルの判定（file.nameとmetadataで判定）
-        const isPDF = file.name.toLowerCase().endsWith('.pdf') || 
-                      file.metadata?.extractionMethod === 'pdf';
-        
-        // デバッグログ
-        if (isPDF) {
-          console.log(`PDF detected: ${file.name}, content length: ${file.content?.length || 0}`);
-        }
-        
-        // S3キーがある、またはPDFで大きなコンテンツの場合
-        if (file.metadata?.s3Key || (isPDF && file.content && file.content.length > MAX_CONTENT_LENGTH)) {
-          console.log(`File ${file.name}: Using S3 reference or truncating large PDF content`);
-          return {
-            id: file.id,
-            name: file.name,
-            type: file.type,
-            content: '', // S3参照またはPDFの場合は空にする
-            uploadedAt: file.uploadedAt,
-            includeFullText: file.includeFullText,
-            metadata: {
-              ...file.metadata,
-              contentOmittedForTransmission: true,
-              originalContentLength: file.content ? file.content.length : 0,
-            }
-          };
-        }
-        
-        // その他のファイル
-        let truncatedContent = file.content;
-        if (truncatedContent && truncatedContent.length > MAX_CONTENT_LENGTH) {
-          truncatedContent = truncatedContent.substring(0, MAX_CONTENT_LENGTH) + '... [truncated]';
-        }
-        
-        return {
-          id: file.id,
-          name: file.name,
-          type: file.type,
-          content: truncatedContent,
-          uploadedAt: file.uploadedAt,
-          includeFullText: file.includeFullText,
-          metadata: {
-            ...file.metadata,
-            contentTruncated: file.content && file.content.length > MAX_CONTENT_LENGTH,
-            originalContentLength: file.content ? file.content.length : 0,
-          }
-        };
-      });
-
-      // デバッグ出力を追加
-      filesForApi.forEach(f => {
-        console.log(`${f.name}: content length = ${f.content.length}, has S3 = ${!!f.metadata?.s3Key}`);
-      });
-
-      // デバッグ：リクエストサイズを確認
+      // リクエストサイズをチェック（デバッグ用）
       const requestBody = {
-        files: filesForApi,
+        files,  // 固定長と同じく、filesをそのまま使用
         stakeholderId: selectedStakeholder.id,
         browserId: browserId,
+        // Max-Min用の追加パラメータ（最小限）
+        chunkingStrategy: 'max-min',
         fullTextDocuments: files
           .filter((file) => file.includeFullText === true)
           .map((file) => file.name),
-        chunkingStrategy: 'max-min' // Max-Minを明示的に指定
       };
       
       const requestSize = JSON.stringify(requestBody).length;
       console.log(`Request size: ${(requestSize / (1024 * 1024)).toFixed(2)} MB`);
       
-      // 警告: 4MBを超える場合
-      if (requestSize > 4 * 1024 * 1024) {
-        console.warn(`Warning: Large request size (${(requestSize / (1024 * 1024)).toFixed(2)} MB)`);
-        
-        // さらに削減が必要な場合
-        filesForApi.forEach((file) => {
-          if (file.content && file.content.length > 1000) {
-            file.content = file.content.substring(0, 1000) + '... [heavily truncated]';
-          }
-        });
-        
-        const reducedSize = JSON.stringify({ ...requestBody, files: filesForApi }).length;
-        console.log(`Reduced request size: ${(reducedSize / (1024 * 1024)).toFixed(2)} MB`);
-      }
-
       const response = await fetch('/api/build-knowledge-base', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...requestBody,
-          files: filesForApi
-        }),
+        body: JSON.stringify(requestBody),
       });
       
       if (!response.ok) {
+        // エラーメッセージを改善
         let errorMessage = 'Knowledge base building failed';
         
         if (response.status === 413) {
@@ -244,13 +171,6 @@ export default function Home() {
             '1. 大きなPDFファイルを複数の小さなファイルに分割\n' +
             '2. 画像を含むPDFの場合、テキストのみのPDFに変換\n' +
             '3. 一度に処理するファイル数を減らす';
-        } else {
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.error || errorMessage;
-          } catch {
-            // JSONパースエラーは無視
-          }
         }
         
         throw new Error(errorMessage);
