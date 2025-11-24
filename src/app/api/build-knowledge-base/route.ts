@@ -21,7 +21,6 @@ interface ExtendedFileMetadata {
   s3Key?: string;
   contentPreview?: string;
   isBase64?: boolean;
-  pdfBuffer?: Buffer;
   isGSN?: boolean;
   [key: string]: unknown;
 }
@@ -108,7 +107,6 @@ async function getContentFromS3(
   truncated: boolean;
   originalLength: number;
   isBuffer: boolean;
-  pdfBuffer?: Buffer;
 }> {
   try {
     console.log(`Fetching content from S3: ${key}`);
@@ -126,17 +124,6 @@ async function getContentFromS3(
     }
 
     const nodeBuffer = Buffer.from(buffer);
-
-    // PDFや画像の場合はBufferをそのまま返す
-    if (shouldReturnAsBuffer(fileType, fileName)) {
-      return {
-        content: nodeBuffer,
-        truncated: false,
-        originalLength: nodeBuffer.length,
-        isBuffer: true,
-        pdfBuffer: nodeBuffer
-      };
-    }
 
     // テキストベースファイルの場合はテキストに変換
     let text = '';
@@ -176,31 +163,6 @@ function shouldReturnAsBuffer(fileType: string, fileName: string): boolean {
   
   const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
   if (imageTypes.includes(fileType)) return true;
-  
-  const lowerFileName = fileName.toLowerCase();
-  if (lowerFileName.endsWith('.pdf') || 
-      lowerFileName.match(/\.(jpg|jpeg|png|webp|gif)$/)) {
-    return true;
-  }
-  
-  return false;
-}
-
-// Vision-Guided Chunkingを使用すべきか判定
-function shouldUseVisionGuidedChunking(
-  fileType: string,
-  fileName: string,
-  metadata: Record<string, unknown>
-): boolean {
-  if (fileType === 'application/pdf') return true;
-  
-  const imageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-  if (imageTypes.includes(fileType)) return true;
-  
-  if (metadata?.extractionMethod === 'vision-ocr' || 
-      metadata?.extractionMethod === 'ocr') {
-    return true;
-  }
   
   const lowerFileName = fileName.toLowerCase();
   if (lowerFileName.endsWith('.pdf') || 
@@ -265,19 +227,6 @@ export async function POST(request: NextRequest) {
           truncated = result.truncated;
           originalLength = result.originalLength;
           
-          if (result.pdfBuffer) {
-                if (!file.metadata) {
-                  // メタデータが存在しない場合は適切なデフォルト値で初期化
-                  file.metadata = {
-                    originalType: file.type,
-                    extractionMethod: 'pdf',
-                    size: result.pdfBuffer.length,
-                    userDesignatedGSN: false
-                  };
-                }
-                file.metadata.pdfBuffer = result.pdfBuffer;
-          }
-          
           if (truncated) {
             const warning = `${file.name}: 大きすぎるため ${originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
             warnings.push(warning);
@@ -289,68 +238,16 @@ export async function POST(request: NextRequest) {
           fileContent = file.metadata.contentPreview || '';
         }
       } else if (file.content && file.content !== '') {  // contentが空でない場合のみ処理
-        // メモリ内のコンテンツを使用  
-        // Vision-Guidedの場合はBufferが必要
-        if (shouldUseVisionGuidedChunking(file.type, file.name, file.metadata || {})) {
-          // PDFの場合、オリジナルBufferを確保してメタデータに保存
-          const fileType = file.metadata?.originalType || file.type;
-          if (fileType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-            let pdfBuffer: Buffer | undefined;
-            
-            if (typeof file.content === 'string' && file.metadata?.isBase64) {
-              // Base64文字列からBufferに変換
-              pdfBuffer = Buffer.from(file.content, 'base64');
-              fileContent = pdfBuffer;
-            } else if (Buffer.isBuffer(file.content)) {
-              // 既にBufferの場合
-              pdfBuffer = file.content;
-              fileContent = pdfBuffer;
-            } else if (file.metadata?.pdfBuffer && Buffer.isBuffer(file.metadata.pdfBuffer)) {
-              // メタデータに既にPDFBufferがある場合
-              pdfBuffer = file.metadata.pdfBuffer as Buffer;
-              fileContent = pdfBuffer;
-            } else if (typeof file.content === 'string') {
-              // テキストのみの場合（Vision-Guidedは使えないのでMax-Minにフォールバック）
-              console.log(`PDF ${file.name} has text content only, cannot use Vision-Guided chunking`);
-              fileContent = file.content;
-            } else {
-              fileContent = file.content;
-            }
-            
-            // メタデータにpdfBufferを保存
-            if (pdfBuffer) {
-              if (!file.metadata) {
-                // メタデータが存在しない場合は適切なデフォルト値で初期化
-                file.metadata = {
-                  originalType: fileType,
-                  extractionMethod: 'pdf',
-                  size: pdfBuffer.length,
-                  userDesignatedGSN: false
-                };
-              }
-              file.metadata.pdfBuffer = pdfBuffer;
-              console.log(`Stored PDF buffer for ${file.name} (${pdfBuffer.length} bytes)`);
-            }
-          } else {
-            // 画像などその他のファイル
-            if (typeof file.content === 'string' && file.metadata?.isBase64) {
-              fileContent = Buffer.from(file.content, 'base64');
-            } else {
-              fileContent = file.content;
-            }
-          }
-        } else {
-          // テキストベースの処理
-          fileContent = file.content;
-          
-          if (typeof fileContent === 'string') {
-            const result = truncateContent(fileContent, file.type, file.name);
-            if (result.truncated) {
-              fileContent = result.content;
-              const warning = `${file.name}: ${result.originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
-              warnings.push(warning);
-              console.warn(warning);
-            }
+        // テキストベースの処理
+        fileContent = file.content;
+        
+        if (typeof fileContent === 'string') {
+          const result = truncateContent(fileContent, file.type, file.name);
+          if (result.truncated) {
+            fileContent = result.content;
+            const warning = `${file.name}: ${result.originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
+            warnings.push(warning);
+            console.warn(warning);
           }
         }
       }
@@ -374,9 +271,6 @@ export async function POST(request: NextRequest) {
               );
               fileContent = result.content;
               
-              if (result.pdfBuffer && file.metadata) {
-                file.metadata.pdfBuffer = result.pdfBuffer;
-              }
             } catch (error) {
               console.error(`Failed to retrieve content from S3:`, error);
             }
@@ -408,8 +302,7 @@ export async function POST(request: NextRequest) {
             isGSN: file.type === 'gsn' || file.metadata?.isGSN,
             isMinutes: file.type === 'minutes',
             extractionMethod: file.metadata?.extractionMethod,
-            userDesignatedGSN: file.metadata?.userDesignatedGSN,
-            pdfBuffer: file.metadata?.pdfBuffer
+            userDesignatedGSN: file.metadata?.userDesignatedGSN
           };
 
           const chunks = await chunkDocument(

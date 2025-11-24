@@ -144,31 +144,23 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
       }
       
       const result = await response.json();
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfBuffer = Buffer.from(arrayBuffer);
+      
       return {
         text: result.text || '',
         method: result.method || 'embedded-text',
-        confidence: result.confidence,
-        pdfBuffer: pdfBuffer
+        confidence: result.confidence
       };
     } 
     // 4MB以上はS3経由
     else {
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
-      let pdfBuffer: Buffer | undefined;
-      if (result.hasPdfBuffer && result.pdfBufferBase64) {
-        pdfBuffer = Buffer.from(result.pdfBufferBase64, 'base64');
-        console.log(`PDF buffer restored from S3 for ${file.name} (${pdfBuffer.length} bytes)`);
-      }
 
       return {
         text: result.text || '',
         method: result.method || 's3',
         confidence: result.confidence,
-        s3Key: result.method === 'embedded-text' ? s3Key : undefined,
-        pdfBuffer: pdfBuffer
+        s3Key: result.method === 'embedded-text' ? s3Key : undefined
       };
     }
     
@@ -271,8 +263,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
           let s3Key: string | undefined;
-          let pdfBuffer: Buffer | undefined;
-
+    
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             const result = await extractTextFromPDF(file);
@@ -280,10 +271,6 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
             ocrConfidence = result.confidence;
 
-            if (result.pdfBuffer) {
-              pdfBuffer = result.pdfBuffer;
-              console.log(`PDF buffer saved for ${file.name} (${pdfBuffer.length} bytes)`);
-            }
             if (result.s3Key) {
               s3Key = result.s3Key;
             }
@@ -383,11 +370,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               isGSN: false,
               userDesignatedGSN: false,
               s3Key: s3Key,
-              contentPreview: s3Key ? content : undefined,
-              ...(pdfBuffer ? {
-                pdfBuffer: pdfBuffer,
-                isBase64: false
-              } : {})
+              contentPreview: s3Key ? content : undefined
             }
           });
 

@@ -15,7 +15,6 @@ interface ProcessResult {
   text: string;
   method: string;
   confidence?: number;
-  pdfBuffer?: Buffer;
 }
 
 // PDFのOCR処理
@@ -32,8 +31,7 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
       console.log(`PDF ${fileName} has embedded text (${embeddedText.length} chars)`);
       return {
         text: embeddedText,
-        method: 'embedded-text',
-        pdfBuffer: buffer
+        method: 'embedded-text'
       };
     }
 
@@ -74,8 +72,7 @@ async function processPDFWithOCR(buffer: Buffer, fileName: string) {
     return {
       text: fullText,
       method: 'vision-ocr',
-      confidence: averageConfidence,
-      pdfBuffer: buffer
+      confidence: averageConfidence
     };
 
   } catch (error) {
@@ -225,12 +222,7 @@ export async function POST(request: NextRequest) {
       success: true,
       ...result,
       fileName,
-      processedAt: new Date().toISOString(),
-      // PDFの場合はBase64エンコードして送信
-      ...(result.pdfBuffer ? {
-        pdfBufferBase64: result.pdfBuffer.toString('base64'),
-        hasPdfBuffer: true
-      } : {})
+      processedAt: new Date().toISOString()
     });
 
   } catch (error) {
