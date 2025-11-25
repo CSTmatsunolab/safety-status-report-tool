@@ -7,7 +7,7 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - **ファイルアップロード**: PDF、テキスト、CSV、Excel、Word、画像ファイル（JPG, PNG等）など多様な形式に対応
 - **OCR機能**: Google Cloud Vision APIを使用した画像・画像ベースPDFからのテキスト抽出
 - **大容量ファイル対応 (AWS S3)**: 4MBを超えるファイルをAWS S3経由で安全に処理
-- **高度なチャンキング戦略**: Vision-GuidedとMax-Min Semanticチャンキングによる最適な文書分割
+- **高度なチャンキング戦略**: Max-Min Semanticチャンキングによる最適な文書分割
 - **RAG機能(Pinecone)**: ハイブリッド検索（密ベクトル+疎ベクトル）による高精度な情報抽出
 - **ブラウザID分離機能**: 各ブラウザ/ユーザーごとに独立したデータ空間を提供（ログイン不要）
 - **知識ベース管理**: UIから知識ベースの構築・削除が可能
@@ -31,7 +31,6 @@ GSNファイルや議事録などのドキュメントから、AIとRAG（Retrie
 - Anthropic Claude APIキー
 - OpenAI APIキー（エンベディング用）
 - Google Cloud Vision APIキー（OCR用）
-- Google Gemini APIキー（Vision-Guidedチャンキング用）
 - **AWS S3バケット**（大容量ファイル処理用）
 - Pinecone APIキー
 
@@ -61,9 +60,6 @@ GOOGLE_CLOUD_VISION_KEY='{ "type": "service_account", ... }' # Google Cloudか�
 
 # チャンキング戦略設定
 USE_ADVANCED_CHUNKING=true  # 高度なチャンキングを有効化
-USE_VISION_GUIDED_FOR_PDF=true  # PDFでVision-Guidedチャンキングを使用
-GOOGLE_API_KEY=your_gemini_api_key  # Vision-Guidedチャンキング用
-VISION_BATCH_SIZE=4  # Vision-Guidedのバッチサイズ（デフォルト: 4ページ）
 
 # ベクトルストア設定
 VECTOR_STORE=pinecone # または 'memory'（デフォルトはpinecone）
@@ -123,41 +119,18 @@ npm start
 5. **レポート生成**: 「レポートを生成」ボタンをクリックします
 6. **レポートの編集・出力**: 生成されたレポートを編集、またはPDF、HTML、Word形式でダウンロードします
 
-### 高度なチャンキング機能（新機能）
+### Max-Min Semantic Chunking
 
-#### Vision-Guided Chunking
-PDFや画像ファイルの視覚的構造を理解して、意味的にまとまった単位でチャンキングを行います。
-
-##### 特徴
-- **視覚的構造の理解**: 表、図、見出し、段落などのレイアウトを認識
-- **バッチ処理**: 大きなPDFを4ページずつのバッチで効率的に処理
-- **継続性の保持**: 複数ページにまたがる表や手順を一つのチャンクとして保持
-- **精度向上**: 従来の78%から89%への精度向上（研究論文による）
-
-##### 設定
-```bash
-USE_VISION_GUIDED_FOR_PDF=true  # Vision-Guidedを有効化
-GOOGLE_API_KEY=your_gemini_api_key  # Gemini APIキー
-VISION_BATCH_SIZE=4  # バッチサイズ（デフォルト: 4ページ）
-```
-
-#### Max-Min Semantic Chunking
 文の意味的な類似度に基づいて、動的にチャンクサイズを調整する高度なアルゴリズムです。
 
-##### 特徴
+#### 特徴
 - **意味的な結合**: 類似度の高い文を自動的にグループ化
 - **動的な閾値**: チャンクサイズに応じて結合閾値を動的に調整
 - **PDF最適化**: PDFファイル用に特別に調整されたパラメータ
 
-##### チャンキング戦略の選択ロジック
-```
-PDFファイル:
-  ├─ USE_VISION_GUIDED_FOR_PDF=true → Vision-Guided Chunking
-  └─ USE_VISION_GUIDED_FOR_PDF=false → Max-Min Semantic Chunking
-
-テキストファイル: → Max-Min Semantic Chunking
-
-画像ファイル: → Vision-Guided Chunking（必須）
+#### 設定
+```bash
+USE_ADVANCED_CHUNKING=true  # 高度なチャンキングを有効化
 ```
 
 ### Pineconeハイブリッド検索機能
@@ -399,7 +372,6 @@ safety-status-report-tool/
 │   │   ├── browser-id.ts                 # ブラウザID管理
 │   │   ├── chunking-strategies.ts        # チャンキング戦略セレクタ
 │   │   ├── max-min-chunking.ts          # Max-Min Semanticチャンキング
-│   │   ├── vision-guided-chunking.ts    # Vision-Guidedチャンキング
 │   │   ├── sparse-vector-utils.ts       # 疎ベクトル生成（Kuromoji）
 │   │   ├── rrf-fusion.ts               # RRF融合アルゴリズム
 │   │   ├── stakeholders.ts             # ステークホルダー管理
@@ -436,27 +408,12 @@ safety-status-report-tool/
 ```
 ## トラブルシューティング
 
-### チャンキング関連
-
-#### PDFで過剰なチャンクが生成される場合
-- **症状**: 1ページあたり数十個のチャンクが生成される
-- **原因**: PDFの各行が独立した文として認識されている
-- **対処法**:
-  1. `USE_VISION_GUIDED_FOR_PDF=true`を設定してVision-Guidedチャンキングを有効化
-  2. それでも改善しない場合は、PDFを画像に変換してアップロード
-
-#### Vision-Guidedチャンキングのエラー
-- **Geminiモデルが見つからない**: モデル名を`gemini-1.5-flash`または`gemini-1.5-pro`に設定
-- **APIキーエラー**: `GOOGLE_API_KEY`が正しく設定されているか確認
-- **バッチ処理の失敗**: `VISION_BATCH_SIZE`を小さく（例：2）設定
-
 ### Pinecone関連
 
 #### リクエストサイズエラー（2MB超過）
 - **症状**: "Request size exceeds 2MB"エラー
 - **対処法**: 
-  1. チャンク数を減らす（Vision-Guidedチャンキングを使用）
-  2. バッチサイズを小さくする（vector-store.tsでbatchSize=30に設定）
+  1. バッチサイズを小さくする（vector-store.tsでbatchSize=30に設定）
 
 #### メタデータエラー
 - **症状**: "Metadata value must be a string, number, boolean..."エラー
@@ -470,15 +427,11 @@ safety-status-report-tool/
 - 関連性の低い文書が多く含まれる
 
 #### 対処法
-1. **チャンキング戦略の最適化**
-   - PDFファイルは`USE_VISION_GUIDED_FOR_PDF=true`を推奨
-   - 技術文書は細かいチャンク、要約文書は大きめのチャンクが効果的
-
-2. **Dynamic K値の調整**
+1. **Dynamic K値の調整**
    - 詳細情報が必要な場合は、ステークホルダー係数を上げる
    - `Technical Fellows`を選択すると自動的に1.2倍のK値
 
-3. **全文使用オプションの活用**
+2. **全文使用オプションの活用**
    - 確実に含めたい重要文書は「全文使用」を有効化
 
 ## 技術スタック
@@ -490,7 +443,6 @@ safety-status-report-tool/
   - Anthropic Claude API (Claude 3.5 Sonnet) - レポート生成
   - OpenAI API (text-embedding-3-small) - エンベディング
   - Google Cloud Vision API - OCR処理
-  - Google Gemini API (gemini-1.5-flash/pro) - Vision-Guidedチャンキング
 - **RAG/ベクトルストア**:
   - Pinecone（ハイブリッド検索対応）- 永続化、大規模データ対応
   - LangChain - ベクトルストア抽象化
