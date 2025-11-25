@@ -18,7 +18,7 @@ export interface PDFOptions {
 }
 
 /**
- * 本番環境とローカル環境の両方で動作するPDF生成
+ * 本番環境とローカル環境の両方で動作するPDF生成（日本語フォント対応）
  */
 export async function generatePDF(
   report: Report,
@@ -53,21 +53,19 @@ export async function generatePDF(
 
     console.log('Launching browser...');
     console.log('Environment:', process.env.NODE_ENV);
-    console.log('Platform:', process.platform);
     
-    // 本番環境（Vercel等）とローカル環境を判定
     const isProduction = process.env.NODE_ENV === 'production';
     
     if (isProduction) {
       console.log('Using Chromium for serverless environment');
       
-      // Vercel/Lambda用のChromiumを使用
       browser = await puppeteer.launch({
         args: [
           ...chromium.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
+          '--font-render-hinting=none', // フォントレンダリング改善
         ],
         executablePath: await chromium.executablePath(),
         headless: true,
@@ -75,7 +73,6 @@ export async function generatePDF(
     } else {
       console.log('Using local Puppeteer');
       
-      // ローカル環境用 - 動的インポートを使用（ESLintエラー回避）
       const puppeteerModule = await import('puppeteer');
       browser = await puppeteerModule.default.launch({
         headless: true,
@@ -84,6 +81,7 @@ export async function generatePDF(
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--font-render-hinting=none',
         ],
         timeout: 30000,
       });
@@ -96,20 +94,31 @@ export async function generatePDF(
     console.log('Browser launched successfully');
     
     page = await browser.newPage();
-    page.setDefaultTimeout(60000);
-    page.setDefaultNavigationTimeout(60000);
+    page.setDefaultTimeout(90000); // タイムアウトを90秒に延長
+    page.setDefaultNavigationTimeout(90000);
     
     console.log('Setting page content...');
     
+    // HTMLをロード（フォント読み込みのため、loadを使用）
     await page.setContent(htmlContent, {
-      waitUntil: 'domcontentloaded',
-      timeout: 30000,
+      waitUntil: 'load', // フォント読み込みを待つ
+      timeout: 60000,
     });
 
-    console.log('Waiting for rendering...');
+    console.log('Waiting for fonts to load...');
     
-    // レンダリングを安定させる
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // フォントの読み込みを確実に待つ
+    try {
+      await page.evaluate(() => {
+        return document.fonts.ready;
+      });
+      console.log('Fonts loaded successfully');
+    } catch (fontError) {
+      console.warn('Font loading check failed, continuing anyway:', fontError);
+    }
+
+    // 追加の待機時間（フォントレンダリングを確実にする）
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
     console.log('Generating PDF...');
     
@@ -120,7 +129,8 @@ export async function generatePDF(
       displayHeaderFooter: true,
       headerTemplate: generateHeaderTemplate(headerText || report.title),
       footerTemplate: generateFooterTemplate(footerText),
-      timeout: 60000,
+      timeout: 90000,
+      preferCSSPageSize: false,
     });
 
     console.log('PDF generated successfully, size:', pdfBuffer.length);
@@ -159,7 +169,7 @@ export async function generatePDF(
 }
 
 /**
- * HTMLコンテンツの生成
+ * HTMLコンテンツの生成（Google Fonts使用）
  */
 function generateHTMLContent(
   report: Report,
@@ -180,6 +190,12 @@ function generateHTMLContent(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(report.title)}</title>
+  
+  <!-- Google Fonts（日本語フォント） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  
   <style>
     * {
       margin: 0;
@@ -188,7 +204,8 @@ function generateHTMLContent(
     }
     
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", 
+      /* Google Fontsを最優先に設定 */
+      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 
                    "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, 
                    sans-serif;
       line-height: 1.8;
@@ -215,6 +232,7 @@ function generateHTMLContent(
       color: rgba(0, 0, 0, 0.05);
       z-index: -1;
       white-space: nowrap;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     ` : ''}
     
@@ -230,18 +248,21 @@ function generateHTMLContent(
       font-weight: 700;
       margin-bottom: 20px;
       color: #1a1a1a;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     .title-page .subtitle {
       font-size: 18px;
       color: #666;
       margin-bottom: 10px;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     .title-page .metadata {
       font-size: 14px;
       color: #999;
       margin-top: 30px;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     .content {
@@ -252,6 +273,7 @@ function generateHTMLContent(
       margin-bottom: 10px;
       text-align: justify;
       line-height: 1.8;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     .content h3 {
@@ -259,6 +281,7 @@ function generateHTMLContent(
       font-weight: 700;
       margin: 20px 0 10px;
       color: #34495e;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     .highlight {
@@ -281,6 +304,7 @@ function generateHTMLContent(
       width: 100%;
       border-collapse: collapse;
       margin: 20px 0;
+      font-family: 'Noto Sans JP', sans-serif;
     }
     
     th, td {
@@ -356,7 +380,7 @@ function generateHTMLContent(
 
 function generateHeaderTemplate(headerText: string): string {
   return `
-    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0;">
+    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0; font-family: 'Noto Sans JP', sans-serif;">
       <span>${escapeHtml(headerText)}</span>
     </div>
   `;
@@ -364,7 +388,7 @@ function generateHeaderTemplate(headerText: string): string {
 
 function generateFooterTemplate(footerText?: string): string {
   return `
-    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0;">
+    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0; font-family: 'Noto Sans JP', sans-serif;">
       <span>${footerText ? escapeHtml(footerText) : 'ページ <span class="pageNumber"></span> / <span class="totalPages"></span>'}</span>
     </div>
   `;
