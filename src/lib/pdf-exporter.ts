@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser, Page } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { Report } from '@/types';
 
 export interface PDFOptions {
@@ -17,7 +18,7 @@ export interface PDFOptions {
 }
 
 /**
- * レポートをPDFに変換
+ * 本番環境とローカル環境の両方で動作するPDF生成
  */
 export async function generatePDF(
   report: Report,
@@ -38,33 +39,80 @@ export async function generatePDF(
     }
   } = options;
 
-  // HTMLコンテンツを生成
-  const htmlContent = generateHTMLContent(report, {
-    includeMetadata,
-    includeTimestamp,
-    watermark,
-    headerText,
-    footerText
-  });
-
-  // Puppeteerでブラウザを起動
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
-  });
+  let browser: Browser | null = null;
+  let page: Page | null = null;
 
   try {
-    const page = await browser.newPage();
-    
-    // HTMLコンテンツを設定
-    await page.setContent(htmlContent, {
-      waitUntil: 'networkidle0'
+    const htmlContent = generateHTMLContent(report, {
+      includeMetadata,
+      includeTimestamp,
+      watermark,
+      headerText,
+      footerText
     });
 
-    // 日本語フォントの読み込みを待つ
-    await page.evaluateHandle('document.fonts.ready');
+    console.log('Launching browser...');
+    console.log('Environment:', process.env.NODE_ENV);
+    console.log('Platform:', process.platform);
+    
+    // 本番環境（Vercel等）とローカル環境を判定
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+      console.log('Using Chromium for serverless environment');
+      
+      // Vercel/Lambda用のChromiumを使用
+      browser = await puppeteer.launch({
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+        ],
+        executablePath: await chromium.executablePath(),
+        headless: true,
+      });
+    } else {
+      console.log('Using local Puppeteer');
+      
+      // ローカル環境用 - 動的インポートを使用（ESLintエラー回避）
+      const puppeteerModule = await import('puppeteer');
+      browser = await puppeteerModule.default.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
+        timeout: 30000,
+      });
+    }
 
-    // PDFを生成
+    if (!browser) {
+      throw new Error('Failed to launch browser');
+    }
+
+    console.log('Browser launched successfully');
+    
+    page = await browser.newPage();
+    page.setDefaultTimeout(60000);
+    page.setDefaultNavigationTimeout(60000);
+    
+    console.log('Setting page content...');
+    
+    await page.setContent(htmlContent, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
+
+    console.log('Waiting for rendering...');
+    
+    // レンダリングを安定させる
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    console.log('Generating PDF...');
+    
     const pdfBuffer = await page.pdf({
       format: pageSize,
       margin,
@@ -72,11 +120,41 @@ export async function generatePDF(
       displayHeaderFooter: true,
       headerTemplate: generateHeaderTemplate(headerText || report.title),
       footerTemplate: generateFooterTemplate(footerText),
+      timeout: 60000,
     });
 
+    console.log('PDF generated successfully, size:', pdfBuffer.length);
+
     return Buffer.from(pdfBuffer);
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    console.error('Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : 'N/A'
+    });
+    
+    throw new Error(
+      `PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   } finally {
-    await browser.close();
+    try {
+      if (page) {
+        console.log('Closing page...');
+        await page.close();
+      }
+    } catch (closeError) {
+      console.warn('Error closing page:', closeError);
+    }
+    
+    try {
+      if (browser) {
+        console.log('Closing browser...');
+        await browser.close();
+      }
+    } catch (closeError) {
+      console.warn('Error closing browser:', closeError);
+    }
   }
 }
 
@@ -103,8 +181,6 @@ function generateHTMLContent(
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(report.title)}</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap');
-    
     * {
       margin: 0;
       padding: 0;
@@ -112,7 +188,9 @@ function generateHTMLContent(
     }
     
     body {
-      font-family: 'Noto Sans JP', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", 
+                   "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, 
+                   sans-serif;
       line-height: 1.8;
       color: #333;
       background: white;
@@ -126,7 +204,6 @@ function generateHTMLContent(
       position: relative;
     }
     
-    /* ウォーターマーク */
     ${watermark ? `
     body::before {
       content: "${escapeHtml(watermark)}";
@@ -141,7 +218,6 @@ function generateHTMLContent(
     }
     ` : ''}
     
-    /* タイトルページ */
     .title-page {
       text-align: center;
       margin-bottom: 50px;
@@ -185,7 +261,6 @@ function generateHTMLContent(
       color: #34495e;
     }
     
-    /* 強調表示 */
     .highlight {
       background-color: #fff3cd;
       padding: 2px 4px;
@@ -202,7 +277,6 @@ function generateHTMLContent(
       color: #7f8c8d;
     }
     
-    /* テーブル */
     table {
       width: 100%;
       border-collapse: collapse;
@@ -220,7 +294,6 @@ function generateHTMLContent(
       font-weight: 700;
     }
     
-    /* コードブロック */
     pre {
       background-color: #f5f5f5;
       padding: 15px;
@@ -236,7 +309,6 @@ function generateHTMLContent(
       border-radius: 3px;
     }
     
-    /* 印刷用スタイル */
     @media print {
       body {
         margin: 0;
@@ -259,7 +331,6 @@ function generateHTMLContent(
 </head>
 <body>
   <div class="container">
-    <!-- タイトルページ -->
     <div class="title-page">
       <h1>${escapeHtml(report.title)}</h1>
       <div class="subtitle">対象: ${escapeHtml(report.stakeholder.role)}</div>
@@ -274,7 +345,6 @@ function generateHTMLContent(
       ` : ''}
     </div>
     
-    <!-- レポート本文 -->
     <div class="content">
       ${formatContent(report.content)}
     </div>
@@ -284,9 +354,6 @@ function generateHTMLContent(
 `;
 }
 
-/**
- * ヘッダーテンプレートの生成
- */
 function generateHeaderTemplate(headerText: string): string {
   return `
     <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0;">
@@ -295,9 +362,6 @@ function generateHeaderTemplate(headerText: string): string {
   `;
 }
 
-/**
- * フッターテンプレートの生成
- */
 function generateFooterTemplate(footerText?: string): string {
   return `
     <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0;">
@@ -306,27 +370,18 @@ function generateFooterTemplate(footerText?: string): string {
   `;
 }
 
-/**
- * コンテンツのフォーマット
- */
 function formatContent(content: string): string {
-  // 改行を<br>タグに変換
   const lines = content.split('\n');
   const formattedLines = lines.map(line => {
-    // 見出しの処理
     if (line.match(/^\d+\.\s/)) {
       return `<h3>${escapeHtml(line)}</h3>`;
     }
-    // 通常の行
     return `<p>${escapeHtml(line)}</p>`;
   });
   
   return formattedLines.join('\n');
 }
 
-/**
- * HTMLエスケープ
- */
 function escapeHtml(text: string): string {
   const map: { [key: string]: string } = {
     '&': '&amp;',
@@ -338,9 +393,6 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-/**
- * 日付フォーマット
- */
 function formatDate(date: Date): string {
   const d = new Date(date);
   const year = d.getFullYear();

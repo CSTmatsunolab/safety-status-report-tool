@@ -24,10 +24,9 @@ export async function POST(request: NextRequest) {
       throw new Error('Generated PDF buffer is empty');
     }
 
-    // PDFをレスポンスとして返す, Bufferを新しいUint8Arrayに変換
-    const uint8Array = new Uint8Array(pdfBuffer);
-    
-    return new Response(uint8Array, {
+    // 型アサーションを使用してTypeScriptエラーを回避
+    // 実行時にはBufferは正しく処理される
+    return new Response(pdfBuffer as unknown as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
@@ -43,3 +42,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const maxDuration = 60;

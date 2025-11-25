@@ -20,6 +20,7 @@
     "@langchain/pinecone": "^0.2.0",
     "@langchain/textsplitters": "^0.0.3",
     "@pinecone-database/pinecone": "^5.1.2",
+    "@sparticuz/chromium": "^141.0.0",
     "docx": "^9.5.1",
     "kuromoji": "^0.1.2",
     "langchain": "^0.3.34",
@@ -29,7 +30,7 @@
     "openai": "^5.12.2",
     "pdf-lib": "^1.17.1",
     "pdf-parse-new": "^1.4.1",
-    "puppeteer": "^24.17.0",
+    "puppeteer-core": "^24.31.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-dropzone": "^14.3.8",
@@ -46,6 +47,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.6",
+    "puppeteer": "^24.31.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
