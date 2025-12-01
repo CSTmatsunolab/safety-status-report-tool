@@ -1,3 +1,5 @@
+//src/lib/pdf-exporter.ts
+
 import puppeteer, { Browser, Page } from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { Report } from '@/types';
@@ -17,9 +19,6 @@ export interface PDFOptions {
   };
 }
 
-/**
- * 本番環境とローカル環境の両方で動作するPDF生成（日本語フォント対応）
- */
 export async function generatePDF(
   report: Report,
   options: PDFOptions = {}
@@ -32,9 +31,9 @@ export async function generatePDF(
     footerText,
     pageSize = 'A4',
     margin = {
-      top: '20mm',
+      top: '0mm', 
       right: '20mm',
-      bottom: '20mm',
+      bottom: '25mm',
       left: '20mm'
     }
   } = options;
@@ -47,130 +46,75 @@ export async function generatePDF(
       includeMetadata,
       includeTimestamp,
       watermark,
-      headerText,
+      headerText: headerText || report.title,
       footerText
     });
 
     console.log('Launching browser...');
-    console.log('Environment:', process.env.NODE_ENV);
-    
     const isProduction = process.env.NODE_ENV === 'production';
     
     if (isProduction) {
       console.log('Using Chromium for serverless environment');
-      
+
       browser = await puppeteer.launch({
         args: [
           ...chromium.args,
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--font-render-hinting=none', // フォントレンダリング改善
+          '--font-render-hinting=none',
         ],
         executablePath: await chromium.executablePath(),
         headless: true,
       });
     } else {
       console.log('Using local Puppeteer');
-      
       const puppeteerModule = await import('puppeteer');
       browser = await puppeteerModule.default.launch({
         headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--font-render-hinting=none',
-        ],
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
         timeout: 30000,
       });
     }
 
-    if (!browser) {
-      throw new Error('Failed to launch browser');
-    }
+    if (!browser) throw new Error('Failed to launch browser');
 
-    console.log('Browser launched successfully');
-    
     page = await browser.newPage();
-    page.setDefaultTimeout(90000); // タイムアウトを90秒に延長
-    page.setDefaultNavigationTimeout(90000);
+    page.setDefaultTimeout(90000);
     
-    console.log('Setting page content...');
-    
-    // HTMLをロード（フォント読み込みのため、loadを使用）
     await page.setContent(htmlContent, {
-      waitUntil: 'load', // フォント読み込みを待つ
+      waitUntil: 'load',
       timeout: 60000,
     });
 
-    console.log('Waiting for fonts to load...');
-    
-    // フォントの読み込みを確実に待つ
-    try {
-      await page.evaluate(() => {
-        return document.fonts.ready;
-      });
-      console.log('Fonts loaded successfully');
-    } catch (fontError) {
-      console.warn('Font loading check failed, continuing anyway:', fontError);
-    }
+    try { await page.evaluate(() => document.fonts.ready); } catch (e) { console.warn(e); }
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // 追加の待機時間（フォントレンダリングを確実にする）
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    console.log('Generating PDF...');
-    
     const pdfBuffer = await page.pdf({
       format: pageSize,
-      margin,
+      margin, 
       printBackground: true,
       displayHeaderFooter: true,
-      headerTemplate: generateHeaderTemplate(headerText || report.title),
-      footerTemplate: generateFooterTemplate(footerText),
+      headerTemplate: '<div></div>',
+      footerTemplate: `
+        <div style="font-size: 10px; text-align: center; width: 100%; color: #666; padding-top: 5px;">
+          <span class="pageNumber"></span> / <span class="totalPages"></span>
+        </div>
+      `,
       timeout: 90000,
       preferCSSPageSize: false,
     });
 
-    console.log('PDF generated successfully, size:', pdfBuffer.length);
-
     return Buffer.from(pdfBuffer);
   } catch (error) {
     console.error('PDF generation error:', error);
-    console.error('Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : 'N/A'
-    });
-    
-    throw new Error(
-      `PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+    throw error;
   } finally {
-    try {
-      if (page) {
-        console.log('Closing page...');
-        await page.close();
-      }
-    } catch (closeError) {
-      console.warn('Error closing page:', closeError);
-    }
-    
-    try {
-      if (browser) {
-        console.log('Closing browser...');
-        await browser.close();
-      }
-    } catch (closeError) {
-      console.warn('Error closing browser:', closeError);
-    }
+    if (page) await page.close();
+    if (browser) await browser.close();
   }
 }
 
-/**
- * HTMLコンテンツの生成（Google Fonts使用）
- */
 function generateHTMLContent(
   report: Report,
   options: {
@@ -181,44 +125,59 @@ function generateHTMLContent(
     footerText?: string;
   }
 ): string {
-  const { includeMetadata, includeTimestamp, watermark } = options;
+  const { includeMetadata, includeTimestamp, watermark, headerText } = options;
 
   return `
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(report.title)}</title>
   
-  <!-- Google Fonts（日本語フォント） -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
   
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    /* リセット */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      /* Google Fontsを最優先に設定 */
-      font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 
-                   "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, 
-                   sans-serif;
+      font-family: 'Noto Sans JP', sans-serif;
       line-height: 1.8;
       color: #333;
       background: white;
-      position: relative;
+      font-size: 11pt;
     }
-    
+
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .header-space {
+      height: 18mm; /* ヘッダーの高さ + 余白 */
+    }
+
+    .print-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 15mm; /* ヘッダー自体の高さ */
+      background-color: white;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 10px;
+      z-index: 1000;
+    }
+
+    /* メインコンテンツ */
     .container {
-      max-width: 210mm;
-      margin: 0 auto;
-      padding: 20mm;
-      position: relative;
+      /* テーブルの中なので特別な余白設定は不要 */
     }
     
     ${watermark ? `
@@ -238,192 +197,109 @@ function generateHTMLContent(
     
     .title-page {
       text-align: center;
-      margin-bottom: 50px;
-      padding: 50px 0;
+      margin-bottom: 40px;
+      padding: 20px 0 40px;
       border-bottom: 2px solid #e0e0e0;
     }
+    .title-page h1 { font-size: 28px; font-weight: 700; margin-bottom: 15px; }
+    .title-page .subtitle { font-size: 16px; color: #666; margin-bottom: 8px; }
+    .title-page .metadata { font-size: 12px; color: #999; margin-top: 20px; }
     
-    .title-page h1 {
-      font-size: 32px;
-      font-weight: 700;
-      margin-bottom: 20px;
-      color: #1a1a1a;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
+    .content p { margin-bottom: 12px; text-align: justify; }
+    .content h3 { font-size: 16px; font-weight: 700; margin: 25px 0 15px; color: #34495e; border-left: 4px solid #34495e; padding-left: 10px; }
     
-    .title-page .subtitle {
-      font-size: 18px;
-      color: #666;
-      margin-bottom: 10px;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
+    table.data-table { width: 100%; border-collapse: collapse; margin: 20px 0; page-break-inside: avoid; }
+    table.data-table th, table.data-table td { border: 1px solid #ddd; padding: 10px; font-size: 10pt; }
+    table.data-table th { background-color: #f8f9fa; font-weight: 700; }
     
-    .title-page .metadata {
-      font-size: 14px;
-      color: #999;
-      margin-top: 30px;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
-    
-    .content {
-      margin-top: 30px;
-    }
-    
-    .content p {
-      margin-bottom: 10px;
-      text-align: justify;
-      line-height: 1.8;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
-    
-    .content h3 {
-      font-size: 18px;
-      font-weight: 700;
-      margin: 20px 0 10px;
-      color: #34495e;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
-    
-    .highlight {
-      background-color: #fff3cd;
-      padding: 2px 4px;
-      border-radius: 3px;
-    }
-    
-    strong {
-      font-weight: 700;
-      color: #2c3e50;
-    }
-    
-    em {
-      font-style: italic;
-      color: #7f8c8d;
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 20px 0;
-      font-family: 'Noto Sans JP', sans-serif;
-    }
-    
-    th, td {
-      border: 1px solid #ddd;
-      padding: 12px;
-      text-align: left;
-    }
-    
-    th {
-      background-color: #f8f9fa;
-      font-weight: 700;
-    }
-    
-    pre {
-      background-color: #f5f5f5;
-      padding: 15px;
-      border-radius: 5px;
-      overflow-x: auto;
-      margin: 15px 0;
-    }
-    
-    code {
-      font-family: 'Courier New', monospace;
-      background-color: #f5f5f5;
-      padding: 2px 4px;
-      border-radius: 3px;
-    }
-    
+    pre { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0; white-space: pre-wrap; font-size: 9pt; }
+
     @media print {
-      body {
-        margin: 0;
-        padding: 0;
-      }
-      
-      .container {
-        padding: 0;
-      }
-      
-      .section {
-        page-break-inside: avoid;
-      }
-      
-      .title-page {
-        page-break-after: always;
-      }
+      /* Chrome/Puppeteerでのtheader繰り返しを強制する設定 */
+      thead { display: table-header-group; } 
+      tfoot { display: table-footer-group; }
+      body { -webkit-print-color-adjust: exact; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="title-page">
-      <h1>${escapeHtml(report.title)}</h1>
-      <div class="subtitle">対象: ${escapeHtml(report.stakeholder.role)}</div>
-      <div class="subtitle">戦略: ${escapeHtml(report.rhetoricStrategy)}</div>
-      ${includeMetadata ? `
-        <div class="metadata">
-          ${includeTimestamp ? `
-            <p>作成日: ${formatDate(report.createdAt)}</p>
-            <p>更新日: ${formatDate(report.updatedAt)}</p>
-          ` : ''}
-        </div>
-      ` : ''}
-    </div>
-    
-    <div class="content">
-      ${formatContent(report.content)}
-    </div>
+
+  <div class="print-header">
+    ${escapeHtml(headerText || report.title)}
   </div>
+
+  <table class="report-table">
+  
+    <thead>
+      <tr>
+        <td>
+          <div class="header-space">&nbsp;</div>
+        </td>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr>
+        <td>
+          <div class="container">
+            
+            <div class="title-page">
+              <h1>${escapeHtml(report.title)}</h1>
+              <div class="subtitle">対象: ${escapeHtml(report.stakeholder.role)}</div>
+              <div class="subtitle">戦略: ${escapeHtml(report.rhetoricStrategy)}</div>
+              ${includeMetadata ? `
+                <div class="metadata">
+                  ${includeTimestamp ? `
+                    <p>作成日: ${formatDate(report.createdAt)}</p>
+                    <p>更新日: ${formatDate(report.updatedAt)}</p>
+                  ` : ''}
+                </div>
+              ` : ''}
+            </div>
+            
+            <div class="content">
+              ${formatContent(report.content)}
+            </div>
+            
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
 </body>
 </html>
 `;
 }
 
-function generateHeaderTemplate(headerText: string): string {
-  return `
-    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0; font-family: 'Noto Sans JP', sans-serif;">
-      <span>${escapeHtml(headerText)}</span>
-    </div>
-  `;
-}
-
-function generateFooterTemplate(footerText?: string): string {
-  return `
-    <div style="font-size: 10px; text-align: center; width: 100%; padding: 10px 0; font-family: 'Noto Sans JP', sans-serif;">
-      <span>${footerText ? escapeHtml(footerText) : 'ページ <span class="pageNumber"></span> / <span class="totalPages"></span>'}</span>
-    </div>
-  `;
-}
-
 function formatContent(content: string): string {
   const lines = content.split('\n');
-  const formattedLines = lines.map(line => {
-    if (line.match(/^\d+\.\s/)) {
-      return `<h3>${escapeHtml(line)}</h3>`;
-    }
+  return lines.map(line => {
+    if (line.match(/^\d+\.\s/)) return `<h3>${escapeHtml(line)}</h3>`;
     return `<p>${escapeHtml(line)}</p>`;
-  });
-  
-  return formattedLines.join('\n');
+  }).join('\n');
 }
 
 function escapeHtml(text: string): string {
-  const map: { [key: string]: string } = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;'
-  };
+  const map: { [key: string]: string } = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   return text.replace(/[&<>"']/g, m => map[m]);
 }
 
 function formatDate(date: Date): string {
   const d = new Date(date);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
   
-  return `${year}年${month}月${day}日 ${hours}:${minutes}`;
+  const formatter = new Intl.DateTimeFormat('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Tokyo'
+  });
+  
+  const parts = formatter.formatToParts(d);
+  const getPart = (type: string) => parts.find(p => p.type === type)?.value || '';
+  
+  return `${getPart('year')}年${getPart('month')}月${getPart('day')}日 ${getPart('hour')}:${getPart('minute')}`;
 }

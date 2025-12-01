@@ -34,7 +34,44 @@ export function generateReportGuidelines(stakeholder: Stakeholder): string {
 - 専門用語は必要に応じて使用するが、明確に説明する
 - データと事実に基づいた客観的な分析を提供
 - 具体的で実行可能な推奨事項を含める
-- **文体は「である調」で統一すること（例：～である、～する、～となる）**`;
+- 文体は「である調」で統一すること（例：～である、～する、～となる）`;
+}
+
+/**
+ * 出力形式の制約を生成
+ */
+export function generateFormatRestrictions(): string {
+  return `
+## 出力形式の制約（必ず守ること）
+- Markdown記法は一切使用しないこと
+  - 使用禁止: ##、###、**、*、-（箇条書き）、>、\`\`\`、\`、[]()、など
+- 見出しは「1. セクション名」「1.1 サブセクション名」「1.1.1 項目名」の形式で記述
+- 箇条書きが必要な場合は、番号付きリスト（1. 2. 3.）または「・」を使用
+- 強調したい語句は「」（かぎ括弧）で囲むか、文脈で表現すること
+- 表は罫線を使わず、項目ごとに改行して記述すること`;
+}
+
+/**
+ * 不適切なファイル時の対応ガイドラインを生成
+ */
+export function generateInvalidFileGuidelines(): string {
+  return `
+## 提供文書が不適切な場合の対応
+提供された文書がSSR作成に適さない場合（安全性に関する情報がない、GSNや技術文書でない等）は、以下の形式で応答すること：
+
+1. 「提供された文書からはSafety Status Reportを作成することができません。」と明記
+2. 理由を簡潔に説明（例：安全性に関する情報が含まれていない、等）
+3. SSR作成に必要な文書の種類を案内：
+   - GSN（Goal Structuring Notation）ファイル
+   - 安全性評価報告書
+   - リスクアセスメント文書
+   - 技術仕様書（安全性要件を含むもの）
+   - テスト結果報告書
+   - 事故・インシデント報告書
+   - ハザード分析資料
+4. 「上記のような安全性に関連する文書をアップロードしてください。」と促す
+
+この場合、無理にレポートを作成せず、適切な文書の提供を求めること。`;
 }
 
 /**
@@ -61,13 +98,13 @@ export function generateGSNAnalysisPrompt(hasGSNFile: boolean): string {
 
   return `
 ## 構造化された内容の分析
-- **GSNファイルが提供されている場合**:
+- GSNファイルが提供されている場合:
   - 各Goal（G）ノードに対して、その目標が達成されているかを評価する
   - Strategy（S）ノードの妥当性と実効性を検証する
   - Solution（Sn）やContext（C）が適切に裏付けとなっているか確認する
   - 未達成または不十分なノードがある場合、そのギャップと対策を明記する
   - GSN構造全体の論理的整合性を評価する
-- **その他の構造化文書（フローチャート、階層構造など）が提供されている場合**:
+- その他の構造化文書（フローチャート、階層構造など）が提供されている場合:
   - その構造を理解し、要素間の関係性をレポートに反映させる
   - 構造の完全性と妥当性について評価する`;
 }
@@ -206,7 +243,10 @@ export function generateStructurePrompt(
   }
 
   prompt += `\n
-注意: レポートは提供された文書の内容を正確に反映し、具体的な事実とデータに基づいて作成してください。文体は必ず「である調」で統一し、「です・ます調」は使用しないこと。`;
+注意事項:
+- レポートは提供された文書の内容を正確に反映し、具体的な事実とデータに基づいて作成すること
+- 文体は必ず「である調」で統一し、「です・ます調」は使用しないこと
+- Markdown記法は一切使用しないこと（##、**、*、-等は禁止）`;
 
   return prompt;
 }
@@ -226,6 +266,8 @@ export function buildCompleteUserPrompt(params: {
 
   const parts = [
     generateSystemPrompt(),
+    generateFormatRestrictions(),
+    generateInvalidFileGuidelines(),
     generateStakeholderSection(stakeholder, strategy),
     generateReportGuidelines(stakeholder),
     generateDocumentUsagePrinciples(),
