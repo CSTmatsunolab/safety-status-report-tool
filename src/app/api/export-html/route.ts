@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Report } from '@/types';
+import { formatDate } from '@/lib/date-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,10 +27,6 @@ export async function POST(request: NextRequest) {
 }
 
 function generateHTMLContent(report: Report): string {
-  const formatDate = (date: Date) => {
-    const d = new Date(date);
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours()}:${d.getMinutes()}`;
-  };
 
   const escapeHtml = (text: string): string => {
     const map: { [key: string]: string } = {
@@ -143,7 +140,6 @@ function generateHTMLContent(report: Report): string {
       <p><strong>対象:</strong> ${escapeHtml(report.stakeholder.role)}</p>
       <p><strong>戦略:</strong> ${escapeHtml(report.rhetoricStrategy)}</p>
       <p><strong>作成日:</strong> ${formatDate(report.createdAt)}</p>
-      <p><strong>更新日:</strong> ${formatDate(report.updatedAt)}</p>
     </div>
     
     <div class="content">
