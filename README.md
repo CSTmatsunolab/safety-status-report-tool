@@ -368,11 +368,11 @@ safety-status-report-tool/
 │   │
 │   ├── lib/
 │   │   ├── config/
-│   │   │   └── constants.ts              # アプリケーション設定値
-│   │   ├── browser-id.ts                 # ブラウザID管理
-│   │   ├── chunking-strategies.ts        # チャンキング戦略セレクタ
-│   │   ├── max-min-chunking.ts          # Max-Min Semanticチャンキング
-│   │   ├── sparse-vector-utils.ts       # 疎ベクトル生成（Kuromoji）
+│   │   │   └── constants.ts            # アプリケーション設定値
+│   │   ├── browser-id.ts               # ブラウザID管理
+│   │   ├── chunking-strategies.ts      # チャンキング戦略セレクタ
+│   │   ├── max-min-chunking.ts         # Max-Min Semanticチャンキング
+│   │   ├── sparse-vector-utils.ts      # 疎ベクトル生成（Kuromoji）
 │   │   ├── rrf-fusion.ts               # RRF融合アルゴリズム
 │   │   ├── stakeholders.ts             # ステークホルダー管理
 │   │   ├── vector-store.ts             # ベクトルストア（ハイブリッド検索対応）
@@ -387,6 +387,7 @@ safety-status-report-tool/
 │   │   ├── query-enhancer.ts           # 検索クエリ拡張機能
 │   │   ├── report-structures.ts        # レポート構成管理
 │   │   └── s3-utils.ts                 # S3ユーティリティ
+│   │   └── date-utils.ts               # 日付ユーティリティ
 │   │
 │   └── types/
 │       ├── index.ts                 # TypeScript型定義
