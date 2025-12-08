@@ -350,16 +350,16 @@ async function addFullTextToContext(
   console.log(`Adding ${fullTextFiles.length} full-text files to context`);
   
   const largeFiles = fullTextFiles.filter(f => 
-    f.metadata?.s3Key || f.content.length >= LARGE_CONTENT_THRESHOLD
+    f.content.length >= LARGE_CONTENT_THRESHOLD || f.metadata?.s3Key
   );
   const smallFiles = fullTextFiles.filter(f => 
-    !f.metadata?.s3Key && f.content.length < LARGE_CONTENT_THRESHOLD
+    f.content.length < LARGE_CONTENT_THRESHOLD && !f.metadata?.s3Key
   );
   
   let processedLargeFiles = largeFiles;
   if (largeFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
     warnings.push(
-      `大きなファイル（5万文字以上またはS3保存）の全文使用は${MAX_LARGE_FULL_TEXT_FILES}個までに制限されています。` +
+      `大きなファイル（5万文字以上）の全文使用は${MAX_LARGE_FULL_TEXT_FILES}個までに制限されています。` +
       `${largeFiles.length}個中、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみ処理します。`
     );
     console.warn(warnings[warnings.length - 1]);
@@ -575,10 +575,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
 
-    return NextResponse.json({
-      ...report,
-      warnings: warnings.length > 0 ? warnings : undefined
-    });
+    return NextResponse.json(report);
     
   } catch (error) {
     console.error('Report generation error:', error);
