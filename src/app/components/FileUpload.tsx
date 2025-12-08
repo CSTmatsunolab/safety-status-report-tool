@@ -510,7 +510,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                     )}
                     {file.metadata?.s3Key ? (
                       <span className="ml-2">
-                        (S3保存済み {file.metadata?.contentPreview ? `- ${file.metadata.contentPreview.length.toLocaleString()} 文字プレビュー` : ''})
+                        (大きいファイル)
                       </span>
                     ) : file.content.length > 0 ? (
                       <span className="ml-2">
@@ -546,7 +546,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                   )}
                   
                   {/* 全文使用チェックボックス */}
-                  {file.content.length > 0 && (
+                  {(file.content.length > 0 || file.metadata?.s3Key) && (
                     <label className="flex items-center cursor-pointer">
                       <input
                         type="checkbox"
