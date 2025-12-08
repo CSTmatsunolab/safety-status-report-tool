@@ -28,6 +28,8 @@ export default function Home() {
   const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
   const [browserId, setBrowserId] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [warningMessages, setWarningMessages] = useState<string[]>([]);
 
   useEffect(() => {
     const id = getBrowserId();
@@ -132,12 +134,13 @@ export default function Home() {
         "続行しますか？";
       
       if (!confirm(confirmMessage)) {
-        return; // ユーザーがキャンセルしたら処理を中断
+        return;
       }
     }
 
     setIsKnowledgeBaseBuilding(true);
     setKnowledgeBaseStatus('building');
+    setErrorMessage(null);
     
     try {
       const response = await fetch('/api/build-knowledge-base', {
@@ -150,20 +153,51 @@ export default function Home() {
         }),
       });
       
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error('Knowledge base building failed');
+        // APIからのエラー詳細を取得
+        let errorMsg = '知識ベースの構築に失敗しました。\n\n';
+        
+        if (result.error) {
+          errorMsg += `エラー: ${result.error}\n`;
+        }
+        if (result.details) {
+          errorMsg += `詳細: ${result.details}\n`;
+        }
+        
+        // よくあるエラーに対する具体的なアドバイス
+        if (result.details?.includes('quota') || result.details?.includes('Quota')) {
+          errorMsg += '\n【対処法】使用制限を超えています。\n';
+          errorMsg += '「全文使用」をONにしてRAGを使わずに生成してください';
+        } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
+          errorMsg += '\n【対処法】処理がタイムアウトしました。\n';
+          errorMsg += '・ファイルサイズを小さくしてください\n';
+          errorMsg += '・ファイル数を減らしてください';
+        }
+        
+        setErrorMessage(errorMsg);
+        throw new Error(result.error || 'Knowledge base building failed');
       }
       
-      const result = await response.json();
       console.log('Knowledge base built:', result);
       if (result.namespace) {
-      console.log('Namespace used:', result.namespace);
+        console.log('Namespace used:', result.namespace);
       }
+      
+      // 警告がある場合は表示
+      if (result.warnings && result.warnings.length > 0) {
+        setWarningMessages(result.warnings);
+      }
+      
       setKnowledgeBaseStatus('ready');
     } catch (error) {
       console.error('Knowledge base building error:', error);
       setKnowledgeBaseStatus('error');
-      alert('知識ベースの構築に失敗しました。');
+      
+      if (!errorMessage) {
+        setErrorMessage('知識ベースの構築に失敗しました。');
+      }
     } finally {
       setIsKnowledgeBaseBuilding(false);
     }
@@ -269,11 +303,34 @@ export default function Home() {
 
   const handleGenerateReport = async () => {
     if (!selectedStakeholder || !selectedStructure) return;
+    
+    setErrorMessage(null);
+    setWarningMessages([]);
+    
     // ファイルがある場合のみナレッジベース構築
     if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
       await buildKnowledgeBase(true);
       if (knowledgeBaseStatus === 'error') return;
     }
+    
+    const LARGE_CONTENT_THRESHOLD = 50000;
+    const MAX_LARGE_FULL_TEXT_FILES = 2;
+
+    const fullTextFiles = files.filter(f => f.includeFullText);
+    const largeFullTextFiles = fullTextFiles.filter(f => 
+      f.metadata?.s3Key || f.content.length >= LARGE_CONTENT_THRESHOLD
+    );
+
+    if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
+      const proceed = confirm(
+        `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n` +
+        `処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n` +
+        `残りのファイルはRAGで関連部分のみ抽出されます。\n\n` +
+        `続行しますか？`
+      );
+      if (!proceed) return;
+    }
+    
     setIsGenerating(true);
     try {
       const response = await fetch('/api/generate-report', {
@@ -290,15 +347,46 @@ export default function Home() {
         }),
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('レポート生成に失敗しました');
+        let errorMsg = 'レポート生成に失敗しました。\n\n';
+        
+        if (result.error) {
+          errorMsg += `エラー: ${result.error}\n`;
+        }
+        if (result.details) {
+          errorMsg += `詳細: ${result.details}\n`;
+        }
+        
+        // よくあるエラーに対する具体的なアドバイス
+        if (result.details?.includes('quota') || result.details?.includes('Quota')) {
+          errorMsg += '\n【対処法】使用制限を超えています。\n';
+        } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
+          errorMsg += '\n【対処法】処理がタイムアウトしました。\n';
+          errorMsg += '・ファイルサイズを小さくしてください\n';
+          errorMsg += '・全文使用ファイル数を減らしてください';
+        } else if (result.details?.includes('context') || result.details?.includes('token')) {
+          errorMsg += '\n【対処法】入力データが大きすぎます。\n';
+          errorMsg += '・全文使用ファイル数を減らしてください\n';
+          errorMsg += '・ファイルサイズを小さくしてください';
+        }
+        
+        setErrorMessage(errorMsg);
+        throw new Error(result.error || 'Report generation failed');
       }
       
-      const report = await response.json();
-      setGeneratedReport(report);
+      // 警告がある場合は表示（レポートは成功）
+      if (result.warnings && result.warnings.length > 0) {
+        setWarningMessages(result.warnings);
+      }
+      
+      setGeneratedReport(result);
     } catch (error) {
       console.error('Report generation failed:', error);
-      alert('レポート生成に失敗しました。');
+      if (!errorMessage) {
+        setErrorMessage('レポート生成に失敗しました。');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -514,6 +602,46 @@ export default function Home() {
               </div>
             )}
 
+            {/* エラーメッセージ表示 */}
+            {errorMessage && (
+              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-red-800 dark:text-red-200 font-medium mb-2">エラーが発生しました</h4>
+                    <pre className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{errorMessage}</pre>
+                  </div>
+                  <button
+                    onClick={() => setErrorMessage(null)}
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 警告メッセージ表示 */}
+            {warningMessages.length > 0 && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h4 className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">警告</h4>
+                    <ul className="text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
+                      {warningMessages.map((msg, index) => (
+                        <li key={index}>{msg}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    onClick={() => setWarningMessages([])}
+                    className="text-yellow-500 hover:text-yellow-700 dark:text-yellow-400 dark:hover:text-yellow-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
+            
             {/* レポート生成ボタン */}
             <button
               onClick={handleGenerateReport}

@@ -31,9 +31,10 @@ const s3Client = new S3Client({
 const S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || 'safety-report-uploads-2024';
 
 // 保護機能の制限値
-const MAX_LARGE_FULL_TEXT_FILES = 2;  // 大きなファイル（S3保存）かつ全文使用の最大数
-const MAX_CONTENT_CHARS_PER_FILE = 80000;  // 1ファイルあたりの最大文字数
-const MAX_TOTAL_CONTEXT_CHARS = 150000;  // 全体の最大文字数
+const LARGE_CONTENT_THRESHOLD = 50000;
+const MAX_LARGE_FULL_TEXT_FILES = 2;
+const MAX_CONTENT_CHARS_PER_FILE = 80000;
+const MAX_TOTAL_CONTEXT_CHARS = 150000;
 
 function isVectorStore(obj: unknown): obj is VectorStore {
   return (
@@ -348,14 +349,17 @@ async function addFullTextToContext(
 
   console.log(`Adding ${fullTextFiles.length} full-text files to context`);
   
-  // 大きなファイル（S3保存）の数をカウントして制限
-  const largeFiles = fullTextFiles.filter(f => f.metadata?.s3Key);
-  const smallFiles = fullTextFiles.filter(f => !f.metadata?.s3Key);
+  const largeFiles = fullTextFiles.filter(f => 
+    f.metadata?.s3Key || f.content.length >= LARGE_CONTENT_THRESHOLD
+  );
+  const smallFiles = fullTextFiles.filter(f => 
+    !f.metadata?.s3Key && f.content.length < LARGE_CONTENT_THRESHOLD
+  );
   
   let processedLargeFiles = largeFiles;
   if (largeFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
     warnings.push(
-      `大きなファイルの全文使用は${MAX_LARGE_FULL_TEXT_FILES}個までに制限されています。` +
+      `大きなファイル（5万文字以上またはS3保存）の全文使用は${MAX_LARGE_FULL_TEXT_FILES}個までに制限されています。` +
       `${largeFiles.length}個中、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみ処理します。`
     );
     console.warn(warnings[warnings.length - 1]);
@@ -571,7 +575,10 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date()
     };
 
-    return NextResponse.json(report);
+    return NextResponse.json({
+      ...report,
+      warnings: warnings.length > 0 ? warnings : undefined
+    });
     
   } catch (error) {
     console.error('Report generation error:', error);
