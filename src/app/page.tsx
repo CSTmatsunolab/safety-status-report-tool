@@ -315,11 +315,40 @@ export default function Home() {
     
     const LARGE_CONTENT_THRESHOLD = 50000;
     const MAX_LARGE_FULL_TEXT_FILES = 2;
+    const MAX_CONTENT_CHARS_PER_FILE = 50000;
 
     const fullTextFiles = files.filter(f => f.includeFullText);
-    const largeFullTextFiles = fullTextFiles.filter(f => 
-      f.metadata?.s3Key || f.content.length >= LARGE_CONTENT_THRESHOLD
-    );
+
+    // 5万文字を超えるファイルをチェック（切り詰め対象）
+    // originalContentLengthがある場合はそちらを優先
+    const oversizedFiles = fullTextFiles.filter(f => {
+      const metadata = f.metadata as { originalContentLength?: number };
+      const contentLength = metadata?.originalContentLength || f.content.length;
+      return contentLength > MAX_CONTENT_CHARS_PER_FILE;
+    });
+
+    if (oversizedFiles.length > 0) {
+      const fileList = oversizedFiles
+        .map(f => {
+          const contentLength = f.metadata?.originalContentLength || f.content.length;
+          return `・${f.name}（${contentLength.toLocaleString()}文字）`;
+        })
+        .join('\n');
+      const proceed = confirm(
+        `【確認】以下の全文使用ファイルは5万文字を超えています：\n\n` +
+        `${fileList}\n\n` +
+        `これらのファイルは5万文字まで切り詰められます。\n` +
+        `続行しますか？`
+      );
+      if (!proceed) return;
+    }
+
+    // 大きいファイル（5万文字以上またはS3保存）の数をチェック
+    const largeFullTextFiles = fullTextFiles.filter(f => {
+      const metadata = f.metadata as { originalContentLength?: number; s3Key?: string };
+      const contentLength = metadata?.originalContentLength || f.content.length;
+      return contentLength >= LARGE_CONTENT_THRESHOLD || metadata?.s3Key;
+    });
 
     if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
       const proceed = confirm(

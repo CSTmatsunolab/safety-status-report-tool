@@ -31,10 +31,10 @@ const s3Client = new S3Client({
 const S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || 'safety-report-uploads-2024';
 
 // 保護機能の制限値
-const LARGE_CONTENT_THRESHOLD = 50000;
-const MAX_LARGE_FULL_TEXT_FILES = 2;
-const MAX_CONTENT_CHARS_PER_FILE = 80000;
-const MAX_TOTAL_CONTEXT_CHARS = 150000;
+const LARGE_CONTENT_THRESHOLD = 50000;    // 5万文字以上を「大きいファイル」とみなす
+const MAX_LARGE_FULL_TEXT_FILES = 2;      // 大きなファイルの全文使用は2個まで
+const MAX_CONTENT_CHARS_PER_FILE = 50000; // 1ファイルあたりの最大文字数
+const MAX_TOTAL_CONTEXT_CHARS = 100000;   // 全体の最大文字数
 
 function isVectorStore(obj: unknown): obj is VectorStore {
   return (
