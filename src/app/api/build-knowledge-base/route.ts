@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import { generateNamespace } from '@/lib/browser-id';
 import { chunkDocument } from '@/lib/chunking-strategies';
+import { saveChunkLog } from '@/lib/chunk-logger';
 
 // FileMetadata型を拡張（pdfBufferプロパティを追加）
 interface ExtendedFileMetadata {
@@ -373,6 +374,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // チャンクログを保存（評価用）
+    if (process.env.SAVE_CHUNK_LOG === 'true') {
+      try {
+        const logPath = saveChunkLog(documents, './logs/chunks');
+        console.log(`Chunk log saved: ${logPath}`);
+      } catch (logError) {
+        console.warn('Failed to save chunk log:', logError);
+      }
+    }
     // ベクトルストアにドキュメントを保存
     try {
       const vectorStore = await VectorStoreFactory.fromDocuments(
