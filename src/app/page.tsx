@@ -330,7 +330,8 @@ export default function Home() {
     if (oversizedFiles.length > 0) {
       const fileList = oversizedFiles
         .map(f => {
-          const contentLength = f.metadata?.originalContentLength || f.content.length;
+          const metadata = f.metadata as { originalContentLength?: number };
+          const contentLength = metadata?.originalContentLength || f.content.length;
           return `・${f.name}（${contentLength.toLocaleString()}文字）`;
         })
         .join('\n');
