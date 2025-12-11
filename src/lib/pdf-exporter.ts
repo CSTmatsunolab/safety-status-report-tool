@@ -18,6 +18,7 @@ export interface PDFOptions {
     bottom?: string;
     left?: string;
   };
+  language?: 'ja' | 'en';
 }
 
 export async function generatePDF(
@@ -36,7 +37,8 @@ export async function generatePDF(
       right: '20mm',
       bottom: '25mm',
       left: '20mm'
-    }
+    },
+    language = 'ja'
   } = options;
 
   let browser: Browser | null = null;
@@ -48,7 +50,8 @@ export async function generatePDF(
       includeTimestamp,
       watermark,
       headerText: headerText || report.title,
-      footerText
+      footerText,
+      language
     });
 
     console.log('Launching browser...');
@@ -124,13 +127,30 @@ function generateHTMLContent(
     watermark?: string;
     headerText?: string;
     footerText?: string;
+    language?: 'ja' | 'en';
   }
 ): string {
-  const { includeMetadata, includeTimestamp, watermark, headerText } = options;
+  const { includeMetadata, includeTimestamp, watermark, headerText, language = 'ja' } = options;
+
+  // 言語に応じたラベル
+  const labels = language === 'en' 
+    ? { target: 'Target:', strategy: 'Strategy:', createdAt: 'Created:' }
+    : { target: '対象:', strategy: '戦略:', createdAt: '作成日:' };
+
+  // 言語に応じた設定
+  const htmlLang = language === 'en' ? 'en' : 'ja';
+  const fontFamily = language === 'en' 
+    ? "'Segoe UI', 'Helvetica Neue', sans-serif"
+    : "'Noto Sans JP', sans-serif";
+
+  // 日付フォーマット
+  const formattedDate = language === 'en'
+    ? new Date(report.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : formatDate(report.createdAt);
 
   return `
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="${htmlLang}">
 <head>
   <meta charset="UTF-8">
   <title>${escapeHtml(report.title)}</title>
@@ -144,7 +164,7 @@ function generateHTMLContent(
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     body {
-      font-family: 'Noto Sans JP', sans-serif;
+      font-family: ${fontFamily};
       line-height: 1.8;
       color: #333;
       background: white;
@@ -157,7 +177,7 @@ function generateHTMLContent(
     }
 
     .header-space {
-      height: 18mm; /* ヘッダーの高さ + 余白 */
+      height: 18mm;
     }
 
     .print-header {
@@ -165,7 +185,7 @@ function generateHTMLContent(
       top: 0;
       left: 0;
       width: 100%;
-      height: 15mm; /* ヘッダー自体の高さ */
+      height: 15mm;
       background-color: white;
       border-bottom: 1px solid #eee;
       display: flex;
@@ -176,9 +196,7 @@ function generateHTMLContent(
       z-index: 1000;
     }
 
-    /* メインコンテンツ */
     .container {
-      /* テーブルの中なので特別な余白設定は不要 */
     }
     
     ${watermark ? `
@@ -192,7 +210,7 @@ function generateHTMLContent(
       color: rgba(0, 0, 0, 0.05);
       z-index: -1;
       white-space: nowrap;
-      font-family: 'Noto Sans JP', sans-serif;
+      font-family: ${fontFamily};
     }
     ` : ''}
     
@@ -216,7 +234,6 @@ function generateHTMLContent(
     pre { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0; white-space: pre-wrap; font-size: 9pt; }
 
     @media print {
-      /* Chrome/Puppeteerでのtheader繰り返しを強制する設定 */
       thead { display: table-header-group; } 
       tfoot { display: table-footer-group; }
       body { -webkit-print-color-adjust: exact; }
@@ -246,12 +263,12 @@ function generateHTMLContent(
             
             <div class="title-page">
               <h1>${escapeHtml(report.title)}</h1>
-              <div class="subtitle">対象: ${escapeHtml(report.stakeholder.role)}</div>
-              <div class="subtitle">戦略: ${escapeHtml(report.rhetoricStrategy)}</div>
+              <div class="subtitle">${labels.target} ${escapeHtml(report.stakeholder.role)}</div>
+              <div class="subtitle">${labels.strategy} ${escapeHtml(report.rhetoricStrategy)}</div>
               ${includeMetadata ? `
                 <div class="metadata">
                   ${includeTimestamp ? `
-                    <p>作成日: ${formatDate(report.createdAt)}</p>
+                    <p>${labels.createdAt} ${formattedDate}</p>
                   ` : ''}
                 </div>
               ` : ''}

@@ -4,10 +4,10 @@ import { formatDate } from '@/lib/date-utils';
 
 export async function POST(request: NextRequest) {
   try {
-    const { report }: { report: Report } = await request.json();
+    const { report, language = 'ja' }: { report: Report; language?: 'ja' | 'en' } = await request.json();
 
     // HTMLコンテンツを生成
-    const htmlContent = generateHTMLContent(report);
+    const htmlContent = generateHTMLContent(report, language);
     
     // HTMLファイルとして返す
     return new Response(htmlContent, {
@@ -26,7 +26,17 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function generateHTMLContent(report: Report): string {
+function generateHTMLContent(report: Report, language: 'ja' | 'en'): string {
+  // 言語に応じたラベル
+  const labels = language === 'en' 
+    ? { target: 'Target:', strategy: 'Strategy:', createdAt: 'Created:' }
+    : { target: '対象:', strategy: '戦略:', createdAt: '作成日:' };
+
+  // 言語に応じたHTMLのlang属性とフォント
+  const htmlLang = language === 'en' ? 'en' : 'ja';
+  const fontFamily = language === 'en' 
+    ? "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    : "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif";
 
   const escapeHtml = (text: string): string => {
     const map: { [key: string]: string } = {
@@ -50,15 +60,20 @@ function generateHTMLContent(report: Report): string {
     }).join('\n');
   };
 
+  // 日付フォーマット
+  const formattedDate = language === 'en'
+    ? new Date(report.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    : formatDate(report.createdAt);
+
   return `<!DOCTYPE html>
-<html lang="ja">
+<html lang="${htmlLang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapeHtml(report.title)}</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+      font-family: ${fontFamily};
       line-height: 1.8;
       color: #333;
       max-width: 900px;
@@ -137,9 +152,9 @@ function generateHTMLContent(report: Report): string {
     <h1>${escapeHtml(report.title)}</h1>
     
     <div class="metadata">
-      <p><strong>対象:</strong> ${escapeHtml(report.stakeholder.role)}</p>
-      <p><strong>戦略:</strong> ${escapeHtml(report.rhetoricStrategy)}</p>
-      <p><strong>作成日:</strong> ${formatDate(report.createdAt)}</p>
+      <p><strong>${labels.target}</strong> ${escapeHtml(report.stakeholder.role)}</p>
+      <p><strong>${labels.strategy}</strong> ${escapeHtml(report.rhetoricStrategy)}</p>
+      <p><strong>${labels.createdAt}</strong> ${formattedDate}</p>
     </div>
     
     <div class="content">

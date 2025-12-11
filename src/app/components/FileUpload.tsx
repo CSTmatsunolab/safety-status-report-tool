@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import { UploadedFile } from '@/types';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
+import { useI18n } from './I18nProvider';
 
 // ファイルサイズの閾値
 const S3_THRESHOLD = 4 * 1024 * 1024; // 4MB - これ以上はS3経由
@@ -57,13 +58,7 @@ async function processFileFromS3(
   key: string,
   fileName: string,
   fileType: string
-): Promise<{ 
-  text: string; 
-  confidence?: number; 
-  method?: string;
-  pdfBufferBase64?: string;
-  hasPdfBuffer?: boolean;
-}> {
+): Promise<{ text: string; confidence?: number; method?: string }> {
   const response = await fetch('/api/s3-process', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,7 +78,7 @@ async function processFileFromS3(
   return await response.json();
 }
 
-async function extractTextFromImage(file: File): Promise<{ text: string; confidence?: number }> {
+async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<{ text: string; confidence?: number }> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -118,15 +113,17 @@ async function extractTextFromImage(file: File): Promise<{ text: string; confide
   } catch (error) {
     console.error('Image OCR error:', error);
     if (error instanceof Error && error.name === 'AbortError') {
-      alert('画像のOCR処理がタイムアウトしました。');
+      alert(language === 'en' ? 'Image OCR processing timed out.' : '画像のOCR処理がタイムアウトしました。');
     } else if (error instanceof Error) {
-      alert(`画像のOCR処理に失敗しました: ${error.message}`);
+      alert(language === 'en' 
+        ? `Image OCR processing failed: ${error.message}` 
+        : `画像のOCR処理に失敗しました: ${error.message}`);
     }
     return { text: '', confidence: 0 };
   }
 }
 
-async function extractTextFromPDF(file: File): Promise<{ text: string; method: string; confidence?: number; s3Key?: string; pdfBuffer?: Buffer; }> {
+async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ text: string; method: string; confidence?: number; s3Key?: string }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -140,11 +137,12 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
       });
       
       if (!response.ok) {
-        throw new Error(`PDF処理に失敗しました: ${response.status}`);
+        throw new Error(language === 'en' 
+          ? `PDF processing failed: ${response.status}`
+          : `PDF処理に失敗しました: ${response.status}`);
       }
       
       const result = await response.json();
-      
       return {
         text: result.text || '',
         method: result.method || 'embedded-text',
@@ -155,7 +153,6 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     else {
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
-
       return {
         text: result.text || '',
         method: result.method || 's3',
@@ -169,9 +166,11 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
     
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
-        alert('PDFの処理がタイムアウトしました。');
+        alert(language === 'en' ? 'PDF processing timed out.' : 'PDFの処理がタイムアウトしました。');
       } else {
-        alert(`PDFの処理に失敗しました: ${error.message}`);
+        alert(language === 'en' 
+          ? `PDF processing failed: ${error.message}`
+          : `PDFの処理に失敗しました: ${error.message}`);
       }
     }
     
@@ -179,7 +178,7 @@ async function extractTextFromPDF(file: File): Promise<{ text: string; method: s
   }
 }
 
-async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
+async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string }> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -194,19 +193,17 @@ async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?:
         allText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
       });
       
-      return { text: allText, originalContentLength: allText.length };
+      return { text: allText };
     } else {
       console.log('Large Excel file, using S3...');
       const s3Key = await uploadToS3(file);
       
       // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
-      const fullText = result.text || '';
       
       return {
-        text: fullText.substring(0, PREVIEW_LENGTH),
-        s3Key: s3Key,
-        originalContentLength: fullText.length 
+        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
+        s3Key: s3Key // S3キーを保存
       };
     }
   } catch (error) {
@@ -215,26 +212,24 @@ async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?:
   }
 }
 
-async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
+async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string }> {
   try {
     console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
       const result = await mammoth.extractRawText({ arrayBuffer });
-      return { text: result.value, originalContentLength: result.value.length };
+      return { text: result.value };
     } else {
       console.log('Large Word file, using S3...');
       const s3Key = await uploadToS3(file);
       
       // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
-      const fullText = result.text || '';
       
       return {
-        text: fullText.substring(0, PREVIEW_LENGTH),
-        s3Key: s3Key,
-        originalContentLength: fullText.length  // 本来の文字数を保存
+        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
+        s3Key: s3Key // S3キーを保存
       };
     }
   } catch (error) {
@@ -244,6 +239,7 @@ async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: 
 }
 
 export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onToggleGSN }: FileUploadProps) {
+  const { t, language } = useI18n();
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
 
@@ -254,11 +250,17 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       
       for (let i = 0; i < acceptedFiles.length; i++) {
         const file = acceptedFiles[i];
-        setProcessingStatus(`処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`);
+        setProcessingStatus(
+          language === 'en' 
+            ? `Processing: ${file.name} (${i + 1}/${acceptedFiles.length})`
+            : `処理中: ${file.name} (${i + 1}/${acceptedFiles.length})`
+        );
         
         // ファイルサイズチェック（100MBまで）
         if (file.size > 100 * 1024 * 1024) {
-          alert(`${file.name}のサイズが大きすぎます。100MB以下のファイルをアップロードしてください。`);
+          alert(language === 'en'
+            ? `${file.name} is too large. Please upload files under 100MB.`
+            : `${file.name}のサイズが大きすぎます。100MB以下のファイルをアップロードしてください。`);
           continue;
         }
 
@@ -267,22 +269,16 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
           let s3Key: string | undefined;
-          let originalContentLength: number | undefined;
-    
+
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-            const result = await extractTextFromPDF(file);
+            const result = await extractTextFromPDF(file, language);
             content = result.text;
             extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
             ocrConfidence = result.confidence;
-
-            if (result.s3Key) {
-              s3Key = result.s3Key;
-            }
-
         } else if (file.type.startsWith('image/')) {
             console.log(`Extracting text from image: ${file.name}`);
-            const result = await extractTextFromImage(file);
+            const result = await extractTextFromImage(file, language);
             content = result.text;
             extractionMethod = 'ocr';
             ocrConfidence = result.confidence;
@@ -298,9 +294,6 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             if (excelResult.s3Key) {
               s3Key = excelResult.s3Key;
             }
-            if (excelResult.originalContentLength) {
-              originalContentLength = excelResult.originalContentLength;
-            }
             extractionMethod = 'excel';
         } else if (
             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -312,9 +305,6 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             if (docxResult.s3Key) {
               s3Key = docxResult.s3Key;
             }
-            if (docxResult.originalContentLength) {
-              originalContentLength = docxResult.originalContentLength;
-            }
             extractionMethod = 'docx';
         } else if (
             file.type === 'text/csv' || 
@@ -324,31 +314,28 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           ) {
             if (file.size < S3_THRESHOLD) {
               content = await file.text();
-              originalContentLength = content.length;
             } else {
               // 大きなCSV/TXTファイルはS3に保存
               console.log(`Large text file (${file.name}), using S3...`);
               s3Key = await uploadToS3(file);
               
-              // プレビュー用に最初の部分だけ取得
-              const fullText = await file.text();
-              originalContentLength = fullText.length;
-              content = fullText.substring(0, PREVIEW_LENGTH);
+              // プレビュー用に最初の部分だけ取得  
+              const preview = await file.text();
+              content = preview.substring(0, PREVIEW_LENGTH);
             }
             extractionMethod = 'text';
         } else {
             content = await file.text();
-            originalContentLength = content.length;
             extractionMethod = 'text';
           }
 
           // ファイルタイプの判定（議事録やGSNの自動検出）
           const lowerFileName = file.name.toLowerCase();
-          console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}${originalContentLength ? `, Original length: ${originalContentLength}` : ''}`);
+          console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
           if (content.length > 0) {
             console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
             console.log(content.substring(0, PREVIEW_LENGTH));
-            if (originalContentLength && originalContentLength > PREVIEW_LENGTH) console.log(`...(truncated from ${originalContentLength.toLocaleString()} chars)`);
+            if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
           }
           const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
           
@@ -384,14 +371,15 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               isGSN: false,
               userDesignatedGSN: false,
               s3Key: s3Key,
-              contentPreview: s3Key ? content : undefined,
-              originalContentLength: originalContentLength  // 本来の文字数
+              contentPreview: s3Key ? content : undefined
             }
           });
 
         } catch (error) {
           console.error(`Failed to process ${file.name}:`, error);
-          alert(`${file.name}の処理に失敗しました。`);
+          alert(language === 'en'
+            ? `Failed to process ${file.name}.`
+            : `${file.name}の処理に失敗しました。`);
         }
       }
       
@@ -402,12 +390,14 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       setProcessingStatus('');
     } catch (error) {
       console.error('File processing error:', error);
-      alert('ファイルの処理中にエラーが発生しました。');
+      alert(language === 'en'
+        ? 'An error occurred while processing files.'
+        : 'ファイルの処理中にエラーが発生しました。');
     } finally {
       setIsProcessing(false);
       setProcessingStatus('');
     }
-  }, [onUpload]);
+  }, [onUpload, language]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -469,30 +459,46 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
 
         {isProcessing ? (
           <div>
-            <p className="text-gray-600 dark:text-gray-300 mb-2">ファイルを処理中...</p>
+            <p className="text-gray-600 dark:text-gray-300 mb-2">
+              {language === 'en' ? 'Processing files...' : 'ファイルを処理中...'}
+            </p>
             {processingStatus && (
               <p className="text-sm text-blue-600 dark:text-blue-400">{processingStatus}</p>
             )}
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              4MB以上のファイルサイズまたは画像やPDFのOCR処理には時間がかかる場合があります<br/>
+              {language === 'en' 
+                ? 'Large files (>4MB) or OCR processing for images/PDFs may take time'
+                : '4MB以上のファイルサイズまたは画像やPDFのOCR処理には時間がかかる場合があります'}
+              <br/>
             </p>
           </div>
         ) : isDragActive ? (
-          <p className="text-blue-600 dark:text-blue-400">ここにドロップ...</p>
+          <p className="text-blue-600 dark:text-blue-400">
+            {language === 'en' ? 'Drop here...' : 'ここにドロップ...'}
+          </p>
         ) : (
           <div>
             <p className="text-gray-600 dark:text-gray-300 font-medium">
-              ファイルをドラッグ＆ドロップ、またはクリックして選択
+              {t('fileUpload.dropzone')}
             </p>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-              対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNG等)
+              {language === 'en' 
+                ? 'Supported: Text, CSV, PDF, Excel, Word (DOCX), Images (JPG, PNG, etc.)'
+                : '対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNGなど)'}
             </p>
             <p className="text-xs text-red-400 dark:text-red-400 mt-1">
-              ※ GSNファイルは全文使用をONにすることを推奨します
+              {language === 'en'
+                ? '※ We recommend enabling "Use Full Text" for GSN files'
+                : '※ GSNファイルは全文使用をONにすることを推奨します'}
             </p>
             <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              ※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します<br/>
-              ※ 画像の場合はPDFよりも画像ファイルの方が精度が高くなる可能性があります
+              {language === 'en'
+                ? '※ Image-based PDFs and image files use OCR for text extraction'
+                : '※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します'}
+              <br/>
+              {language === 'en'
+                ? '※ For images, image files may have higher accuracy than PDFs'
+                : '※ 画像の場合はPDFよりも画像ファイルの方が精度が高くなる可能性があります'}
             </p>
           </div>
         )}
@@ -502,7 +508,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       {files.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-medium text-gray-700 dark:text-gray-300">
-            アップロード済みファイル:
+            {language === 'en' ? 'Uploaded files:' : 'アップロード済みファイル:'}
           </h3>
           {files.map((file) => (
             <div
@@ -516,26 +522,28 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                       {file.name}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    タイプ: {file.type === 'gsn' ? 'GSNファイル' : 
-                            file.type === 'minutes' ? '議事録' : 'その他'}
+                    {language === 'en' ? 'Type: ' : 'タイプ: '}
+                    {file.type === 'gsn' 
+                      ? (language === 'en' ? 'GSN File' : 'GSNファイル')
+                      : file.type === 'minutes' 
+                        ? (language === 'en' ? 'Minutes' : '議事録')
+                        : (language === 'en' ? 'Other' : 'その他')}
                     {file.metadata?.userDesignatedGSN && (
                       <span className="ml-2 text-xs bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded">
-                        ユーザー指定
+                        {language === 'en' ? 'User specified' : 'ユーザー指定'}
                       </span>
                     )}
                     {file.metadata?.s3Key ? (
                       <span className="ml-2">
-                        (大きいファイル - {file.metadata?.originalContentLength 
-                          ? `${file.metadata.originalContentLength.toLocaleString()} 文字` 
-                          : '文字数不明'})
+                        ({language === 'en' ? 'S3 stored' : 'S3保存済み'} {file.metadata?.contentPreview ? `- ${file.metadata.contentPreview.length.toLocaleString()} ${language === 'en' ? 'chars preview' : '文字プレビュー'}` : ''})
                       </span>
                     ) : file.content.length > 0 ? (
                       <span className="ml-2">
-                        ({(file.metadata?.originalContentLength || file.content.length).toLocaleString()} 文字)
+                        ({file.content.length.toLocaleString()} {language === 'en' ? 'chars' : '文字'})
                       </span>
                     ) : (
                       <span className="ml-2 text-red-500 dark:text-red-400">
-                        (テキスト抽出失敗)
+                        ({language === 'en' ? 'Text extraction failed' : 'テキスト抽出失敗'})
                       </span>
                     )}
                   </p>
@@ -563,7 +571,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                   )}
                   
                   {/* 全文使用チェックボックス */}
-                  {(file.content.length > 0 || file.metadata?.s3Key) && (
+                  {file.content.length > 0 && (
                     <label className="flex items-center cursor-pointer">
                       <input
                         type="checkbox"
@@ -572,7 +580,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                         className="w-4 h-4 text-blue-600 dark:text-blue-500 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 dark:focus:ring-blue-400"
                       />
                       <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                        全文使用
+                        {language === 'en' ? 'Full Text' : '全文使用'}
                       </span>
                     </label>
                   )}
@@ -594,11 +602,12 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           {files.some(f => f.type === 'gsn') && (
             <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
               <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
-                GSNドキュメントの推奨設定
+                {language === 'en' ? 'Recommended settings for GSN documents' : 'GSNドキュメントの推奨設定'}
               </p>
               <p className="text-xs text-amber-700 dark:text-amber-300">
-                ・GSNにチェックを入れると，レポート構成にGSNセクションが追加されます．<br/>
-                ・GSNドキュメントは構造が重要なため，「全文使用」をONにすることを推奨します．
+                {language === 'en' 
+                  ? '• Checking GSN adds a GSN section to the report structure.\n• Since structure is important for GSN documents, we recommend enabling "Full Text".'
+                  : '・GSNにチェックを入れると，レポート構成にGSNセクションが追加されます．\n・GSNドキュメントは構造が重要なため，「全文使用」をONにすることを推奨します．'}
               </p>
             </div>
           )}
@@ -607,55 +616,85 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           {files.some(f => !f.metadata?.s3Key && f.content.length === 0) && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
               <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                一部のファイルからテキストを抽出できませんでした
+                {language === 'en' 
+                  ? 'Could not extract text from some files'
+                  : '一部のファイルからテキストを抽出できませんでした'}
               </p>
               <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
-                画像ベースのファイルの可能性があります。以下の方法をお試しください：
+                {language === 'en'
+                  ? 'These may be image-based files. Try the following:'
+                  : '画像ベースのファイルの可能性があります。以下の方法をお試しください：'}
               </p>
               <ul className="text-xs text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
-                <li>PDFを画像（PNG/JPG）として保存し、再アップロード</li>
-                <li>Google DriveでPDFを開き、Googleドキュメントに変換</li>
-                <li>Adobe AcrobatなどでOCR処理後、テキストPDFとして保存</li>
+                <li>{language === 'en' 
+                  ? 'Save PDF as image (PNG/JPG) and re-upload'
+                  : 'PDFを画像（PNG/JPG）として保存し、再アップロード'}</li>
+                <li>{language === 'en'
+                  ? 'Open PDF in Google Drive and convert to Google Docs'
+                  : 'Google DriveでPDFを開き、Googleドキュメントに変換'}</li>
+                <li>{language === 'en'
+                  ? 'Use Adobe Acrobat to OCR and save as text PDF'
+                  : 'Adobe AcrobatなどでOCR処理後、テキストPDFとして保存'}</li>
               </ul>
               
               {/* GSNファイル専用の案内 */}
               {files.some(f => f.name.includes('GSN') && f.content.length === 0) && (
                 <div className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
                   <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                    GSN図の場合の推奨方法：
+                    {language === 'en' ? 'Recommended method for GSN diagrams:' : 'GSN図の場合の推奨方法：'}
                   </p>
                   <ol className="text-xs text-yellow-700 dark:text-yellow-300 list-decimal list-inside space-y-1">
-                    <li>GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力</li>
+                    <li>{language === 'en'
+                      ? 'Manually enter GSN elements (G1, S1, C1, etc.) into a text file'
+                      : 'GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力'}</li>
                     <li>
-                      フォーマット例：
+                      {language === 'en' ? 'Format example:' : 'フォーマット例：'}
                       <pre className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs overflow-x-auto">
-{`G1: 実証実験期間中、安全に特定運行ができる
+{language === 'en' 
+  ? `G1: System can operate safely during demonstration period
+→ S1
+
+S1: Discussion divided into system safety and operational risk control
+→ G2, G3`
+  : `G1: 実証実験期間中、安全に特定運行ができる
 → S1
 
 S1: システム安全と運行時の残存リスク制御に分けた議論
 → G2, G3`}
                       </pre>
                     </li>
-                    <li>作成したテキストファイルをアップロード</li>
+                    <li>{language === 'en'
+                      ? 'Upload the created text file'
+                      : '作成したテキストファイルをアップロード'}</li>
                   </ol>
                   <a
                     href="#"
                     onClick={(e) => {
                       e.preventDefault();
-                      alert('GSNテキスト形式の詳細ガイド:\n\n' +
-                        '1. 各要素を「ID: 内容」の形式で記述\n' +
-                        '2. 接続は「→ 接続先ID」で表現\n' +
-                        '3. 複数接続は「→ ID1, ID2」\n\n' +
-                        '要素タイプ:\n' +
-                        'G: Goal（ゴール）\n' +
-                        'S: Strategy（戦略）\n' +
-                        'C: Context（コンテキスト）\n' +
-                        'Sn: Solution（ソリューション）'
+                      alert(language === 'en'
+                        ? 'GSN text format details:\n\n' +
+                          '1. Write each element as "ID: content"\n' +
+                          '2. Express connections as "→ target ID"\n' +
+                          '3. Multiple connections: "→ ID1, ID2"\n\n' +
+                          'Element types:\n' +
+                          'G: Goal\n' +
+                          'S: Strategy\n' +
+                          'C: Context\n' +
+                          'Sn: Solution'
+                        : 'GSNテキスト形式の詳細ガイド:\n\n' +
+                          '1. 各要素を「ID: 内容」の形式で記述\n' +
+                          '2. 接続は「→ 接続先ID」で表現\n' +
+                          '3. 複数接続は「→ ID1, ID2」\n\n' +
+                          '要素タイプ:\n' +
+                          'G: Goal（ゴール）\n' +
+                          'S: Strategy（戦略）\n' +
+                          'C: Context（コンテキスト）\n' +
+                          'Sn: Solution（ソリューション）'
                       );
                     }}
                     className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
                   >
-                    詳細なフォーマットガイドを見る
+                    {language === 'en' ? 'View detailed format guide' : '詳細なフォーマットガイドを見る'}
                   </a>
                 </div>
               )}

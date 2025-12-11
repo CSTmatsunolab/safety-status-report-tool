@@ -11,7 +11,8 @@ export enum RhetoricStrategy {
   NARRATIVE = 'ナラティブ型'
 }
 
-export const DEFAULT_REPORT_STRUCTURES: ReportStructureTemplate[] = [
+// 日本語版レポート構成
+export const DEFAULT_REPORT_STRUCTURES_JA: ReportStructureTemplate[] = [
   {
     id: 'executive',
     name: '経営向けレポート',
@@ -123,11 +124,134 @@ export const DEFAULT_REPORT_STRUCTURES: ReportStructureTemplate[] = [
   }
 ];
 
+// 英語版レポート構成
+export const DEFAULT_REPORT_STRUCTURES_EN: ReportStructureTemplate[] = [
+  {
+    id: 'executive',
+    name: 'Executive Report',
+    description: 'Focus on business impact and decision-making',
+    sections: [
+      'Executive Summary',
+      'Current State Analysis',
+      'Risk Assessment',
+      'Recommendations',
+      'Next Steps'
+    ],
+    gsnSections: [
+      'GSN Goal Achievement Summary',
+      'Key Risk Control Strategies'
+    ],
+    recommendedFor: ['cxo', 'business']
+  },
+  {
+    id: 'technical-detailed',
+    name: 'Technical Detailed Report',
+    description: 'Emphasis on technical rationale and implementation details',
+    sections: [
+      'Executive Summary',
+      'Technical Overview',
+      'System Architecture',
+      'Implementation Details',
+      'Test Results and Quality Metrics',
+      'Technical Risks and Mitigations',
+      'Future Improvement Proposals'
+    ],
+    gsnSections: [
+      'GSN Structure Analysis',
+      'Goal-Strategy-Evidence Mapping',
+      'Technical Gap Analysis'
+    ],
+    recommendedFor: ['technical-fellows', 'architect', 'r-and-d']
+  },
+  {
+    id: 'data-driven',
+    name: 'Data-Driven Report',
+    description: 'Quantitative analysis and measurable outcomes',
+    sections: [
+      'Executive Summary',
+      'Data Overview',
+      'Analysis Results',
+      'Insights',
+      'Recommendations',
+      'Implementation Plan'
+    ],
+    gsnSections: [
+      'Evidence Quantitative Evaluation',
+      'KPI Achievement Matrix'
+    ],
+    recommendedFor: ['cxo', 'business', 'finance', 'sales']
+  },
+  {
+    id: 'problem-solving',
+    name: 'Problem-Solving Report',
+    description: 'Root cause analysis and solutions',
+    sections: [
+      'Executive Summary',
+      'Problem Definition',
+      'Root Cause Analysis',
+      'Proposed Solutions',
+      'Implementation Roadmap',
+      'Expected Outcomes'
+    ],
+    gsnSections: [
+      'Unmet Goal Analysis',
+      'Mitigation Strategy Proposals'
+    ],
+    recommendedFor: ['product', 'risk-manager', 'qa', 'operations']
+  },
+  {
+    id: 'narrative',
+    name: 'Narrative Report',
+    description: 'Story-format progress explanation',
+    sections: [
+      'Executive Summary',
+      'Project History',
+      'Current Situation',
+      'Key Challenges',
+      'Proposed Direction',
+      'Action Plan'
+    ],
+    gsnSections: [
+      'GSN Development History',
+      'Phased Goal Achievement Status'
+    ],
+    recommendedFor: ['project-manager', 'marketing', 'hr']
+  },
+  {
+    id: 'risk-focused',
+    name: 'Risk-Focused Report',
+    description: 'Risk identification and mitigation strategies',
+    sections: [
+      'Executive Summary',
+      'Risk Summary',
+      'Detailed Risk Analysis',
+      'Risk Mitigation Measures',
+      'Residual Risk Assessment',
+      'Risk Management Plan'
+    ],
+    gsnSections: [
+      'GSN Context Analysis',
+      'Unresolved Assumptions List'
+    ],
+    recommendedFor: ['risk-manager', 'security', 'compliance', 'legal']
+  }
+];
+
+// 言語に応じたレポート構成を取得する関数
+export function getDefaultReportStructures(language: 'ja' | 'en' = 'ja'): ReportStructureTemplate[] {
+  return language === 'en' ? DEFAULT_REPORT_STRUCTURES_EN : DEFAULT_REPORT_STRUCTURES_JA;
+}
+
+// 後方互換性のため、日本語版をデフォルトとしてエクスポート
+export const DEFAULT_REPORT_STRUCTURES = DEFAULT_REPORT_STRUCTURES_JA;
+
 export function getRecommendedStructure(
   stakeholder: Stakeholder,
   strategy: RhetoricStrategy,
-  files: UploadedFile[]
+  files: UploadedFile[],
+  language: 'ja' | 'en' = 'ja'
 ): ReportStructureTemplate {
+  const structures = getDefaultReportStructures(language);
   
   // 1. レトリック戦略に基づく構成選択
   const strategyMap: { [key in RhetoricStrategy]: string } = {
@@ -140,10 +264,10 @@ export function getRecommendedStructure(
   };
   
   const strategyBasedId = strategyMap[strategy];
-  let selectedStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === strategyBasedId);
+  let selectedStructure = structures.find(s => s.id === strategyBasedId);
   
   // 2. ステークホルダー推奨構成のチェック
-  const recommendedStructure = DEFAULT_REPORT_STRUCTURES.find(s =>
+  const recommendedStructure = structures.find(s =>
     s.recommendedFor?.includes(stakeholder.id)
   );
   
@@ -154,23 +278,24 @@ export function getRecommendedStructure(
   }, 0);
   
   if (riskMentions > 20) {
-    const riskStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === 'risk-focused');
+    const riskStructure = structures.find(s => s.id === 'risk-focused');
     if (riskStructure) selectedStructure = riskStructure;
   }
   
   // 4. 優先順位: ステークホルダー推奨 > レトリック戦略ベース
-  return recommendedStructure || selectedStructure || DEFAULT_REPORT_STRUCTURES[0];
+  return recommendedStructure || selectedStructure || structures[0];
 }
 
 export function getSimpleRecommendedStructure(
   stakeholder: Stakeholder,
+  language: 'ja' | 'en' = 'ja'
 ): ReportStructureTemplate {
-
-  const stakeholderId = stakeholder.id; // IDを取得
+  const structures = getDefaultReportStructures(language);
+  const stakeholderId = stakeholder.id;
   const stakeholderRole = stakeholder.role;
 
   // ステークホルダーIDに基づいて推奨構成を検索
-  const recommended = DEFAULT_REPORT_STRUCTURES.find(structure =>
+  const recommended = structures.find(structure =>
     structure.recommendedFor?.includes(stakeholderId)
   );
   
@@ -181,7 +306,7 @@ export function getSimpleRecommendedStructure(
   // カスタムステークホルダーの場合、キーワードで判定
   if (stakeholderId.startsWith('custom_')) {
     const idLower = stakeholderId.toLowerCase();
-    const roleLower = stakeholderRole.toLowerCase(); // Roleの小文字も用意
+    const roleLower = stakeholderRole.toLowerCase();
 
     // リスク関連
     if (idLower.includes('risk') || roleLower.includes('リスク') ||
@@ -189,7 +314,7 @@ export function getSimpleRecommendedStructure(
         idLower.includes('qa') || roleLower.includes('品質') ||
         idLower.includes('danger') || roleLower.includes('危険')||
         idLower.includes('hazard') || roleLower.includes('脅威')) {
-      const riskStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === 'risk-focused');
+      const riskStructure = structures.find(s => s.id === 'risk-focused');
       if (riskStructure) return riskStructure;
     }
     
@@ -199,13 +324,13 @@ export function getSimpleRecommendedStructure(
         idLower.includes('dev') || roleLower.includes('開発') ||
         idLower.includes('r-and-d') || roleLower.includes('研究') ||
         idLower.includes('r_and_d')) { 
-      const techStructure = DEFAULT_REPORT_STRUCTURES.find(s => s.id === 'technical-detailed');
+      const techStructure = structures.find(s => s.id === 'technical-detailed');
       if (techStructure) return techStructure;
     }
   }
   
   // デフォルトは経営向けレポート
-  return DEFAULT_REPORT_STRUCTURES[0];
+  return structures[0];
 }
 
 export function buildFinalReportStructure(

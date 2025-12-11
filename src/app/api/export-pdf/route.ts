@@ -4,19 +4,24 @@ import { generatePDF } from '@/lib/pdf-exporter';
 
 export async function POST(request: NextRequest) {
   try {
-    const { report, options = {} }: { 
+    const { report, options = {}, language = 'ja' }: { 
       report: Report; 
       options?: {
         includeMetadata?: boolean;
         includeTimestamp?: boolean;
         watermark?: string;
-      }
+      };
+      language?: 'ja' | 'en';
     } = await request.json();
 
     console.log('PDF generation started for report:', report.title);
+    console.log('Language:', language);
 
-    // PDFを生成
-    const pdfBuffer = await generatePDF(report, options);
+    // PDFを生成（言語パラメータを渡す）
+    const pdfBuffer = await generatePDF(report, {
+      ...options,
+      language: language,
+    });
     
     console.log('PDF buffer size:', pdfBuffer.length);
     

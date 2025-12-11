@@ -11,6 +11,7 @@ import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report
 import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
 import { getDynamicK, saveRAGLog, type RAGLogData, type RRFStatistics } from '@/lib/rag-utils';
 import { buildCompleteUserPrompt } from '@/lib/report-prompts';
+import { buildCompleteUserPromptEN } from '@/lib/report-prompts-en';
 import { CustomStakeholderQueryEnhancer, debugQueryEnhancement } from '@/lib/query-enhancer';
 import { processGSNText } from '@/lib/text-processing';
 import { generateNamespace } from '@/lib/browser-id';
@@ -474,12 +475,13 @@ async function generateReportWithClaude(
 // メインのPOSTハンドラ
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholder, reportStructure, browserId }: { 
+    const { files, stakeholder, reportStructure, browserId, language = 'ja' }: { 
       files: UploadedFile[]; 
       stakeholder: Stakeholder;
       fullTextFileIds?: string[];
       reportStructure?: ReportStructureTemplate;
       browserId?: string;
+      language?: 'ja' | 'en';
     } = await request.json();
     
     if (!stakeholder) {
@@ -491,6 +493,7 @@ export async function POST(request: NextRequest) {
     
     const safeFiles = files || [];
     console.log('Generating report for:', stakeholder.role);
+    console.log('Language:', language);
     console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
 
     // ファイルの分類
@@ -551,8 +554,9 @@ export async function POST(request: NextRequest) {
       f.type === 'gsn' || (f.metadata as { isGSN?: boolean })?.isGSN
     );
 
-    // プロンプトの構築
-    const promptContent = buildCompleteUserPrompt({
+    // プロンプトの構築（言語に応じて切り替え）
+    const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
+    const promptContent = promptBuilder({
       stakeholder,
       strategy,
       contextContent,
@@ -565,12 +569,16 @@ export async function POST(request: NextRequest) {
     const reportContent = await generateReportWithClaude(promptContent);
 
     // レポートオブジェクトの作成
+    const reportTitle = language === 'en' 
+      ? `Safety Status Report for ${stakeholder.role}`
+      : `${stakeholder.role}向け Safety Status Report`;
+    
     const report: Report = {
       id: Math.random().toString(36).substr(2, 9),
-      title: `${stakeholder.role}向け Safety Status Report`,
+      title: reportTitle,
       stakeholder,
       content: reportContent,
-      rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder),
+      rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
       createdAt: new Date(),
       updatedAt: new Date()
     };

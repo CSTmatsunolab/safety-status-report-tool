@@ -1,6 +1,7 @@
 'use client';
 
 import { Stakeholder } from '@/types';
+import { useI18n } from './I18nProvider';
 
 interface StakeholderSelectProps {
   stakeholders: Stakeholder[];
@@ -13,6 +14,8 @@ export default function StakeholderSelect({
   selected, 
   onSelect 
 }: StakeholderSelectProps) {
+  const { language } = useI18n();
+  
   return (
     <div className="space-y-3">
       {stakeholders.map((stakeholder) => (
@@ -26,7 +29,9 @@ export default function StakeholderSelect({
         >
           <h3 className="font-semibold text-gray-900 dark:text-white">{stakeholder.role}</h3>
           <div className="mt-2">
-            <p className="text-sm text-gray-600 dark:text-gray-400">主な関心事:</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {language === 'en' ? 'Key concerns:' : '主な関心事:'}
+            </p>
             <ul className="mt-1 text-sm text-gray-700 dark:text-gray-300 list-disc list-inside">
               {stakeholder.concerns.map((concern, index) => (
                 <li key={index}>{concern}</li>

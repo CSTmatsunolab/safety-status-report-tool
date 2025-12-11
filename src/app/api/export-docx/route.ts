@@ -4,7 +4,15 @@ import { Report } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    const { report }: { report: Report } = await request.json();
+    const { report, language = 'ja' }: { report: Report; language?: 'ja' | 'en' } = await request.json();
+
+    // 言語に応じたラベル
+    const labels = language === 'en' 
+      ? { target: 'Target: ', strategy: 'Strategy: ', createdAt: 'Created: ' }
+      : { target: '対象: ', strategy: '戦略: ', createdAt: '作成日: ' };
+
+    // 日付フォーマット
+    const dateLocale = language === 'en' ? 'en-US' : 'ja-JP';
 
     // Word文書を作成
     const doc = new Document({
@@ -22,20 +30,20 @@ export async function POST(request: NextRequest) {
           // メタデータ
           new Paragraph({
             children: [
-              new TextRun({ text: "対象: ", bold: true }),
+              new TextRun({ text: labels.target, bold: true }),
               new TextRun(report.stakeholder.role),
             ],
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "戦略: ", bold: true }),
+              new TextRun({ text: labels.strategy, bold: true }),
               new TextRun(report.rhetoricStrategy),
             ],
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "作成日: ", bold: true }),
-              new TextRun(new Date(report.createdAt).toLocaleDateString('ja-JP')),
+              new TextRun({ text: labels.createdAt, bold: true }),
+              new TextRun(new Date(report.createdAt).toLocaleDateString(dateLocale)),
             ],
             spacing: { after: 400 }
           }),

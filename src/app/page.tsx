@@ -6,21 +6,24 @@ import Image from 'next/image';
 import { FileUpload } from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
-import { ThemeToggle } from './components/ThemeToggle';
+import { SettingsMenu } from './components/SettingsMenu';
+import { useI18n } from './components/I18nProvider';
 import { UploadedFile, Stakeholder, Report } from '@/types';
-import { PREDEFINED_STAKEHOLDERS } from '@/lib/stakeholders';
-import { FiDatabase, FiCheckCircle, FiLoader, FiSettings, FiTrash2 } from 'react-icons/fi';
+import { getPredefinedStakeholders } from '@/lib/stakeholders';
+import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2 } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { getBrowserId } from '@/lib/browser-id';
 
 export default function Home() {
+  const { t, language } = useI18n();
+  
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [generatedReport, setGeneratedReport] = useState<Report | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>(PREDEFINED_STAKEHOLDERS);
+  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [isKnowledgeBaseBuilding, setIsKnowledgeBaseBuilding] = useState(false);
   const [knowledgeBaseStatus, setKnowledgeBaseStatus] = useState<'idle' | 'building' | 'ready' | 'error'>('idle');
   const [selectedStructure, setSelectedStructure] = useState<ReportStructureTemplate | null>(null);
@@ -31,16 +34,36 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
 
+  // 言語が変わったらステークホルダーを更新
+  useEffect(() => {
+    const saved = localStorage.getItem('customStakeholders');
+    if (saved) {
+      try {
+        const customStakeholders = JSON.parse(saved) as Stakeholder[];
+        // カスタムステークホルダーがあるかチェック（custom_で始まるIDを持つもの）
+        const hasCustom = customStakeholders.some(s => s.id.startsWith('custom_'));
+        
+        if (hasCustom) {
+          // カスタムがある場合は、デフォルト部分だけ言語に応じて更新
+          const predefined = getPredefinedStakeholders(language);
+          const customOnly = customStakeholders.filter(s => s.id.startsWith('custom_'));
+          setStakeholders([...predefined, ...customOnly]);
+        } else {
+          // 保存されているのがデフォルトのみなら言語に応じて更新
+          setStakeholders(getPredefinedStakeholders(language));
+        }
+      } catch {
+        setStakeholders(getPredefinedStakeholders(language));
+      }
+    } else {
+      setStakeholders(getPredefinedStakeholders(language));
+    }
+  }, [language]);
+
   useEffect(() => {
     const id = getBrowserId();
     setBrowserId(id);
     console.log('Browser ID:', id);
-
-    // カスタムステークホルダーを読み込む
-    const saved = localStorage.getItem('customStakeholders');
-    if (saved) {
-      setStakeholders(JSON.parse(saved));
-    }
 
     // カスタム構成を読み込む
     const savedStructures = localStorage.getItem('customReportStructures');
@@ -127,11 +150,7 @@ export default function Home() {
     if (!selectedStakeholder || files.length === 0) return;
 
     if (knowledgeBaseStatus === 'idle' && !isTriggeredByReportGeneration) {
-      const confirmMessage = 
-        "「レポートを生成」ボタンを押すと、知識ベースは自動的に構築されます。\n\n" +
-        "今ここで手動で構築すると、レポート生成時に再度処理が実行されるため、基本的には不要です。\n" +
-        "（レポート生成をせずに、事前のデータ準備だけを行いたい場合は「OK」を押してください）\n\n" +
-        "続行しますか？";
+      const confirmMessage = t('knowledgeBase.confirmBuild');
       
       if (!confirm(confirmMessage)) {
         return;
@@ -157,23 +176,26 @@ export default function Home() {
       
       if (!response.ok) {
         // APIからのエラー詳細を取得
-        let errorMsg = '知識ベースの構築に失敗しました。\n\n';
+        let errorMsg = language === 'en' 
+          ? 'Failed to build knowledge base.\n\n'
+          : '知識ベースの構築に失敗しました。\n\n';
         
         if (result.error) {
-          errorMsg += `エラー: ${result.error}\n`;
+          errorMsg += language === 'en' ? `Error: ${result.error}\n` : `エラー: ${result.error}\n`;
         }
         if (result.details) {
-          errorMsg += `詳細: ${result.details}\n`;
+          errorMsg += language === 'en' ? `Details: ${result.details}\n` : `詳細: ${result.details}\n`;
         }
         
         // よくあるエラーに対する具体的なアドバイス
         if (result.details?.includes('quota') || result.details?.includes('Quota')) {
-          errorMsg += '\n【対処法】使用制限を超えています。\n';
-          errorMsg += '「全文使用」をONにしてRAGを使わずに生成してください';
+          errorMsg += language === 'en'
+            ? '\n[Solution] Usage limit exceeded.\nEnable "Use Full Text" to generate without RAG.'
+            : '\n【対処法】使用制限を超えています。\n「全文使用」をONにしてRAGを使わずに生成してください';
         } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
-          errorMsg += '\n【対処法】処理がタイムアウトしました。\n';
-          errorMsg += '・ファイルサイズを小さくしてください\n';
-          errorMsg += '・ファイル数を減らしてください';
+          errorMsg += language === 'en'
+            ? '\n[Solution] Processing timed out.\n• Reduce file size\n• Reduce number of files'
+            : '\n【対処法】処理がタイムアウトしました。\n・ファイルサイズを小さくしてください\n・ファイル数を減らしてください';
         }
         
         setErrorMessage(errorMsg);
@@ -196,7 +218,7 @@ export default function Home() {
       setKnowledgeBaseStatus('error');
       
       if (!errorMessage) {
-        setErrorMessage('知識ベースの構築に失敗しました。');
+        setErrorMessage(t('knowledgeBase.buildFailed'));
       }
     } finally {
       setIsKnowledgeBaseBuilding(false);
@@ -230,21 +252,18 @@ export default function Home() {
       
       let confirmMessage;
       if (hasData) {
-        confirmMessage = 
-          `【知識ベースの削除確認】\n\n` +
-          `対象: ${selectedStakeholder.role}\n` +
-          `現在のデータ: ${vectorCount.toLocaleString()} ベクトル\n\n` +
-          `⚠️ この操作は取り消せません。本当に削除しますか？`;
+        confirmMessage = t('knowledgeBase.confirmDelete', {
+          role: selectedStakeholder.role,
+          count: vectorCount.toLocaleString()
+        });
       } else if (knowledgeBaseStatus === 'ready') {
-        confirmMessage = 
-          `【知識ベースのリセット確認】\n\n` +
-          `対象: ${selectedStakeholder.role}\n` +
-          `データをリセットしますか？`;
+        confirmMessage = t('knowledgeBase.confirmReset', {
+          role: selectedStakeholder.role
+        });
       } else {
-        confirmMessage = 
-          `【データベースのクリア確認】\n\n` +
-          `対象: ${selectedStakeholder.role}\n` +
-          `念のためクリア処理を実行しますか？`;
+        confirmMessage = t('knowledgeBase.confirmClear', {
+          role: selectedStakeholder.role
+        });
       }
       
       if (!confirm(confirmMessage)) {
@@ -277,24 +296,22 @@ export default function Home() {
       setKnowledgeBaseStatus('idle');
       
       if (result.wasAlreadyEmpty) {
-        alert(`${selectedStakeholder.role}の知識ベースは既にクリアされています。`);
+        alert(t('knowledgeBase.alreadyCleared', { role: selectedStakeholder.role }));
       } else if (hasData) {
-        alert(
-          `削除完了\n\n` +
-          `対象: ${selectedStakeholder.role}\n` +
-          `削除されたデータ: ${vectorCount.toLocaleString()} ベクトル\n` +
-          `残りのベクトル: ${result.remainingVectors || 0}`
-        );
+        alert(t('knowledgeBase.deleteComplete', {
+          role: selectedStakeholder.role,
+          count: vectorCount.toLocaleString(),
+          remaining: result.remainingVectors || 0
+        }));
       } else {
-        alert(`${selectedStakeholder.role}の知識ベースをクリアしました。`);
+        alert(t('knowledgeBase.cleared', { role: selectedStakeholder.role }));
       }
       
     } catch (error) {
       console.error('Knowledge base deletion error:', error);
-      alert(
-        `削除に失敗しました\n\n` +
-        `エラー: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
+      alert(t('knowledgeBase.deleteFailed', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }));
     } finally {
       setIsDeleting(false);
     }
@@ -332,16 +349,17 @@ export default function Home() {
         .map(f => {
           const metadata = f.metadata as { originalContentLength?: number };
           const contentLength = metadata?.originalContentLength || f.content.length;
-          return `・${f.name}（${contentLength.toLocaleString()}文字）`;
+          return language === 'en'
+            ? `• ${f.name} (${contentLength.toLocaleString()} chars)`
+            : `・${f.name}（${contentLength.toLocaleString()}文字）`;
         })
         .join('\n');
-      const proceed = confirm(
-        `【確認】以下の全文使用ファイルは5万文字を超えています：\n\n` +
-        `${fileList}\n\n` +
-        `これらのファイルは5万文字まで切り詰められます。\n` +
-        `続行しますか？`
-      );
-      if (!proceed) return;
+      
+      const confirmMsg = language === 'en'
+        ? `[Confirmation] The following full-text files exceed 50,000 characters:\n\n${fileList}\n\nThese files will be truncated to 50,000 characters.\nContinue?`
+        : `【確認】以下の全文使用ファイルは5万文字を超えています：\n\n${fileList}\n\nこれらのファイルは5万文字まで切り詰められます。\n続行しますか？`;
+      
+      if (!confirm(confirmMsg)) return;
     }
 
     // 大きいファイル（5万文字以上またはS3保存）の数をチェック
@@ -352,13 +370,11 @@ export default function Home() {
     });
 
     if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
-      const proceed = confirm(
-        `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n` +
-        `処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n` +
-        `残りのファイルはRAGで関連部分のみ抽出されます。\n\n` +
-        `続行しますか？`
-      );
-      if (!proceed) return;
+      const confirmMsg = language === 'en'
+        ? `[Warning] ${largeFullTextFiles.length} large files (50,000+ chars or S3 stored) are selected for full text use.\n\nTo reduce processing load, only the first ${MAX_LARGE_FULL_TEXT_FILES} will use full text.\nThe rest will use RAG to extract relevant parts.\n\nContinue?`
+        : `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n残りのファイルはRAGで関連部分のみ抽出されます。\n\n続行しますか？`;
+      
+      if (!confirm(confirmMsg)) return;
     }
     
     setIsGenerating(true);
@@ -374,32 +390,37 @@ export default function Home() {
             .map(file => file.id),
           reportStructure: selectedStructure,
           browserId: browserId,
+          language: language, // 言語設定をAPIに渡す
         }),
       });
 
       const result = await response.json();
 
       if (!response.ok) {
-        let errorMsg = 'レポート生成に失敗しました。\n\n';
+        let errorMsg = language === 'en'
+          ? 'Report generation failed.\n\n'
+          : 'レポート生成に失敗しました。\n\n';
         
         if (result.error) {
-          errorMsg += `エラー: ${result.error}\n`;
+          errorMsg += language === 'en' ? `Error: ${result.error}\n` : `エラー: ${result.error}\n`;
         }
         if (result.details) {
-          errorMsg += `詳細: ${result.details}\n`;
+          errorMsg += language === 'en' ? `Details: ${result.details}\n` : `詳細: ${result.details}\n`;
         }
         
         // よくあるエラーに対する具体的なアドバイス
         if (result.details?.includes('quota') || result.details?.includes('Quota')) {
-          errorMsg += '\n【対処法】使用制限を超えています。\n';
+          errorMsg += language === 'en'
+            ? '\n[Solution] Usage limit exceeded.'
+            : '\n【対処法】使用制限を超えています。';
         } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
-          errorMsg += '\n【対処法】処理がタイムアウトしました。\n';
-          errorMsg += '・ファイルサイズを小さくしてください\n';
-          errorMsg += '・全文使用ファイル数を減らしてください';
+          errorMsg += language === 'en'
+            ? '\n[Solution] Processing timed out.\n• Reduce file size\n• Reduce number of full-text files'
+            : '\n【対処法】処理がタイムアウトしました。\n・ファイルサイズを小さくしてください\n・全文使用ファイル数を減らしてください';
         } else if (result.details?.includes('context') || result.details?.includes('token')) {
-          errorMsg += '\n【対処法】入力データが大きすぎます。\n';
-          errorMsg += '・全文使用ファイル数を減らしてください\n';
-          errorMsg += '・ファイルサイズを小さくしてください';
+          errorMsg += language === 'en'
+            ? '\n[Solution] Input data too large.\n• Reduce number of full-text files\n• Reduce file size'
+            : '\n【対処法】入力データが大きすぎます。\n・全文使用ファイル数を減らしてください\n・ファイルサイズを小さくしてください';
         }
         
         setErrorMessage(errorMsg);
@@ -415,7 +436,7 @@ export default function Home() {
     } catch (error) {
       console.error('Report generation failed:', error);
       if (!errorMessage) {
-        setErrorMessage('レポート生成に失敗しました。');
+        setErrorMessage(t('report.generationFailed'));
       }
     } finally {
       setIsGenerating(false);
@@ -427,9 +448,10 @@ export default function Home() {
     setKnowledgeBaseStatus('idle');
     setIsDeleting(false);
     
-    // 推奨構成を取得して設定
+    // 推奨構成を取得して設定（言語を渡す）
     const recommended = getSimpleRecommendedStructure(
-      stakeholder
+      stakeholder,
+      language
     );
     setRecommendedStructureId(recommended.id);
     setSelectedStructure(recommended); // 自動選択
@@ -447,20 +469,13 @@ export default function Home() {
               className="flex items-center gap-3" 
             >
               <span>
-                Safety Status Report 自動生成ツール
+                {t('app.title')}
               </span>
             </Link>
 
           </h1>
-          <div className="flex items-center gap-4">
-            <Link 
-              href="/stakeholder-settings" 
-              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 text-base sm:text-lg transition-colors hover:underline">
-              <FiSettings className="text-lg sm:text-xl" />
-              <span>ステークホルダー設定</span>
-            </Link>
-            <ThemeToggle />
-          </div>
+          {/* ハンバーガーメニュー（設定をまとめて配置） */}
+          <SettingsMenu />
         </div>
         
         {/* メインコンテンツ - 2カラムグリッド */}
@@ -474,7 +489,7 @@ export default function Home() {
                   ? 'text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-500'
               }`}>
-                1. データアップロード
+                {t('steps.dataUpload')}
               </h2>
               <FileUpload 
                 onUpload={handleFileUpload} 
@@ -492,7 +507,7 @@ export default function Home() {
                   ? 'text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-500'
               }`}>
-                2. ステークホルダー選択<span className="text-red-500 dark:text-red-400">*</span>
+                {t('steps.stakeholderSelect')}<span className="text-red-500 dark:text-red-400">*</span>
               </h2>
               <StakeholderSelect
                 stakeholders={stakeholders}
@@ -505,7 +520,7 @@ export default function Home() {
                   
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      RAG知識ベース
+                      {t('knowledgeBase.title')}
                     </span>
                     
                     <div className="flex items-center gap-3">
@@ -517,20 +532,20 @@ export default function Home() {
                           className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                         >
                           <FiDatabase />
-                          構築する
+                          {t('knowledgeBase.build')}
                         </button>
                       )}
                       
                       {knowledgeBaseStatus === 'idle' && files.length === 0 && (
                         <span className="text-sm text-gray-500 dark:text-gray-400">
-                          構築はファイルが必要
+                          {t('knowledgeBase.needsFiles')}
                         </span>
                       )}
                       
                       {knowledgeBaseStatus === 'building' && (
                         <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
                           <FiLoader className="animate-spin" />
-                          構築中...
+                          {t('knowledgeBase.building')}
                         </span>
                       )}
                       
@@ -538,17 +553,17 @@ export default function Home() {
                         <>
                           <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
                             <FiCheckCircle />
-                            準備完了
+                            {t('knowledgeBase.ready')}
                           </span>
                           {files.length > 0 && (
                             <button
                               onClick={() => buildKnowledgeBase()}
                               disabled={isKnowledgeBaseBuilding || isDeleting}
                               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
-                              title="知識ベースを再構築"
+                              title={t('knowledgeBase.rebuild')}
                             >
                               <FiDatabase />
-                              再構築
+                              {t('knowledgeBase.rebuild')}
                             </button>
                           )}
                         </>
@@ -557,17 +572,17 @@ export default function Home() {
                       {knowledgeBaseStatus === 'error' && (
                         <>
                           <span className="text-sm text-red-600 dark:text-red-400">
-                            エラー
+                            {t('knowledgeBase.error')}
                           </span>
                           {files.length > 0 && (
                             <button
                               onClick={() => buildKnowledgeBase()}
                               disabled={isKnowledgeBaseBuilding || isDeleting}
                               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
-                              title="再試行"
+                              title={t('knowledgeBase.retry')}
                             >
                               <FiDatabase />
-                              再試行
+                              {t('knowledgeBase.retry')}
                             </button>
                           )}
                         </>
@@ -577,14 +592,14 @@ export default function Home() {
                         onClick={deleteKnowledgeBase}
                         disabled={isDeleting || isKnowledgeBaseBuilding}
                         className="p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={`${selectedStakeholder.role}の知識ベースをリセット`}
+                        title={`${t('knowledgeBase.dataReset')} - ${selectedStakeholder.role}`}
                       >
                         {isDeleting ? (
                           <FiLoader className="w-4 h-4 animate-spin" />
                         ) : (
                           <span className="flex items-center gap-1">
                             <FiTrash2 className="w-4 h-4" />
-                            データリセット                         
+                            {t('knowledgeBase.dataReset')}
                           </span>
                         )}
                       </button>
@@ -593,15 +608,17 @@ export default function Home() {
                   
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
                     <p>
-                      <span className="font-medium text-gray-600 dark:text-gray-300">ステークホルダー : {selectedStakeholder.role}</span> 
+                      <span className="font-medium text-gray-600 dark:text-gray-300">
+                        {t('knowledgeBase.stakeholder')}: {selectedStakeholder.role}
+                      </span> 
                     </p>
                     <p>
-                      RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します
+                      {t('knowledgeBase.description')}
                     </p>
                     {/* ステータスに応じた追加メッセージ */}
                     {knowledgeBaseStatus === 'idle' && files.length === 0 && (
                       <p className="text-amber-600 dark:text-amber-400">
-                        構築にはファイルのアップロードが必要です。削除はいつでも実行できます。
+                        {t('knowledgeBase.needsUpload')}
                       </p>
                     )}
                   </div>
@@ -618,7 +635,7 @@ export default function Home() {
                     ? 'text-gray-900 dark:text-white' 
                     : 'text-gray-400 dark:text-gray-500'
                 }`}>
-                  3. レポート構成を選択
+                  {t('steps.reportStructure')}
                 </h2>
                 <ReportStructureSelector
                   selectedStructure={selectedStructure}
@@ -637,7 +654,9 @@ export default function Home() {
               <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h4 className="text-red-800 dark:text-red-200 font-medium mb-2">エラーが発生しました</h4>
+                    <h4 className="text-red-800 dark:text-red-200 font-medium mb-2">
+                      {language === 'en' ? 'An error occurred' : 'エラーが発生しました'}
+                    </h4>
                     <pre className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{errorMessage}</pre>
                   </div>
                   <button
@@ -655,7 +674,9 @@ export default function Home() {
               <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h4 className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">警告</h4>
+                    <h4 className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+                      {language === 'en' ? 'Warning' : '警告'}
+                    </h4>
                     <ul className="text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
                       {warningMessages.map((msg, index) => (
                         <li key={index}>{msg}</li>
@@ -688,7 +709,7 @@ export default function Home() {
                 }
               `}
             >
-              {isGenerating ? 'レポート生成中...' : 'レポートを生成'}
+              {isGenerating ? t('report.generating') : t('report.generate')}
             </button>
           </div>
           
@@ -700,7 +721,7 @@ export default function Home() {
                   ? 'text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-500'
               }`}>
-                レポートプレビュー
+                {t('report.preview')}
               </h2>
               {generatedReport ? (
                 <ReportPreview 
@@ -712,13 +733,13 @@ export default function Home() {
                   <div className="text-gray-400 dark:text-gray-500 space-y-2">
                     <Image
                       src="/file.svg"
-                      alt="レポートプレビューアイコン"
+                      alt={language === 'en' ? 'Report Preview Icon' : 'レポートプレビューアイコン'}
                       width={32}
                       height={32}
                       className="mx-auto mb-4 opacity-50 dark:opacity-90"
                     />
-                    <p className="text-sm sm:text-base">レポートが生成されると</p>
-                    <p className="text-sm sm:text-base">ここに表示されます</p>
+                    <p className="text-sm sm:text-base">{t('report.previewEmpty')}</p>
+                    <p className="text-sm sm:text-base">{t('report.previewEmptyHint')}</p>
                   </div>
                 </div>
               )}

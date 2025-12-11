@@ -24,13 +24,17 @@ export function determineAdvancedRhetoricStrategy(stakeholder: Stakeholder): Rhe
   }
   
   // カスタムステークホルダー用の判定
-  if (role.includes('技術') || role.includes('エンジニア') || role.includes('開発')) {
+  if (role.includes('技術') || role.includes('エンジニア') || role.includes('開発') ||
+      role.includes('technical') || role.includes('engineer') || role.includes('development')) {
     return RhetoricStrategy.LOGICAL_REASONING;
-  } else if (role.includes('営業') || role.includes('マーケティング')) {
+  } else if (role.includes('営業') || role.includes('マーケティング') ||
+             role.includes('sales') || role.includes('marketing')) {
     return RhetoricStrategy.EMOTIONAL_APPEAL;
-  } else if (concerns.includes('リスク') || concerns.includes('安全')) {
+  } else if (concerns.includes('リスク') || concerns.includes('安全') ||
+             concerns.includes('risk') || concerns.includes('safety')) {
     return RhetoricStrategy.PROBLEM_SOLUTION;
-  } else if (role.includes('プロジェクト') || role.includes('pm')) {
+  } else if (role.includes('プロジェクト') || role.includes('pm') ||
+             role.includes('project')) {
     return RhetoricStrategy.NARRATIVE;
   }
   
@@ -39,14 +43,15 @@ export function determineAdvancedRhetoricStrategy(stakeholder: Stakeholder): Rhe
 }
 
 /**
- * レトリック戦略の表示名を取得
+ * レトリック戦略の表示名を取得（言語対応）
  */
 export function getRhetoricStrategyDisplayName(
   strategy: RhetoricStrategy, 
-  stakeholder: Stakeholder
+  stakeholder: Stakeholder,
+  language: 'ja' | 'en' = 'ja'
 ): string {
-  // デフォルトステークホルダー用の表示名
-  const displayNameMap: { [key: string]: string } = {
+  // 日本語の表示名
+  const displayNameMapJA: { [key: string]: string } = {
     'technical-fellows': '技術的卓越性重視型',
     'architect': 'システム設計重視型',
     'r-and-d': '技術的詳細重視型',
@@ -54,15 +59,36 @@ export function getRhetoricStrategyDisplayName(
     'business': 'ビジネスインパクト重視型',
     'product': '製品価値訴求型'
   };
+
+  // 英語の表示名
+  const displayNameMapEN: { [key: string]: string } = {
+    'technical-fellows': 'Technical Excellence Focus',
+    'architect': 'System Design Focus',
+    'r-and-d': 'Technical Detail Focus',
+    'cxo': 'Strategic Value Focus',
+    'business': 'Business Impact Focus',
+    'product': 'Product Value Appeal'
+  };
+
+  const displayNameMap = language === 'en' ? displayNameMapEN : displayNameMapJA;
   
   // カスタムステークホルダー用の細かい戦略名
   if (stakeholder.id.startsWith('custom_')) {
     const role = stakeholder.role.toLowerCase();
-    if (role.includes('品質') || role.includes('qa')) return '品質重視型';
-    if (role.includes('財務') || role.includes('経理')) return '財務インパクト重視型';
-    if (role.includes('法務') || role.includes('コンプライアンス')) return '規制・法令遵守重視型';
-    if (role.includes('人事') || role.includes('hr')) return '人材・組織重視型';
-    if (role.includes('顧客') || role.includes('カスタマー')) return '顧客価値重視型';
+    
+    if (language === 'en') {
+      if (role.includes('品質') || role.includes('qa') || role.includes('quality')) return 'Quality Focus';
+      if (role.includes('財務') || role.includes('経理') || role.includes('finance')) return 'Financial Impact Focus';
+      if (role.includes('法務') || role.includes('コンプライアンス') || role.includes('legal') || role.includes('compliance')) return 'Regulatory Compliance Focus';
+      if (role.includes('人事') || role.includes('hr') || role.includes('human')) return 'HR & Organization Focus';
+      if (role.includes('顧客') || role.includes('カスタマー') || role.includes('customer')) return 'Customer Value Focus';
+    } else {
+      if (role.includes('品質') || role.includes('qa') || role.includes('quality')) return '品質重視型';
+      if (role.includes('財務') || role.includes('経理') || role.includes('finance')) return '財務インパクト重視型';
+      if (role.includes('法務') || role.includes('コンプライアンス') || role.includes('legal') || role.includes('compliance')) return '規制・法令遵守重視型';
+      if (role.includes('人事') || role.includes('hr') || role.includes('human')) return '人材・組織重視型';
+      if (role.includes('顧客') || role.includes('カスタマー') || role.includes('customer')) return '顧客価値重視型';
+    }
   }
   
   // デフォルトステークホルダーの場合は事前定義された名前を返す
@@ -70,18 +96,75 @@ export function getRhetoricStrategyDisplayName(
     return displayNameMap[stakeholder.id];
   }
   
-  // それ以外はEnum値をそのまま使用
+  // それ以外はEnum値の言語対応版を返す
+  const strategyNameMapEN: { [key in RhetoricStrategy]: string } = {
+    [RhetoricStrategy.DATA_DRIVEN]: 'Data-Driven',
+    [RhetoricStrategy.EMOTIONAL_APPEAL]: 'Emotional Appeal',
+    [RhetoricStrategy.LOGICAL_REASONING]: 'Logical Reasoning',
+    [RhetoricStrategy.AUTHORITY_BASED]: 'Authority-Based',
+    [RhetoricStrategy.PROBLEM_SOLUTION]: 'Problem-Solution',
+    [RhetoricStrategy.NARRATIVE]: 'Narrative'
+  };
+
+  if (language === 'en') {
+    return strategyNameMapEN[strategy] || strategy;
+  }
+  
   return strategy;
 }
 
 /**
- * 戦略に応じたレポート構成を決定
+ * 戦略に応じたレポート構成を決定（言語対応）
  */
 export function determineReportStructure(
   stakeholder: Stakeholder,
-  strategy: RhetoricStrategy
+  strategy: RhetoricStrategy,
+  language: 'ja' | 'en' = 'ja'
 ): string[] {
-  // 戦略に応じて構成を調整
+  if (language === 'en') {
+    switch (strategy) {
+      case RhetoricStrategy.DATA_DRIVEN:
+        return [
+          'Executive Summary',
+          'Data Overview',
+          'Analysis Results',
+          'Insights',
+          'Recommendations',
+          'Implementation Plan'
+        ];
+        
+      case RhetoricStrategy.PROBLEM_SOLUTION:
+        return [
+          'Executive Summary',
+          'Problem Definition',
+          'Root Cause Analysis',
+          'Proposed Solutions',
+          'Implementation Roadmap',
+          'Expected Outcomes'
+        ];
+        
+      case RhetoricStrategy.NARRATIVE:
+        return [
+          'Executive Summary',
+          'Project History',
+          'Current Situation',
+          'Key Challenges',
+          'Proposed Direction',
+          'Action Plan'
+        ];
+        
+      default:
+        return [
+          'Executive Summary',
+          'Current State Analysis',
+          'Risk Assessment',
+          'Recommendations',
+          'Next Steps'
+        ];
+    }
+  }
+
+  // 日本語版
   switch (strategy) {
     case RhetoricStrategy.DATA_DRIVEN:
       return [
