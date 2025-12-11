@@ -1,0 +1,112 @@
+{
+  "app": {
+    "title": "Safety Status Report Generator"
+  },
+  "menu": {
+    "stakeholderSettings": "Stakeholder Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System"
+  },
+  "steps": {
+    "dataUpload": "1. Data Upload",
+    "stakeholderSelect": "2. Select Stakeholder",
+    "reportStructure": "3. Select Report Structure"
+  },
+  "fileUpload": {
+    "dropzone": "Drop files here or click to upload",
+    "supportedFormats": "Supported formats: PDF, DOCX, TXT, CSV, JSON, Markdown",
+    "uploadedFiles": "Uploaded Files",
+    "noFiles": "No files uploaded",
+    "includeFullText": "Include full text",
+    "markAsGSN": "Mark as GSN",
+    "remove": "Remove"
+  },
+  "knowledgeBase": {
+    "title": "RAG Knowledge Base",
+    "build": "Build",
+    "rebuild": "Rebuild",
+    "retry": "Retry",
+    "building": "Building...",
+    "ready": "Ready",
+    "error": "Error",
+    "needsFiles": "Files required to build",
+    "dataReset": "Reset Data",
+    "stakeholder": "Stakeholder",
+    "description": "Using RAG to extract relevant information from documents and generate reports",
+    "needsUpload": "File upload is required for building. Data reset can be performed anytime.",
+    "confirmBuild": "The knowledge base will be automatically built when you click \"Generate Report\".\n\nBuilding manually here is usually unnecessary as it will run again during report generation.\n(Click \"OK\" if you want to prepare data without generating a report)\n\nContinue?",
+    "buildFailed": "Failed to build knowledge base.",
+    "confirmDelete": "【Delete Knowledge Base】\n\nTarget: {role}\nCurrent data: {count} vectors\n\n⚠️ This action cannot be undone. Are you sure?",
+    "confirmReset": "【Reset Knowledge Base】\n\nTarget: {role}\nReset data?",
+    "confirmClear": "【Clear Database】\n\nTarget: {role}\nExecute clear operation?",
+    "alreadyCleared": "Knowledge base for {role} is already cleared.",
+    "deleteComplete": "Delete Complete\n\nTarget: {role}\nDeleted: {count} vectors\nRemaining: {remaining}",
+    "cleared": "Cleared knowledge base for {role}.",
+    "deleteFailed": "Delete failed\n\nError: {error}"
+  },
+  "report": {
+    "generate": "Generate Report",
+    "generating": "Generating Report...",
+    "preview": "Report Preview",
+    "previewEmpty": "Generated report will",
+    "previewEmptyHint": "appear here",
+    "generationFailed": "Report generation failed",
+    "export": "Export",
+    "exportPDF": "Export PDF",
+    "exportWord": "Export Word",
+    "copy": "Copy",
+    "edit": "Edit"
+  },
+  "stakeholders": {
+    "required": "Required",
+    "select": "Please select",
+    "custom": "Custom",
+    "predefined": {
+      "cxo": {
+        "role": "CxO / Executive",
+        "concerns": ["Strategic alignment", "Corporate value impact", "Risk management", "Stakeholder accountability"]
+      },
+      "technical-fellows": {
+        "role": "Technical Fellows",
+        "concerns": ["Technical excellence", "Best practice adoption", "Long-term tech strategy", "Technical innovation"]
+      },
+      "architect": {
+        "role": "Architect",
+        "concerns": ["System design integrity", "Scalability", "Technical debt", "Architecture maintainability"]
+      },
+      "business": {
+        "role": "Business Division",
+        "concerns": ["Business impact", "ROI and profitability", "Market share", "Business risk"]
+      },
+      "product": {
+        "role": "Product Division",
+        "concerns": ["Product quality and safety", "Market competitiveness", "Usability", "Product launch timeline"]
+      },
+      "r-and-d": {
+        "role": "R&D Division",
+        "concerns": ["Technical feasibility", "Development resource efficiency", "Innovation opportunities", "Technical risks and challenges"]
+      }
+    }
+  },
+  "reportStructure": {
+    "recommended": "Recommended",
+    "custom": "Custom Structure",
+    "addCustom": "Add Custom Structure",
+    "delete": "Delete"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "close": "Close",
+    "confirm": "Confirm",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success"
+  }
+}

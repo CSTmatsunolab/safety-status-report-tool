@@ -47,3 +47,6 @@ next-env.d.ts
 # log/* */
 logs/
 *.log
+
+# json /* */
+!src/locales/*.json

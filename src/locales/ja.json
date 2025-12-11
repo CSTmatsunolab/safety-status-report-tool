@@ -1,0 +1,112 @@
+{
+  "app": {
+    "title": "Safety Status Report 自動生成ツール"
+  },
+  "menu": {
+    "stakeholderSettings": "ステークホルダー設定",
+    "language": "言語",
+    "theme": "テーマ",
+    "themeLight": "ライト",
+    "themeDark": "ダーク",
+    "themeSystem": "システム"
+  },
+  "steps": {
+    "dataUpload": "1. データアップロード",
+    "stakeholderSelect": "2. ステークホルダー選択",
+    "reportStructure": "3. レポート構成を選択"
+  },
+  "fileUpload": {
+    "dropzone": "ここにファイルをドロップまたはクリック",
+    "supportedFormats": "対応形式: PDF, DOCX, TXT, CSV, JSON, Markdown",
+    "uploadedFiles": "アップロード済みファイル",
+    "noFiles": "ファイルがありません",
+    "includeFullText": "全文を含める",
+    "markAsGSN": "GSNとしてマーク",
+    "remove": "削除"
+  },
+  "knowledgeBase": {
+    "title": "RAG知識ベース",
+    "build": "構築する",
+    "rebuild": "再構築",
+    "retry": "再試行",
+    "building": "構築中...",
+    "ready": "準備完了",
+    "error": "エラー",
+    "needsFiles": "構築はファイルが必要",
+    "dataReset": "データリセット",
+    "stakeholder": "ステークホルダー",
+    "description": "RAGを使用することで、大量のドキュメントから関連情報のみを抽出してレポートを生成します",
+    "needsUpload": "構築にはファイルのアップロードが必要です。削除はいつでも実行できます。",
+    "confirmBuild": "「レポートを生成」ボタンを押すと、知識ベースは自動的に構築されます。\n\n今ここで手動で構築すると、レポート生成時に再度処理が実行されるため、基本的には不要です。\n（レポート生成をせずに、事前のデータ準備だけを行いたい場合は「OK」を押してください）\n\n続行しますか？",
+    "buildFailed": "知識ベースの構築に失敗しました。",
+    "confirmDelete": "【知識ベースの削除確認】\n\n対象: {role}\n現在のデータ: {count} ベクトル\n\n⚠️ この操作は取り消せません。本当に削除しますか？",
+    "confirmReset": "【知識ベースのリセット確認】\n\n対象: {role}\nデータをリセットしますか？",
+    "confirmClear": "【データベースのクリア確認】\n\n対象: {role}\n念のためクリア処理を実行しますか？",
+    "alreadyCleared": "{role}の知識ベースは既にクリアされています。",
+    "deleteComplete": "削除完了\n\n対象: {role}\n削除されたデータ: {count} ベクトル\n残りのベクトル: {remaining}",
+    "cleared": "{role}の知識ベースをクリアしました。",
+    "deleteFailed": "削除に失敗しました\n\nエラー: {error}"
+  },
+  "report": {
+    "generate": "レポートを生成",
+    "generating": "レポート生成中...",
+    "preview": "レポートプレビュー",
+    "previewEmpty": "レポートが生成されると",
+    "previewEmptyHint": "ここに表示されます",
+    "generationFailed": "レポート生成に失敗しました",
+    "export": "エクスポート",
+    "exportPDF": "PDF出力",
+    "exportWord": "Word出力",
+    "copy": "コピー",
+    "edit": "編集"
+  },
+  "stakeholders": {
+    "required": "必須",
+    "select": "選択してください",
+    "custom": "カスタム",
+    "predefined": {
+      "cxo": {
+        "role": "CxO / 経営層",
+        "concerns": ["戦略的整合性", "企業価値への影響", "リスク管理", "ステークホルダーへの説明責任"]
+      },
+      "technical-fellows": {
+        "role": "Technical Fellows / 技術専門家",
+        "concerns": ["技術的な卓越性", "ベストプラクティスの適用", "長期的な技術戦略", "技術的イノベーション"]
+      },
+      "architect": {
+        "role": "Architect / アーキテクト",
+        "concerns": ["システム設計の整合性", "スケーラビリティ", "技術的負債", "アーキテクチャの保守性"]
+      },
+      "business": {
+        "role": "Business Division / 事業部門",
+        "concerns": ["ビジネスインパクト", "ROIと収益性", "市場シェア", "事業リスク"]
+      },
+      "product": {
+        "role": "Product Division / 製品部門",
+        "concerns": ["製品の品質と安全性", "市場競争力", "ユーザビリティ", "製品化のタイムライン"]
+      },
+      "r-and-d": {
+        "role": "R&D Division / 研究開発部門",
+        "concerns": ["技術的な実現可能性", "開発リソースの効率性", "イノベーションの機会", "技術的リスクと課題"]
+      }
+    }
+  },
+  "reportStructure": {
+    "recommended": "推奨",
+    "custom": "カスタム構成",
+    "addCustom": "カスタム構成を追加",
+    "delete": "削除"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "edit": "編集",
+    "add": "追加",
+    "close": "閉じる",
+    "confirm": "確認",
+    "loading": "読み込み中...",
+    "error": "エラー",
+    "success": "成功"
+  }
+}
