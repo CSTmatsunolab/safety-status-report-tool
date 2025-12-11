@@ -6,6 +6,20 @@ frontend:
         - npm ci --cache .npm --prefer-offline
     build:
       commands:
+        - echo "OPENAI_API_KEY=$OPENAI_API_KEY" >> .env
+        - echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" >> .env
+        - echo "PINECONE_API_KEY=$PINECONE_API_KEY" >> .env
+        - echo "PINECONE_INDEX_NAME=$PINECONE_INDEX_NAME" >> .env
+        - echo "APP_AWS_REGION=$APP_AWS_REGION" >> .env
+        - echo "APP_AWS_ACCESS_KEY_ID=$APP_AWS_ACCESS_KEY_ID" >> .env
+        - echo "APP_AWS_SECRET_ACCESS_KEY=$APP_AWS_SECRET_ACCESS_KEY" >> .env
+        - echo "APP_AWS_S3_BUCKET_NAME=$APP_AWS_S3_BUCKET_NAME" >> .env
+        - echo "VECTOR_STORE=$VECTOR_STORE" >> .env
+        - echo "GOOGLE_CLOUD_VISION_KEY=$GOOGLE_CLOUD_VISION_KEY" >> .env
+        - echo "USE_RRF=$USE_RRF" >> .env
+        - echo "USE_ADVANCED_CHUNKING=$USE_ADVANCED_CHUNKING" >> .env
+        - echo "DEBUG_LOGGING=$DEBUG_LOGGING" >> .env
+        - echo "CLEAR_NAMESPACE_BEFORE_INSERT=$CLEAR_NAMESPACE_BEFORE_INSERT" >> .env
         - npm run build
   artifacts:
     baseDirectory: .next
@@ -15,19 +29,3 @@ frontend:
     paths:
       - .next/cache/**/*
       - .npm/**/*
-  environment:
-    variables:
-      OPENAI_API_KEY: "${OPENAI_API_KEY}"
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
-      PINECONE_API_KEY: "${PINECONE_API_KEY}"
-      PINECONE_INDEX_NAME: "${PINECONE_INDEX_NAME}"
-      APP_AWS_REGION: "${APP_AWS_REGION}"
-      APP_AWS_ACCESS_KEY_ID: "${APP_AWS_ACCESS_KEY_ID}"
-      APP_AWS_SECRET_ACCESS_KEY: "${APP_AWS_SECRET_ACCESS_KEY}"
-      APP_AWS_S3_BUCKET_NAME: "${APP_AWS_S3_BUCKET_NAME}"
-      VECTOR_STORE: "${VECTOR_STORE}"
-      GOOGLE_CLOUD_VISION_KEY: "${GOOGLE_CLOUD_VISION_KEY}"
-      USE_RRF: "${USE_RRF}"
-      USE_ADVANCED_CHUNKING: "${USE_ADVANCED_CHUNKING}"
-      DEBUG_LOGGING: "${DEBUG_LOGGING}"
-      CLEAR_NAMESPACE_BEFORE_INSERT: "${CLEAR_NAMESPACE_BEFORE_INSERT}"
