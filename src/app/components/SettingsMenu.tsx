@@ -114,11 +114,11 @@ export function SettingsMenu() {
       {/* Dropdown Menu */}
       {isOpen && (
         <div className="
-          absolute right-0 mt-2 w-64
+          absolute right-0 mt-2 w-90
           bg-white dark:bg-gray-800
-          rounded-lg shadow-lg dark:shadow-xl
+          rounded-xl shadow-lg dark:shadow-xl
           border border-gray-200 dark:border-gray-700
-          py-2 z-50
+          py-3 z-50
           animate-in fade-in slide-in-from-top-2 duration-200
         ">
           {activeSubmenu === null ? (
@@ -128,14 +128,15 @@ export function SettingsMenu() {
               <Link
                 href="/stakeholder-settings"
                 className="
-                  flex items-center gap-3 px-4 py-3
+                  flex items-center gap-4 px-5 py-4
                   text-gray-700 dark:text-gray-200
                   hover:bg-gray-100 dark:hover:bg-gray-700
                   transition-colors
+                  text-base
                 "
                 onClick={() => setIsOpen(false)}
               >
-                <FiSettings className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <FiSettings className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                 <span>{t('menu.stakeholderSettings')}</span>
               </Link>
 
@@ -145,14 +146,15 @@ export function SettingsMenu() {
               <button
                 onClick={() => setActiveSubmenu('language')}
                 className="
-                  flex items-center justify-between w-full px-4 py-3
+                  flex items-center justify-between w-full px-5 py-4
                   text-gray-700 dark:text-gray-200
                   hover:bg-gray-100 dark:hover:bg-gray-700
                   transition-colors
+                  text-base
                 "
               >
-                <div className="flex items-center gap-3">
-                  <FiGlobe className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <div className="flex items-center gap-4">
+                  <FiGlobe className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                   <span>{t('menu.language')}</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
@@ -165,19 +167,20 @@ export function SettingsMenu() {
               <button
                 onClick={() => setActiveSubmenu('theme')}
                 className="
-                  flex items-center justify-between w-full px-4 py-3
+                  flex items-center justify-between w-full px-5 py-4
                   text-gray-700 dark:text-gray-200
                   hover:bg-gray-100 dark:hover:bg-gray-700
                   transition-colors
+                  text-base
                 "
               >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
                   {theme === 'dark' ? (
-                    <FiMoon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <FiMoon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                   ) : theme === 'light' ? (
-                    <FiSun className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <FiSun className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                   ) : (
-                    <FiMonitor className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <FiMonitor className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                   )}
                   <span>{t('menu.theme')}</span>
                 </div>
@@ -197,13 +200,13 @@ export function SettingsMenu() {
               <button
                 onClick={() => setActiveSubmenu(null)}
                 className="
-                  flex items-center gap-2 px-4 py-2 w-full
+                  flex items-center gap-3 px-5 py-3 w-full
                   text-gray-500 dark:text-gray-400
                   hover:bg-gray-100 dark:hover:bg-gray-700
-                  text-sm
+                  text-base
                 "
               >
-                <FiChevronRight className="w-4 h-4 rotate-180" />
+                <FiChevronRight className="w-5 h-5 rotate-180" />
                 <span>{t('menu.language')}</span>
               </button>
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
@@ -212,16 +215,17 @@ export function SettingsMenu() {
                   key={value}
                   onClick={() => handleLanguageChange(value)}
                   className={`
-                    flex items-center justify-between w-full px-4 py-3
+                    flex items-center justify-between w-full px-5 py-4
                     text-gray-700 dark:text-gray-200
                     hover:bg-gray-100 dark:hover:bg-gray-700
                     transition-colors
+                    text-base
                     ${language === value ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                   `}
                 >
                   <span>{label}</span>
                   {language === value && (
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                   )}
                 </button>
               ))}
@@ -232,13 +236,13 @@ export function SettingsMenu() {
               <button
                 onClick={() => setActiveSubmenu(null)}
                 className="
-                  flex items-center gap-2 px-4 py-2 w-full
+                  flex items-center gap-3 px-5 py-3 w-full
                   text-gray-500 dark:text-gray-400
                   hover:bg-gray-100 dark:hover:bg-gray-700
-                  text-sm
+                  text-base
                 "
               >
-                <FiChevronRight className="w-4 h-4 rotate-180" />
+                <FiChevronRight className="w-5 h-5 rotate-180" />
                 <span>{t('menu.theme')}</span>
               </button>
               <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
@@ -247,19 +251,20 @@ export function SettingsMenu() {
                   key={value}
                   onClick={() => handleThemeChange(value)}
                   className={`
-                    flex items-center justify-between w-full px-4 py-3
+                    flex items-center justify-between w-full px-5 py-4
                     text-gray-700 dark:text-gray-200
                     hover:bg-gray-100 dark:hover:bg-gray-700
                     transition-colors
+                    text-base
                     ${theme === value ? 'bg-blue-50 dark:bg-blue-900/20' : ''}
                   `}
                 >
-                  <div className="flex items-center gap-3">
-                    <Icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <div className="flex items-center gap-4">
+                    <Icon className="w-6 h-6 text-gray-500 dark:text-gray-400" />
                     <span>{t(labelKey)}</span>
                   </div>
                   {theme === value && (
-                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                   )}
                 </button>
               ))}
