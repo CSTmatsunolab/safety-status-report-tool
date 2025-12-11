@@ -74,10 +74,10 @@ PINECONE_INDEX_NAME=ssr-index
 CLEAR_NAMESPACE_BEFORE_INSERT=false # trueにすると再構築時に既存データをクリア（オプション）
 
 # AWS S3設定 (4MB以上のファイル処理に必要)
-AWS_REGION=your_s3_bucket_region
-AWS_ACCESS_KEY_ID=your_aws_access_key_id
-AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
-AWS_S3_BUCKET_NAME=your_s3_bucket_name
+APP_AWS_REGION=your_s3_bucket_region
+APP_AWS_ACCESS_KEY_ID=your_aws_access_key_id
+APP_AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+APP_AWS_S3_BUCKET_NAME=your_s3_bucket_name
 
 # S3クリーンアップAPI用 (Vercel Cronなどで使用)
 CLEANUP_AUTH_TOKEN=your_secure_random_token

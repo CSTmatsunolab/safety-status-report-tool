@@ -22,14 +22,14 @@ import * as mammoth from 'mammoth';
 
 // S3クライアントの初期化
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'ap-northeast-1',
+  region: process.env.APP_AWS_REGION || 'ap-northeast-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
   },
 });
 
-const S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME || 'safety-report-uploads-2024';
+const S3_BUCKET_NAME = process.env.APP_AWS_S3_BUCKET_NAME || 'safety-report-uploads-2024';
 
 // 保護機能の制限値
 const LARGE_CONTENT_THRESHOLD = 50000;    // 5万文字以上を「大きいファイル」とみなす

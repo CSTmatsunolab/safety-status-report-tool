@@ -4,14 +4,14 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // S3クライアントの初期化
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'ap-northeast-1',
+  region: process.env.APP_AWS_REGION || 'ap-northeast-1',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
   },
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME!;
+const BUCKET_NAME = process.env.APP_AWS_S3_BUCKET_NAME!;
 const UPLOAD_EXPIRY_SECONDS = 3600; // 1時間
 const DOWNLOAD_EXPIRY_SECONDS = 7200; // 2時間
 
