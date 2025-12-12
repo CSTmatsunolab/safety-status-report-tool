@@ -13,6 +13,51 @@ import { useI18n } from './I18nProvider';
 // ファイルサイズの閾値
 const S3_THRESHOLD = 4 * 1024 * 1024; // 4MB - これ以上はS3経由
 
+// タイムアウトエラーメッセージを生成する関数
+function getTimeoutErrorMessage(fileType: 'excel' | 'word' | 'pdf' | 'image' | 'text' | 'other', language: string): string {
+  const baseMessage = language === 'en'
+    ? 'Processing timed out because the file is too large.'
+    : 'ファイルが大きすぎるため、処理がタイムアウトしました。';
+  
+  const splitRecommendation = language === 'en'
+    ? 'Please try splitting the file into smaller parts.'
+    : 'ファイルを分割してお試しください。';
+  
+  let specificRecommendation = '';
+  
+  switch (fileType) {
+    case 'excel':
+      specificRecommendation = language === 'en'
+        ? 'Converting to CSV format is also recommended.'
+        : 'CSV形式への変換もおすすめです。';
+      break;
+    case 'word':
+      specificRecommendation = language === 'en'
+        ? 'Converting to plain text format is also recommended.'
+        : 'テキスト形式への変換もおすすめです。';
+      break;
+    case 'pdf':
+      specificRecommendation = language === 'en'
+        ? 'Extracting specific pages or converting to text is also recommended.'
+        : '特定のページを抽出するか、テキスト形式への変換もおすすめです。';
+      break;
+    case 'image':
+      specificRecommendation = language === 'en'
+        ? 'Reducing image resolution or splitting into multiple images is also recommended.'
+        : '画像の解像度を下げるか、複数の画像に分割することもおすすめです。';
+      break;
+    case 'text':
+      specificRecommendation = ''; // テキストファイルは分割のみ推奨
+      break;
+    default:
+      specificRecommendation = '';
+  }
+  
+  return specificRecommendation
+    ? `${baseMessage}\n${splitRecommendation}\n${specificRecommendation}`
+    : `${baseMessage}\n${splitRecommendation}`;
+}
+
 interface FileUploadProps {
   files: UploadedFile[];
   onUpload: (files: UploadedFile[]) => void;
@@ -71,14 +116,27 @@ async function processFileFromS3(
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to process file');
+    // 504 Gateway Timeout の検出
+    if (response.status === 504) {
+      const error = new Error('TIMEOUT');
+      error.name = 'TimeoutError';
+      throw error;
+    }
+    
+    let errorMessage = 'Failed to process file';
+    try {
+      const error = await response.json();
+      errorMessage = error.error || errorMessage;
+    } catch {
+      // JSONパースに失敗した場合はデフォルトメッセージを使用
+    }
+    throw new Error(errorMessage);
   }
 
   return await response.json();
 }
 
-async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<{ text: string; confidence?: number }> {
+async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<{ text: string; confidence?: number; error?: string }> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -112,6 +170,12 @@ async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<
     }
   } catch (error) {
     console.error('Image OCR error:', error);
+    
+    // タイムアウトエラーの検出
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return { text: '', confidence: 0, error: getTimeoutErrorMessage('image', language) };
+    }
+    
     if (error instanceof Error && error.name === 'AbortError') {
       alert(language === 'en' ? 'Image OCR processing timed out.' : '画像のOCR処理がタイムアウトしました。');
     } else if (error instanceof Error) {
@@ -123,7 +187,7 @@ async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<
   }
 }
 
-async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ text: string; method: string; confidence?: number; s3Key?: string }> {
+async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ text: string; method: string; confidence?: number; s3Key?: string; error?: string }> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -164,6 +228,11 @@ async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ 
   } catch (error) {
     console.error('PDF extraction error:', error);
     
+    // タイムアウトエラーの検出
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return { text: '', method: 'failed', error: getTimeoutErrorMessage('pdf', language) };
+    }
+    
     if (error instanceof Error) {
       if (error.name === 'AbortError') {
         alert(language === 'en' ? 'PDF processing timed out.' : 'PDFの処理がタイムアウトしました。');
@@ -178,7 +247,7 @@ async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ 
   }
 }
 
-async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
+async function extractTextFromExcel(file: File, language: string = 'ja'): Promise<{ text: string; s3Key?: string; originalContentLength?: number; error?: string }> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -210,11 +279,17 @@ async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?:
     }
   } catch (error) {
     console.error('Excel extraction error:', error);
+    
+    // タイムアウトエラーの検出
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return { text: '', error: getTimeoutErrorMessage('excel', language) };
+    }
+    
     return { text: '' };
   }
 }
 
-async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
+async function extractTextFromDocx(file: File, language: string = 'ja'): Promise<{ text: string; s3Key?: string; originalContentLength?: number; error?: string }> {
   try {
     console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -238,6 +313,12 @@ async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: 
     }
   } catch (error) {
     console.error('Word extraction error:', error);
+    
+    // タイムアウトエラーの検出
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return { text: '', error: getTimeoutErrorMessage('word', language) };
+    }
+    
     return { text: '' };
   }
 }
@@ -278,12 +359,26 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             const result = await extractTextFromPDF(file, language);
+            
+            // タイムアウトエラーの場合はアラートを表示してスキップ
+            if (result.error) {
+              alert(`${file.name}:\n${result.error}`);
+              continue;
+            }
+            
             content = result.text;
             extractionMethod = result.confidence ? 'ocr' : result.method === 'embedded-text' ? 'pdf' : 'failed';
             ocrConfidence = result.confidence;
         } else if (file.type.startsWith('image/')) {
             console.log(`Extracting text from image: ${file.name}`);
             const result = await extractTextFromImage(file, language);
+            
+            // タイムアウトエラーの場合はアラートを表示してスキップ
+            if (result.error) {
+              alert(`${file.name}:\n${result.error}`);
+              continue;
+            }
+            
             content = result.text;
             extractionMethod = 'ocr';
             ocrConfidence = result.confidence;
@@ -294,7 +389,14 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             file.name.endsWith('.xlsx')
           ) {
             console.log(`Extracting text from Excel: ${file.name}`);
-            const excelResult = await extractTextFromExcel(file);
+            const excelResult = await extractTextFromExcel(file, language);
+            
+            // タイムアウトエラーの場合はアラートを表示してスキップ
+            if (excelResult.error) {
+              alert(`${file.name}:\n${excelResult.error}`);
+              continue;
+            }
+            
             content = excelResult.text;
             if (excelResult.s3Key) {
               s3Key = excelResult.s3Key;
@@ -308,7 +410,14 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             file.name.endsWith('.docx')
           ) {
             console.log(`Extracting text from DOCX: ${file.name}`);
-            const docxResult = await extractTextFromDocx(file);
+            const docxResult = await extractTextFromDocx(file, language);
+            
+            // タイムアウトエラーの場合はアラートを表示してスキップ
+            if (docxResult.error) {
+              alert(`${file.name}:\n${docxResult.error}`);
+              continue;
+            }
+            
             content = docxResult.text;
             if (docxResult.s3Key) {
               s3Key = docxResult.s3Key;
