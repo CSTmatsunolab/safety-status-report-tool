@@ -60,6 +60,18 @@ export default function Home() {
     }
   }, [language]);
 
+  // 言語が変わったら選択中のステークホルダーも更新
+  useEffect(() => {
+    if (selectedStakeholder && !selectedStakeholder.id.startsWith('custom_')) {
+      // デフォルトステークホルダーの場合、言語に応じた版に更新
+      const predefined = getPredefinedStakeholders(language);
+      const updated = predefined.find(s => s.id === selectedStakeholder.id);
+      if (updated && updated.role !== selectedStakeholder.role) {
+        setSelectedStakeholder(updated);
+      }
+    }
+  }, [language, selectedStakeholder]);
+
   useEffect(() => {
     const id = getBrowserId();
     setBrowserId(id);

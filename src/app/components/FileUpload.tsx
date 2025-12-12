@@ -178,7 +178,7 @@ async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ 
   }
 }
 
-async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string }> {
+async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
   try {
     console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -193,17 +193,19 @@ async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?:
         allText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
       });
       
-      return { text: allText };
+      return { text: allText, originalContentLength: allText.length };
     } else {
       console.log('Large Excel file, using S3...');
       const s3Key = await uploadToS3(file);
       
       // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
+      const fullText = result.text || '';
       
       return {
-        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
-        s3Key: s3Key // S3キーを保存
+        text: fullText.substring(0, PREVIEW_LENGTH),
+        s3Key: s3Key,
+        originalContentLength: fullText.length
       };
     }
   } catch (error) {
@@ -212,24 +214,26 @@ async function extractTextFromExcel(file: File): Promise<{ text: string; s3Key?:
   }
 }
 
-async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string }> {
+async function extractTextFromDocx(file: File): Promise<{ text: string; s3Key?: string; originalContentLength?: number }> {
   try {
     console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
       const result = await mammoth.extractRawText({ arrayBuffer });
-      return { text: result.value };
+      return { text: result.value, originalContentLength: result.value.length };
     } else {
       console.log('Large Word file, using S3...');
       const s3Key = await uploadToS3(file);
       
       // プレビュー用に最初の部分だけ取得
       const result = await processFileFromS3(s3Key, file.name, file.type);
+      const fullText = result.text || '';
       
       return {
-        text: result.text ? result.text.substring(0, PREVIEW_LENGTH) : '',
-        s3Key: s3Key // S3キーを保存
+        text: fullText.substring(0, PREVIEW_LENGTH),
+        s3Key: s3Key,
+        originalContentLength: fullText.length
       };
     }
   } catch (error) {
@@ -269,6 +273,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
           let s3Key: string | undefined;
+          let originalContentLength: number | undefined;
 
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -294,6 +299,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             if (excelResult.s3Key) {
               s3Key = excelResult.s3Key;
             }
+            if (excelResult.originalContentLength) {
+              originalContentLength = excelResult.originalContentLength;
+            }
             extractionMethod = 'excel';
         } else if (
             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
@@ -305,6 +313,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             if (docxResult.s3Key) {
               s3Key = docxResult.s3Key;
             }
+            if (docxResult.originalContentLength) {
+              originalContentLength = docxResult.originalContentLength;
+            }
             extractionMethod = 'docx';
         } else if (
             file.type === 'text/csv' || 
@@ -314,28 +325,31 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           ) {
             if (file.size < S3_THRESHOLD) {
               content = await file.text();
+              originalContentLength = content.length;
             } else {
               // 大きなCSV/TXTファイルはS3に保存
               console.log(`Large text file (${file.name}), using S3...`);
               s3Key = await uploadToS3(file);
               
               // プレビュー用に最初の部分だけ取得  
-              const preview = await file.text();
-              content = preview.substring(0, PREVIEW_LENGTH);
+              const fullText = await file.text();
+              originalContentLength = fullText.length;
+              content = fullText.substring(0, PREVIEW_LENGTH);
             }
             extractionMethod = 'text';
         } else {
             content = await file.text();
+            originalContentLength = content.length;
             extractionMethod = 'text';
           }
 
           // ファイルタイプの判定（議事録やGSNの自動検出）
           const lowerFileName = file.name.toLowerCase();
-          console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}`);
+          console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}${originalContentLength ? `, Original length: ${originalContentLength}` : ''}`);
           if (content.length > 0) {
             console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
             console.log(content.substring(0, PREVIEW_LENGTH));
-            if (content.length > PREVIEW_LENGTH) console.log('...(truncated)');
+            if (originalContentLength && originalContentLength > PREVIEW_LENGTH) console.log(`...(truncated from ${originalContentLength.toLocaleString()} chars)`);
           }
           const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
           
@@ -371,7 +385,8 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               isGSN: false,
               userDesignatedGSN: false,
               s3Key: s3Key,
-              contentPreview: s3Key ? content : undefined
+              contentPreview: s3Key ? content : undefined,
+              originalContentLength: originalContentLength
             }
           });
 
@@ -535,11 +550,13 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                     )}
                     {file.metadata?.s3Key ? (
                       <span className="ml-2">
-                        ({language === 'en' ? 'S3 stored' : 'S3保存済み'} {file.metadata?.contentPreview ? `- ${file.metadata.contentPreview.length.toLocaleString()} ${language === 'en' ? 'chars preview' : '文字プレビュー'}` : ''})
+                        ({language === 'en' ? 'Large file' : '大きいファイル'} - {file.metadata?.originalContentLength 
+                          ? `${file.metadata.originalContentLength.toLocaleString()} ${language === 'en' ? 'chars' : '文字'}` 
+                          : (language === 'en' ? 'char count unknown' : '文字数不明')})
                       </span>
                     ) : file.content.length > 0 ? (
                       <span className="ml-2">
-                        ({file.content.length.toLocaleString()} {language === 'en' ? 'chars' : '文字'})
+                        ({(file.metadata?.originalContentLength || file.content.length).toLocaleString()} {language === 'en' ? 'chars' : '文字'})
                       </span>
                     ) : (
                       <span className="ml-2 text-red-500 dark:text-red-400">
@@ -571,7 +588,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                   )}
                   
                   {/* 全文使用チェックボックス */}
-                  {file.content.length > 0 && (
+                  {(file.content.length > 0 || file.metadata?.s3Key) && (
                     <label className="flex items-center cursor-pointer">
                       <input
                         type="checkbox"
