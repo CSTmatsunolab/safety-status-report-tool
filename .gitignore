@@ -41,15 +41,11 @@ yarn-error.log*
 next-env.d.ts
 
 # Google Cloud credentials
-/credentials/
-*.json
+credentials/matsulab-vision-api-key.json
 
 # log/* */
 logs/
 *.log
-
-# json /* */
-!src/locales/*.json
 
 #amplify-do-not-edit-begin
 amplify/\#current-cloud-backend

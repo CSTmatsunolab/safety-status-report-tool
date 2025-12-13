@@ -1,0 +1,11 @@
+{
+  "functions": {
+    "api/export-pdf/route.ts": {
+      "memory": 3008,
+      "maxDuration": 90
+    }
+  },
+  "github": {
+    "silent": true
+  }
+}
