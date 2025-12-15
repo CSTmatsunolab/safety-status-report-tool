@@ -1,7 +1,16 @@
-//src/lib/pdf-exporter.ts
+// src/lib/pdf-exporter.ts
 
-import puppeteer, { Browser, Page } from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
+import React from 'react';
+import { 
+  Document, 
+  Page, 
+  Text, 
+  View, 
+  StyleSheet, 
+  Font,
+  renderToBuffer,
+} from '@react-pdf/renderer';
+import type { DocumentProps, PageProps } from '@react-pdf/renderer';
 import { Report } from '@/types';
 import { formatDate } from '@/lib/date-utils';
 
@@ -21,283 +30,295 @@ export interface PDFOptions {
   language?: 'ja' | 'en';
 }
 
-export async function generatePDF(
-  report: Report,
-  options: PDFOptions = {}
-): Promise<Buffer> {
+// 日本語フォントを登録（Google Fonts）
+Font.register({
+  family: 'NotoSansJP',
+  fonts: [
+    {
+      src: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-jp@latest/japanese-400-normal.ttf',
+      fontWeight: 'normal',
+    },
+    {
+      src: 'https://cdn.jsdelivr.net/fontsource/fonts/noto-sans-jp@latest/japanese-700-normal.ttf',
+      fontWeight: 'bold',
+    },
+  ],
+});
+
+// ハイフネーションを無効化
+Font.registerHyphenationCallback(word => [word]);
+
+// スタイル定義
+const styles = StyleSheet.create({
+  page: {
+    flexDirection: 'column',
+    backgroundColor: '#FFFFFF',
+    padding: 40,
+    fontFamily: 'NotoSansJP',
+  },
+  pageEn: {
+    flexDirection: 'column',
+    backgroundColor: '#FFFFFF',
+    padding: 40,
+    fontFamily: 'Helvetica',
+  },
+  titleSection: {
+    textAlign: 'center',
+    marginBottom: 30,
+    paddingBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e0e0e0',
+    borderBottomStyle: 'solid',
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#1a1a1a',
+  },
+  subtitle: {
+    fontSize: 11,
+    color: '#666666',
+    marginBottom: 5,
+  },
+  metadata: {
+    fontSize: 9,
+    color: '#999999',
+    marginTop: 12,
+  },
+  content: {
+    fontSize: 10,
+    lineHeight: 1.8,
+    color: '#333333',
+  },
+  heading: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#34495e',
+    marginTop: 20,
+    marginBottom: 10,
+    paddingLeft: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#34495e',
+    borderLeftStyle: 'solid',
+  },
+  paragraph: {
+    marginBottom: 8,
+    textAlign: 'justify',
+  },
+  listItem: {
+    marginBottom: 4,
+    marginLeft: 15,
+  },
+  pageNumber: {
+    position: 'absolute',
+    fontSize: 9,
+    bottom: 20,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    color: '#666666',
+  },
+  watermark: {
+    position: 'absolute',
+    top: '40%',
+    left: '10%',
+    fontSize: 60,
+    color: '#f0f0f0',
+    transform: 'rotate(-45deg)',
+    opacity: 0.3,
+  },
+  header: {
+    position: 'absolute',
+    top: 15,
+    left: 40,
+    right: 40,
+    fontSize: 8,
+    color: '#999999',
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#eeeeee',
+    borderBottomStyle: 'solid',
+    paddingBottom: 8,
+  },
+});
+
+// コンテンツをパースして構造化
+interface ContentBlock {
+  type: 'heading' | 'paragraph' | 'listItem';
+  text: string;
+}
+
+function parseContent(content: string): ContentBlock[] {
+  const lines = content.split('\n');
+  const blocks: ContentBlock[] = [];
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    
+    if (trimmed.match(/^\d+\.\s/)) {
+      blocks.push({ type: 'heading', text: trimmed });
+    } else if (trimmed.match(/^[-•・]\s/)) {
+      blocks.push({ type: 'listItem', text: trimmed.replace(/^[-•・]\s/, '') });
+    } else {
+      blocks.push({ type: 'paragraph', text: trimmed });
+    }
+  }
+  
+  return blocks;
+}
+
+// PDFドキュメントを生成
+function createReportDocument(
+  report: Report, 
+  options: PDFOptions
+): React.ReactElement<DocumentProps> {
   const {
     includeMetadata = true,
     includeTimestamp = true,
     watermark,
     headerText,
-    footerText,
-    pageSize = 'A4',
-    margin = {
-      top: '0mm', 
-      right: '20mm',
-      bottom: '25mm',
-      left: '20mm'
-    },
-    language = 'ja'
+    language = 'ja',
   } = options;
 
-  let browser: Browser | null = null;
-  let page: Page | null = null;
-
-  try {
-    const htmlContent = generateHTMLContent(report, {
-      includeMetadata,
-      includeTimestamp,
-      watermark,
-      headerText: headerText || report.title,
-      footerText,
-      language
-    });
-
-    console.log('Launching browser...');
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    if (isProduction) {
-      console.log('Using Chromium for serverless environment');
-
-      browser = await puppeteer.launch({
-        args: [
-          ...chromium.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--font-render-hinting=none',
-        ],
-        executablePath: await chromium.executablePath(),
-        headless: true,
-      });
-    } else {
-      console.log('Using local Puppeteer');
-      const puppeteerModule = await import('puppeteer');
-      browser = await puppeteerModule.default.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-        timeout: 30000,
-      });
-    }
-
-    if (!browser) throw new Error('Failed to launch browser');
-
-    page = await browser.newPage();
-    page.setDefaultTimeout(90000);
-    
-    await page.setContent(htmlContent, {
-      waitUntil: 'load',
-      timeout: 60000,
-    });
-
-    try { await page.evaluate(() => document.fonts.ready); } catch (e) { console.warn(e); }
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    const pdfBuffer = await page.pdf({
-      format: pageSize,
-      margin, 
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: '<div></div>',
-      footerTemplate: `
-        <div style="font-size: 10px; text-align: center; width: 100%; color: #666; padding-top: 5px;">
-          <span class="pageNumber"></span> / <span class="totalPages"></span>
-        </div>
-      `,
-      timeout: 90000,
-      preferCSSPageSize: false,
-    });
-
-    return Buffer.from(pdfBuffer);
-  } catch (error) {
-    console.error('PDF generation error:', error);
-    throw error;
-  } finally {
-    if (page) await page.close();
-    if (browser) await browser.close();
-  }
-}
-
-function generateHTMLContent(
-  report: Report,
-  options: {
-    includeMetadata?: boolean;
-    includeTimestamp?: boolean;
-    watermark?: string;
-    headerText?: string;
-    footerText?: string;
-    language?: 'ja' | 'en';
-  }
-): string {
-  const { includeMetadata, includeTimestamp, watermark, headerText, language = 'ja' } = options;
-
-  // 言語に応じたラベル
   const labels = language === 'en' 
     ? { target: 'Target:', strategy: 'Strategy:', createdAt: 'Created:' }
     : { target: '対象:', strategy: '戦略:', createdAt: '作成日:' };
 
-  // 言語に応じた設定
-  const htmlLang = language === 'en' ? 'en' : 'ja';
-  const fontFamily = language === 'en' 
-    ? "'Segoe UI', 'Helvetica Neue', sans-serif"
-    : "'Noto Sans JP', sans-serif";
-
-  // 日付フォーマット
   const formattedDate = language === 'en'
-    ? new Date(report.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    ? new Date(report.createdAt).toLocaleDateString('en-US', { 
+        year: 'numeric', month: 'long', day: 'numeric' 
+      })
     : formatDate(report.createdAt);
 
-  return `
-<!DOCTYPE html>
-<html lang="${htmlLang}">
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(report.title)}</title>
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
-  
-  <style>
-    /* リセット */
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    body {
-      font-family: ${fontFamily};
-      line-height: 1.8;
-      color: #333;
-      background: white;
-      font-size: 11pt;
+  const contentBlocks = parseContent(report.content);
+  const pageStyle = language === 'en' ? styles.pageEn : styles.page;
+
+  // コンテンツ要素を生成
+  const contentElements = contentBlocks.map((block, index) => {
+    const key = `block-${index}`;
+    switch (block.type) {
+      case 'heading':
+        return React.createElement(Text, { key, style: styles.heading }, block.text);
+      case 'listItem':
+        return React.createElement(Text, { key, style: styles.listItem }, `• ${block.text}`);
+      default:
+        return React.createElement(Text, { key, style: styles.paragraph }, block.text);
     }
+  });
 
-    .report-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
+  // ページ内の子要素を構築
+  const pageChildren: React.ReactNode[] = [
+    // ヘッダー
+    React.createElement(Text, { key: 'header', style: styles.header, fixed: true }, 
+      headerText || report.title
+    ),
+  ];
 
-    .header-space {
-      height: 18mm;
-    }
+  // 透かし（オプション）
+  if (watermark) {
+    pageChildren.push(
+      React.createElement(Text, { key: 'watermark', style: styles.watermark, fixed: true }, 
+        watermark
+      )
+    );
+  }
 
-    .print-header {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 15mm;
-      background-color: white;
-      border-bottom: 1px solid #eee;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #666;
-      font-size: 10px;
-      z-index: 1000;
-    }
+  // タイトルセクションの子要素
+  const titleChildren: React.ReactNode[] = [
+    React.createElement(Text, { key: 'title', style: styles.title }, report.title),
+    React.createElement(Text, { key: 'target', style: styles.subtitle }, 
+      `${labels.target} ${report.stakeholder.role}`
+    ),
+    React.createElement(Text, { key: 'strategy', style: styles.subtitle }, 
+      `${labels.strategy} ${report.rhetoricStrategy}`
+    ),
+  ];
 
-    .container {
-    }
-    
-    ${watermark ? `
-    body::before {
-      content: "${escapeHtml(watermark)}";
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%) rotate(-45deg);
-      font-size: 120px;
-      color: rgba(0, 0, 0, 0.05);
-      z-index: -1;
-      white-space: nowrap;
-      font-family: ${fontFamily};
-    }
-    ` : ''}
-    
-    .title-page {
-      text-align: center;
-      margin-bottom: 40px;
-      padding: 20px 0 40px;
-      border-bottom: 2px solid #e0e0e0;
-    }
-    .title-page h1 { font-size: 28px; font-weight: 700; margin-bottom: 15px; }
-    .title-page .subtitle { font-size: 16px; color: #666; margin-bottom: 8px; }
-    .title-page .metadata { font-size: 12px; color: #999; margin-top: 20px; }
-    
-    .content p { margin-bottom: 12px; text-align: justify; }
-    .content h3 { font-size: 16px; font-weight: 700; margin: 25px 0 15px; color: #34495e; border-left: 4px solid #34495e; padding-left: 10px; }
-    
-    table.data-table { width: 100%; border-collapse: collapse; margin: 20px 0; page-break-inside: avoid; }
-    table.data-table th, table.data-table td { border: 1px solid #ddd; padding: 10px; font-size: 10pt; }
-    table.data-table th { background-color: #f8f9fa; font-weight: 700; }
-    
-    pre { background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0; white-space: pre-wrap; font-size: 9pt; }
+  if (includeMetadata && includeTimestamp) {
+    titleChildren.push(
+      React.createElement(Text, { key: 'date', style: styles.metadata }, 
+        `${labels.createdAt} ${formattedDate}`
+      )
+    );
+  }
 
-    @media print {
-      thead { display: table-header-group; } 
-      tfoot { display: table-footer-group; }
-      body { -webkit-print-color-adjust: exact; }
-    }
-  </style>
-</head>
-<body>
+  // タイトルセクション
+  pageChildren.push(
+    React.createElement(View, { key: 'titleSection', style: styles.titleSection }, 
+      ...titleChildren
+    )
+  );
 
-  <div class="print-header">
-    ${escapeHtml(headerText || report.title)}
-  </div>
+  // コンテンツ
+  pageChildren.push(
+    React.createElement(View, { key: 'content', style: styles.content }, 
+      ...contentElements
+    )
+  );
 
-  <table class="report-table">
-  
-    <thead>
-      <tr>
-        <td>
-          <div class="header-space">&nbsp;</div>
-        </td>
-      </tr>
-    </thead>
+  // ページ番号
+  pageChildren.push(
+    React.createElement(Text, { 
+      key: 'pageNumber',
+      style: styles.pageNumber, 
+      render: ({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`,
+      fixed: true 
+    })
+  );
 
-    <tbody>
-      <tr>
-        <td>
-          <div class="container">
-            
-            <div class="title-page">
-              <h1>${escapeHtml(report.title)}</h1>
-              <div class="subtitle">${labels.target} ${escapeHtml(report.stakeholder.role)}</div>
-              <div class="subtitle">${labels.strategy} ${escapeHtml(report.rhetoricStrategy)}</div>
-              ${includeMetadata ? `
-                <div class="metadata">
-                  ${includeTimestamp ? `
-                    <p>${labels.createdAt} ${formattedDate}</p>
-                  ` : ''}
-                </div>
-              ` : ''}
-            </div>
-            
-            <div class="content">
-              ${formatContent(report.content)}
-            </div>
-            
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  // Page要素
+  const pageElement = React.createElement(
+    Page, 
+    { size: 'A4', style: pageStyle, wrap: true } as PageProps,
+    ...pageChildren
+  );
 
-</body>
-</html>
-`;
+  // Document要素
+  return React.createElement(
+    Document,
+    {
+      title: report.title,
+      author: 'Safety Status Report Generator',
+      subject: `Report for ${report.stakeholder.role}`,
+      creator: 'Safety Status Report Generator',
+    } as DocumentProps,
+    pageElement
+  ) as React.ReactElement<DocumentProps>;
 }
 
-function formatContent(content: string): string {
-  const lines = content.split('\n');
-  return lines.map(line => {
-    if (line.match(/^\d+\.\s/)) return `<h3>${escapeHtml(line)}</h3>`;
-    return `<p>${escapeHtml(line)}</p>`;
-  }).join('\n');
+/**
+ * PDFを生成してBufferとして返す
+ */
+export async function generatePDF(
+  report: Report,
+  options: PDFOptions = {}
+): Promise<Buffer> {
+  try {
+    console.log('Generating PDF with @react-pdf/renderer...');
+    console.log('Report title:', report.title);
+    console.log('Language:', options.language || 'ja');
+    
+    const document = createReportDocument(report, options);
+    const buffer = await renderToBuffer(document);
+    
+    console.log('PDF generated successfully, size:', buffer.length, 'bytes');
+    
+    return Buffer.from(buffer);
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    throw error;
+  }
 }
 
-function escapeHtml(text: string): string {
-  const map: { [key: string]: string } = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return text.replace(/[&<>"']/g, m => map[m]);
+/**
+ * PDFをBase64文字列として返す
+ */
+export async function generatePDFBase64(
+  report: Report,
+  options: PDFOptions = {}
+): Promise<string> {
+  const buffer = await generatePDF(report, options);
+  return buffer.toString('base64');
 }
