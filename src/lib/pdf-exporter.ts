@@ -64,51 +64,66 @@ const styles = StyleSheet.create({
   },
   titleSection: {
     textAlign: 'center',
-    marginBottom: 30,
-    paddingBottom: 20,
+    marginBottom: 25,
+    paddingBottom: 15,
     borderBottomWidth: 2,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: '#34495e',
     borderBottomStyle: 'solid',
   },
   title: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 10,
     color: '#1a1a1a',
   },
   subtitle: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#666666',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   metadata: {
     fontSize: 9,
     color: '#999999',
-    marginTop: 12,
+    marginTop: 10,
   },
   content: {
     fontSize: 10,
-    lineHeight: 1.8,
+    lineHeight: 1.7,
     color: '#333333',
   },
-  heading: {
-    fontSize: 13,
+  // セクション見出し（【】形式）
+  sectionHeading: {
+    fontSize: 12,
     fontWeight: 'bold',
-    color: '#34495e',
-    marginTop: 20,
+    color: '#2c3e50',
+    marginTop: 18,
     marginBottom: 10,
+    paddingVertical: 6,
     paddingLeft: 10,
+    backgroundColor: '#f8f9fa',
     borderLeftWidth: 4,
     borderLeftColor: '#34495e',
     borderLeftStyle: 'solid',
   },
-  paragraph: {
+  // 数字付き見出し
+  numberedHeading: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#34495e',
+    marginTop: 14,
     marginBottom: 8,
-    textAlign: 'justify',
+    paddingLeft: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#7f8c8d',
+    borderLeftStyle: 'solid',
+  },
+  paragraph: {
+    marginBottom: 6,
   },
   listItem: {
     marginBottom: 4,
     marginLeft: 15,
+    paddingLeft: 5,
   },
   pageNumber: {
     position: 'absolute',
@@ -145,25 +160,92 @@ const styles = StyleSheet.create({
 
 // コンテンツをパースして構造化
 interface ContentBlock {
-  type: 'heading' | 'paragraph' | 'listItem';
+  type: 'sectionHeading' | 'numberedHeading' | 'paragraph' | 'listItem';
   text: string;
 }
 
+// コンテンツをパースして構造化
+interface ContentBlock {
+  type: 'sectionHeading' | 'numberedHeading' | 'paragraph' | 'listItem';
+  text: string;
+}
+
+/**
+ * 単一のテキストブロック内の不要な改行を削除
+ */
+function removeLineBreaks(text: string): string {
+  return text
+    // 改行をスペースに変換
+    .replace(/\r\n/g, ' ')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, ' ')
+    // 連続するスペースを1つに
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function parseContent(content: string): ContentBlock[] {
-  const lines = content.split('\n');
+  // 【】で始まるセクション見出しを基準に分割
+  // 見出しの前に改行を入れて分割しやすくする
+  const preparedContent = content
+    .replace(/【/g, '\n\n【')
+    .replace(/】\s*/g, '】\n\n');
+  
+  const lines = preparedContent.split('\n');
   const blocks: ContentBlock[] = [];
+  let currentParagraph = '';
   
   for (const line of lines) {
     const trimmed = line.trim();
-    if (!trimmed) continue;
-    
-    if (trimmed.match(/^\d+\.\s/)) {
-      blocks.push({ type: 'heading', text: trimmed });
-    } else if (trimmed.match(/^[-•・]\s/)) {
-      blocks.push({ type: 'listItem', text: trimmed.replace(/^[-•・]\s/, '') });
-    } else {
-      blocks.push({ type: 'paragraph', text: trimmed });
+    if (!trimmed) {
+      // 空行の場合、蓄積した段落を出力
+      if (currentParagraph) {
+        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
+        currentParagraph = '';
+      }
+      continue;
     }
+    
+    // 【】で囲まれたセクション見出し
+    if (trimmed.match(/^【.+】$/)) {
+      // 蓄積した段落を先に出力
+      if (currentParagraph) {
+        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
+        currentParagraph = '';
+      }
+      blocks.push({ 
+        type: 'sectionHeading', 
+        text: trimmed.replace(/^【/, '').replace(/】$/, '') 
+      });
+    }
+    // 数字で始まる見出し（1. や 1.1 など）
+    else if (trimmed.match(/^\d+(\.\d+)*\.\s/)) {
+      if (currentParagraph) {
+        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
+        currentParagraph = '';
+      }
+      blocks.push({ type: 'numberedHeading', text: removeLineBreaks(trimmed) });
+    }
+    // 箇条書き（・、• など）- ハイフンは除外（英単語で使用されるため）
+    else if (trimmed.match(/^[・•]\s*/)) {
+      if (currentParagraph) {
+        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
+        currentParagraph = '';
+      }
+      blocks.push({ 
+        type: 'listItem', 
+        text: removeLineBreaks(trimmed.replace(/^[・•]\s*/, ''))
+      });
+    }
+    // 通常のテキスト → 段落として蓄積
+    else {
+      currentParagraph += (currentParagraph ? ' ' : '') + trimmed;
+    }
+  }
+  
+  // 最後に蓄積した段落を出力
+  if (currentParagraph) {
+    blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
   }
   
   return blocks;
@@ -199,8 +281,10 @@ function createReportDocument(
   const contentElements = contentBlocks.map((block, index) => {
     const key = `block-${index}`;
     switch (block.type) {
-      case 'heading':
-        return React.createElement(Text, { key, style: styles.heading }, block.text);
+      case 'sectionHeading':
+        return React.createElement(Text, { key, style: styles.sectionHeading }, block.text);
+      case 'numberedHeading':
+        return React.createElement(Text, { key, style: styles.numberedHeading }, block.text);
       case 'listItem':
         return React.createElement(Text, { key, style: styles.listItem }, `• ${block.text}`);
       default:

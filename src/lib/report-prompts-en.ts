@@ -100,7 +100,7 @@ export function generateDocumentUsagePrinciplesEN(): string {
 }
 
 /**
- * Generate GSN analysis prompt (English)
+ * Generate GSN analysis prompt (English) 
  */
 export function generateGSNAnalysisPromptEN(hasGSNFile: boolean): string {
   if (!hasGSNFile) {
@@ -108,16 +108,70 @@ export function generateGSNAnalysisPromptEN(hasGSNFile: boolean): string {
   }
 
   return `
-## Structured Content Analysis
-- If GSN files are provided:
-  - Evaluate whether each Goal (G) node has been achieved
-  - Verify the validity and effectiveness of Strategy (S) nodes
-  - Confirm that Solutions (Sn) and Contexts (C) provide appropriate evidence
-  - If there are unachieved or insufficient nodes, clearly state the gaps and countermeasures
-  - Evaluate the logical consistency of the entire GSN structure
-- If other structured documents (flowcharts, hierarchical structures, etc.) are provided:
-  - Understand the structure and reflect relationships between elements in the report
-  - Evaluate the completeness and validity of the structure`;
+## GSN (Goal Structuring Notation) Detailed Analysis
+
+### GSN Node Evaluation Method
+For each node in the GSN, provide detailed evaluation in the following format.
+Evaluate ALL nodes. If information is insufficient, explicitly state "Cannot Evaluate (Insufficient Information)" or "Not documented". NEVER speculate or fabricate information.
+
+【Goal Node (G) Evaluation】
+For each goal node, include the following 3 points:
+1. Achievement Status: One of "Achieved", "Partially Achieved", "Not Achieved", or "Cannot Evaluate (Insufficient Information)"
+2. Basis for Judgment: Specific evidence, data, or documents supporting this judgment. If no information available, state "No relevant information in provided documents"
+3. Issues/Recommendations: What is lacking for full achievement, recommended actions. If cannot evaluate, state "Additional information required for evaluation"
+
+Example 1 (When evaluation is possible):
+"G1: The system can be operated safely"
+• Achievement Status: Partially Achieved
+• Basis: E1 test results cover 95% of main scenarios, E2 risk assessment shows countermeasures implemented for 3 high-risk items
+• Issues: Remaining 5% untested scenarios need coverage
+
+Example 2 (When information is insufficient):
+"G5: The system can transition to a safe state when anomalies occur"
+• Achievement Status: Cannot Evaluate (Insufficient Information)
+• Basis: Detailed argumentation structure and evidence for G5 not included in provided documents
+• Issues: Addition of detailed functional safety argumentation based on ISO 26262 required
+
+【Strategy Node (S) Evaluation】
+Evaluate each strategy. If information is insufficient, state "Details unknown":
+1. Validity: Can this strategy adequately demonstrate the goal? (If unknown, state "Insufficient information to judge")
+2. Completeness: Are all necessary perspectives covered without gaps?
+3. Effectiveness: Is it backed by actual evidence?
+
+【Evidence Node (E/Sn) Evaluation】
+Evaluate each evidence. If details are unknown, state "Content details not documented":
+1. Evidence Type: Test results, analysis report, third-party evaluation, etc. (If unknown, state "Type unknown")
+2. Evidence Strength: Sufficient / Partial / Insufficient / Cannot Judge
+3. Relevance to Goals: Which goals does it support and to what extent?
+
+【Context Node (C) Evaluation】
+Evaluate only if information is available. If unknown, state "Details not documented":
+1. Validity of assumptions
+2. Clarity of scope
+3. Impact of constraints
+
+### Overall GSN Structure Evaluation
+Evaluate the entire GSN from the following perspectives:
+1. Argument Completeness: Are all goals sufficiently supported by evidence?
+2. Logical Consistency: Is the Goal→Strategy→Sub-goal/Evidence flow consistent and free of contradictions?
+3. Unresolved Nodes: Identify nodes lacking detail or evidence
+4. Information-Insufficient Nodes: List nodes that could not be evaluated due to lack of information in provided documents
+
+### Evaluation Summary
+At the end of the GSN section, include an evaluation summary in the following format:
+
+Main Goal Achievement Status:
+• G1 (Top Goal): [Status] - [One-sentence basis summary]
+• G2: [Status] - [One-sentence basis summary]
+• G3: [Status] - [One-sentence basis summary]
+...
+
+CRITICAL (Hallucination Prevention):
+- Evaluate ALL nodes in the GSN
+- If information is insufficient, ALWAYS explicitly state "Cannot Evaluate (Insufficient Information)" or "Not documented"
+- Speculating or fabricating information not in provided documents is STRICTLY PROHIBITED
+- Include "achievement evaluation", not just "structure explanation"
+- Having nodes that cannot be evaluated is acceptable. Honestly stating "Cannot Evaluate" is important`;
 }
 
 /**

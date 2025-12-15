@@ -16,6 +16,13 @@ import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { getUserStorageKey } from '@/lib/browser-id';
+import { useSectionGeneration } from '@/hooks/useSectionGeneration';
+
+// =============================================================================
+// 生成方式の切り替え設定
+// Lambda Function URL実装後は USE_SECTION_GENERATION を false に変更
+// =============================================================================
+const USE_SECTION_GENERATION = true;  // true: セクション分割方式, false: 一括生成方式
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -35,6 +42,15 @@ export default function Home() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
+
+  // セクション分割生成フック
+  const {
+    generateReport: generateReportBySection,
+    isGenerating: isSectionGenerating,
+    progress,
+    error: sectionError,
+    reset: resetSectionGeneration,
+  } = useSectionGeneration();
 
   // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
@@ -97,6 +113,13 @@ export default function Home() {
       setCustomStructures(JSON.parse(savedStructures));
     }
   }, [userIdentifier]);
+
+  // セクション生成エラーを監視
+  useEffect(() => {
+    if (sectionError) {
+      setErrorMessage(sectionError);
+    }
+  }, [sectionError]);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => {
@@ -347,8 +370,85 @@ export default function Home() {
     }
   };
 
+  // =============================================================================
+  // レポート生成（セクション分割方式）
+  // =============================================================================
+  const handleGenerateReportBySection = async () => {
+    if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
+    
+    setErrorMessage(null);
+    setWarningMessages([]);
+    resetSectionGeneration();
+    
+    // ファイルがある場合のみナレッジベース構築
+    if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
+      await buildKnowledgeBase(true);
+      if (knowledgeBaseStatus === 'error') return;
+    }
+    
+    // 大きいファイルの確認（既存のロジックを維持）
+    const LARGE_CONTENT_THRESHOLD = 50000;
+    const MAX_LARGE_FULL_TEXT_FILES = 2;
+    const MAX_CONTENT_CHARS_PER_FILE = 50000;
 
-  const handleGenerateReport = async () => {
+    const fullTextFiles = files.filter(f => f.includeFullText);
+
+    const oversizedFiles = fullTextFiles.filter(f => {
+      const metadata = f.metadata as { originalContentLength?: number };
+      const contentLength = metadata?.originalContentLength || f.content.length;
+      return contentLength > MAX_CONTENT_CHARS_PER_FILE;
+    });
+
+    if (oversizedFiles.length > 0) {
+      const fileList = oversizedFiles
+        .map(f => {
+          const metadata = f.metadata as { originalContentLength?: number };
+          const contentLength = metadata?.originalContentLength || f.content.length;
+          return language === 'en'
+            ? `• ${f.name} (${contentLength.toLocaleString()} chars)`
+            : `・${f.name}（${contentLength.toLocaleString()}文字）`;
+        })
+        .join('\n');
+      
+      const confirmMsg = language === 'en'
+        ? `[Confirmation] The following full-text files exceed 50,000 characters:\n\n${fileList}\n\nThese files will be truncated to 50,000 characters.\nContinue?`
+        : `【確認】以下の全文使用ファイルは5万文字を超えています：\n\n${fileList}\n\nこれらのファイルは5万文字まで切り詰められます。\n続行しますか？`;
+      
+      if (!confirm(confirmMsg)) return;
+    }
+
+    const largeFullTextFiles = fullTextFiles.filter(f => {
+      const metadata = f.metadata as { originalContentLength?: number; s3Key?: string };
+      const contentLength = metadata?.originalContentLength || f.content.length;
+      return contentLength >= LARGE_CONTENT_THRESHOLD || metadata?.s3Key;
+    });
+
+    if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
+      const confirmMsg = language === 'en'
+        ? `[Warning] ${largeFullTextFiles.length} large files (50,000+ chars or S3 stored) are selected for full text use.\n\nTo reduce processing load, only the first ${MAX_LARGE_FULL_TEXT_FILES} will use full text.\nThe rest will use RAG to extract relevant parts.\n\nContinue?`
+        : `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n残りのファイルはRAGで関連部分のみ抽出されます。\n\n続行しますか？`;
+      
+      if (!confirm(confirmMsg)) return;
+    }
+
+    // セクション分割生成を実行
+    const report = await generateReportBySection({
+      files,
+      stakeholder: selectedStakeholder,
+      reportStructure: selectedStructure,
+      userIdentifier,
+      language,
+    });
+
+    if (report) {
+      setGeneratedReport(report);
+    }
+  };
+
+  // =============================================================================
+  // レポート生成（一括生成方式 - Lambda Function URL用）
+  // =============================================================================
+  const handleGenerateReportBulk = async () => {
     if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
     
     setErrorMessage(null);
@@ -409,7 +509,11 @@ export default function Home() {
     
     setIsGenerating(true);
     try {
-      const response = await fetch('/api/generate-report', {
+      // Lambda Function URL実装後はここのエンドポイントを変更
+      // const endpoint = '/api/generate-report-lambda'; // Lambda版
+      const endpoint = '/api/generate-report'; // 現行版
+      
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -420,7 +524,7 @@ export default function Home() {
             .map(file => file.id),
           reportStructure: selectedStructure,
           userIdentifier: userIdentifier,
-          language: language, // 言語設定をAPIに渡す
+          language: language,
         }),
       });
 
@@ -472,6 +576,16 @@ export default function Home() {
       setIsGenerating(false);
     }
   };
+
+  // =============================================================================
+  // 生成方式の切り替え
+  // =============================================================================
+  const handleGenerateReport = USE_SECTION_GENERATION 
+    ? handleGenerateReportBySection 
+    : handleGenerateReportBulk;
+
+  // 生成中フラグ（方式に応じて切り替え）
+  const isCurrentlyGenerating = USE_SECTION_GENERATION ? isSectionGenerating : isGenerating;
 
   const handleStakeholderSelect = (stakeholder: Stakeholder) => {
     setSelectedStakeholder(stakeholder);
@@ -722,24 +836,101 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* セクション生成進捗表示（セクション分割方式の場合のみ） */}
+            {USE_SECTION_GENERATION && isSectionGenerating && progress && (
+              <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <h4 className="text-blue-800 dark:text-blue-200 font-medium mb-3">
+                  {language === 'en' ? 'Generating Report...' : 'レポート生成中...'}
+                </h4>
+                
+                {/* コンテキスト準備中 */}
+                {progress.status === 'preparing' && (
+                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                    <FiLoader className="animate-spin" />
+                    <span>
+                      {language === 'en' 
+                        ? 'Preparing context (RAG search + file loading)...'
+                        : 'コンテキスト準備中（RAG検索 + ファイル読み込み）...'
+                      }
+                    </span>
+                  </div>
+                )}
+
+                {/* セクション生成中 */}
+                {progress.status === 'generating' && (
+                  <>
+                    {/* 全体進捗バー */}
+                    <div className="mb-3">
+                      <div className="flex justify-between text-sm text-blue-700 dark:text-blue-300 mb-1">
+                        <span>
+                          {language === 'en' 
+                            ? `Section ${progress.currentSection} of ${progress.totalSections}`
+                            : `${progress.totalSections}セクション中 ${progress.currentSection}セクション目`
+                          }
+                        </span>
+                        <span>{Math.round((progress.completedSections.length / progress.totalSections) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(progress.completedSections.length / progress.totalSections) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 現在生成中のセクション */}
+                    <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                      <FiLoader className="animate-spin" />
+                      <span>
+                        {language === 'en' 
+                          ? `Generating: ${progress.sectionName}`
+                          : `生成中: ${progress.sectionName}`
+                        }
+                      </span>
+                    </div>
+
+                    {/* 完了したセクション一覧 */}
+                    {progress.completedSections.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+                          {language === 'en' ? 'Completed:' : '完了:'}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {progress.completedSections.map((section) => (
+                            <span 
+                              key={section}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded text-xs"
+                            >
+                              <FiCheckCircle className="w-3 h-3" />
+                              {section}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
             
             {/* レポート生成ボタン */}
             <button
               onClick={handleGenerateReport}
-              disabled={!selectedStakeholder || !selectedStructure || isGenerating || isKnowledgeBaseBuilding}
+              disabled={!selectedStakeholder || !selectedStructure || isCurrentlyGenerating || isKnowledgeBaseBuilding}
               className={`
                 w-full py-4 sm:py-6 px-6 sm:px-10 
                 text-lg sm:text-xl font-bold 
                 rounded-lg sm:rounded-xl 
                 shadow-lg hover:shadow-xl dark:hover:shadow-2xl
                 transition-all duration-200
-                ${!selectedStakeholder || !selectedStructure || isGenerating || isKnowledgeBaseBuilding
+                ${!selectedStakeholder || !selectedStructure || isCurrentlyGenerating || isKnowledgeBaseBuilding
                   ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60 text-white'
                   : 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600'
                 }
               `}
             >
-              {isGenerating ? t('report.generating') : t('report.generate')}
+              {isCurrentlyGenerating ? t('report.generating') : t('report.generate')}
             </button>
           </div>
           
