@@ -1,19 +1,18 @@
 // src/hooks/useSectionGeneration.ts
-// セクション分割生成用のReactフック（2段階処理：コンテキスト準備→セクション生成）
-// Lambda Function URLが設定されている場合はLambdaを使用、なければNext.js APIを使用
+// セクション分割生成用のReactフック
+// Lambda Function URL（ストリーミング対応）またはNext.js APIを使用
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { getRhetoricStrategyDisplayName, determineAdvancedRhetoricStrategy } from '@/lib/rhetoric-strategies';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
 
-// ===== デバッグログ =====
+// デバッグログ
 console.log('=== useSectionGeneration.ts loaded ===');
 console.log('LAMBDA_FUNCTION_URL:', LAMBDA_FUNCTION_URL);
 console.log('isLambdaAvailable:', !!LAMBDA_FUNCTION_URL);
-// ========================
 
 // 進捗状態の型定義
 interface SectionProgress {
@@ -22,7 +21,6 @@ interface SectionProgress {
   sectionName: string;
   status: 'idle' | 'preparing' | 'generating' | 'complete' | 'error';
   completedSections: string[];
-  // コンテキスト準備の情報
   contextPrepared: boolean;
   contextMetadata?: {
     fullTextFileCount: number;
@@ -30,8 +28,13 @@ interface SectionProgress {
     gsnFileCount: number;
     totalCharacters: number;
   };
-  // Lambda使用フラグ
+  // Lambda用
   usingLambda?: boolean;
+  lambdaProgress?: {
+    status: string;
+    message: string;
+    percent: number;
+  };
 }
 
 interface UseSectionGenerationOptions {
@@ -39,7 +42,8 @@ interface UseSectionGenerationOptions {
   onSectionComplete?: (sectionName: string, content: string) => void;
   onError?: (error: string, sectionName: string) => void;
   onContextPrepared?: (metadata: SectionProgress['contextMetadata']) => void;
-  // Lambda使用を強制するかどうか（trueの場合、Lambda URLがなければエラー）
+  // ストリーミング用：テキストチャンク受信時のコールバック
+  onStreamChunk?: (chunk: string, fullContent: string) => void;
   forceLambda?: boolean;
 }
 
@@ -70,8 +74,12 @@ interface PrepareContextResponse {
   duration: number;
 }
 
-interface LambdaResponse {
-  success: boolean;
+interface LambdaStreamMessage {
+  type: 'progress' | 'chunk' | 'complete' | 'error';
+  status?: string;
+  message?: string;
+  percent?: number;
+  text?: string;
   report?: {
     title: string;
     content: string;
@@ -79,18 +87,16 @@ interface LambdaResponse {
     rhetoricStrategy: string;
     createdAt: string;
   };
-  totalDuration?: number;
   error?: string;
   details?: string;
+  totalDuration?: number;
 }
 
 /**
  * Lambda生成が利用可能かチェック
  */
 export function isLambdaGenerationAvailable(): boolean {
-  const available = !!LAMBDA_FUNCTION_URL;
-  console.log('[isLambdaGenerationAvailable] called, returning:', available);
-  return available;
+  return !!LAMBDA_FUNCTION_URL;
 }
 
 export function useSectionGeneration(options: UseSectionGenerationOptions = {}) {
@@ -104,17 +110,26 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     contextPrepared: false,
   });
   const [error, setError] = useState<string | null>(null);
+  
+  // ストリーミング中のレポートコンテンツを保持
+  const [streamingContent, setStreamingContent] = useState<string>('');
+  const streamingContentRef = useRef<string>('');
 
   /**
-   * Lambda Function URLを使用してレポートを生成
+   * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
     const { files, stakeholder, reportStructure, userIdentifier, language } = params;
 
-    console.log('🚀 [generateReportWithLambda] Starting Lambda generation');
+    console.log('🚀 [generateReportWithLambda] Starting streaming Lambda generation');
     console.log('🚀 [generateReportWithLambda] URL:', LAMBDA_FUNCTION_URL);
 
-    const preparingProgress: SectionProgress = {
+    // ストリーミングコンテンツをリセット
+    streamingContentRef.current = '';
+    setStreamingContent('');
+
+    // 初期進捗
+    const initialProgress: SectionProgress = {
       currentSection: 0,
       totalSections: reportStructure.sections.length,
       sectionName: language === 'ja' ? 'Lambda関数で生成中...' : 'Generating with Lambda...',
@@ -122,9 +137,14 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       completedSections: [],
       contextPrepared: false,
       usingLambda: true,
+      lambdaProgress: {
+        status: 'starting',
+        message: language === 'ja' ? '処理を開始しています...' : 'Starting process...',
+        percent: 0
+      }
     };
-    setProgress(preparingProgress);
-    options.onProgress?.(preparingProgress);
+    setProgress(initialProgress);
+    options.onProgress?.(initialProgress);
 
     // ファイルデータをLambda用に変換
     const filesForLambda = files.map(f => ({
@@ -141,7 +161,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       .filter(f => f.includeFullText)
       .map(f => f.name);
 
-    console.log('🚀 [generateReportWithLambda] Sending request to Lambda...');
+    console.log('🚀 [generateReportWithLambda] Sending streaming request to Lambda...');
 
     const response = await fetch(LAMBDA_FUNCTION_URL, {
       method: 'POST',
@@ -160,39 +180,115 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
 
     console.log('🚀 [generateReportWithLambda] Response status:', response.status);
 
-    const data: LambdaResponse = await response.json();
-
-    console.log('🚀 [generateReportWithLambda] Response data:', data);
-
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || data.details || `Lambda error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`Lambda error: ${response.status}`);
     }
 
-    if (!data.report) {
-      throw new Error('No report in Lambda response');
+    // ストリーミングレスポンスを処理
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No response body reader available');
     }
 
-    const report: Report = {
-      id: Math.random().toString(36).substring(2, 11),
-      title: data.report.title,
-      content: data.report.content,
-      stakeholder: data.report.stakeholder,
-      rhetoricStrategy: data.report.rhetoricStrategy,
-      createdAt: new Date(data.report.createdAt),
-      updatedAt: new Date(),
-    };
+    const decoder = new TextDecoder();
+    let report: Report | null = null;
+    let buffer = '';
 
-    setProgress({
-      currentSection: reportStructure.sections.length,
-      totalSections: reportStructure.sections.length,
-      sectionName: reportStructure.sections[reportStructure.sections.length - 1],
-      status: 'complete',
-      completedSections: reportStructure.sections,
-      contextPrepared: true,
-      usingLambda: true,
-    });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log('🚀 [generateReportWithLambda] Stream ended');
+          break;
+        }
 
-    console.log(`🚀 [generateReportWithLambda] Complete in ${data.totalDuration}ms`);
+        // チャンクをデコード
+        buffer += decoder.decode(value, { stream: true });
+        
+        // SSE形式のメッセージを解析
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() || ''; // 不完全な行を保持
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          
+          try {
+            const jsonStr = line.substring(6); // 'data: ' を削除
+            const message: LambdaStreamMessage = JSON.parse(jsonStr);
+
+            if (message.type === 'progress') {
+              // 進捗更新
+              const updatedProgress: SectionProgress = {
+                currentSection: 0,
+                totalSections: reportStructure.sections.length,
+                sectionName: message.message || '',
+                status: 'generating',
+                completedSections: [],
+                contextPrepared: message.status === 'generating' || message.status === 'finalizing',
+                usingLambda: true,
+                lambdaProgress: {
+                  status: message.status || 'processing',
+                  message: message.message || '',
+                  percent: message.percent || 0
+                }
+              };
+              setProgress(updatedProgress);
+              options.onProgress?.(updatedProgress);
+
+            } else if (message.type === 'chunk' && message.text) {
+              // テキストチャンクを追加
+              streamingContentRef.current += message.text;
+              setStreamingContent(streamingContentRef.current);
+              
+              // コールバックを呼び出し
+              options.onStreamChunk?.(message.text, streamingContentRef.current);
+
+            } else if (message.type === 'complete' && message.report) {
+              // 完了
+              console.log('🚀 [generateReportWithLambda] Complete!', message.totalDuration, 'ms');
+              
+              report = {
+                id: Math.random().toString(36).substring(2, 11),
+                title: message.report.title,
+                content: message.report.content,
+                stakeholder: message.report.stakeholder,
+                rhetoricStrategy: message.report.rhetoricStrategy,
+                createdAt: new Date(message.report.createdAt),
+                updatedAt: new Date(),
+              };
+
+              setProgress({
+                currentSection: reportStructure.sections.length,
+                totalSections: reportStructure.sections.length,
+                sectionName: reportStructure.sections[reportStructure.sections.length - 1],
+                status: 'complete',
+                completedSections: reportStructure.sections,
+                contextPrepared: true,
+                usingLambda: true,
+                lambdaProgress: {
+                  status: 'complete',
+                  message: message.message || 'Complete!',
+                  percent: 100
+                }
+              });
+
+            } else if (message.type === 'error') {
+              throw new Error(message.error || message.details || 'Unknown error');
+            }
+          } catch (parseError) {
+            console.warn('Failed to parse SSE message:', line, parseError);
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
+    if (!report) {
+      throw new Error('No report received from Lambda');
+    }
+
     return report;
   }, [options]);
 
@@ -209,9 +305,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     const generatedSections: Record<string, string> = {};
     const completedSections: string[] = [];
 
-    // ========================================
-    // Phase 1: コンテキスト準備（RAG検索+S3取得）
-    // ========================================
+    // Phase 1: コンテキスト準備
     console.log('Phase 1: Preparing context...');
     
     const preparingProgress: SectionProgress = {
@@ -240,36 +334,26 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
 
     const prepareResult: PrepareContextResponse = await prepareResponse.json();
 
-    // コンテキスト準備失敗
     if (!prepareResult.success || !prepareResult.metadata.hasContent) {
       const errorMessage = prepareResult.error || 
         (language === 'ja' 
-          ? 'レポート生成に必要な文書コンテンツがありません。ファイルをアップロードするか、「全文使用」を有効にしてください。'
-          : 'No document content available for report generation. Please upload files or enable "Use Full Text".');
-      
+          ? 'レポート生成に必要な文書コンテンツがありません。'
+          : 'No document content available for report generation.');
       throw new Error(errorMessage);
     }
 
     console.log(`Context prepared: ${prepareResult.metadata.totalCharacters} chars in ${prepareResult.duration}ms`);
-    console.log(`  Full text files: ${prepareResult.metadata.fullTextFileCount}`);
-    console.log(`  RAG results: ${prepareResult.metadata.ragResultCount}`);
-    console.log(`  GSN files: ${prepareResult.metadata.gsnFileCount}`);
-
-    // コンテキスト準備完了を通知
     options.onContextPrepared?.(prepareResult.metadata);
 
     const preparedContext = prepareResult.context.combinedContext;
     const hasGSNFile = prepareResult.metadata.gsnFileCount > 0;
 
-    // ========================================
-    // Phase 2: セクション生成（Claude API呼び出し）
-    // ========================================
+    // Phase 2: セクション生成
     console.log('Phase 2: Generating sections...');
 
     for (let i = 0; i < sections.length; i++) {
       const sectionName = sections[i];
       
-      // 進捗を更新
       const currentProgress: SectionProgress = {
         currentSection: i + 1,
         totalSections,
@@ -283,7 +367,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       setProgress(currentProgress);
       options.onProgress?.(currentProgress);
 
-      // セクション生成APIを呼び出し（コンテキストを渡す）
       const response = await fetch('/api/generate-section', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -295,7 +378,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
           previousSectionsContent: generatedSections,
           stakeholder,
           reportStructure,
-          preparedContext,  // 事前準備したコンテキストを渡す
+          preparedContext,
           hasGSNFile,
           language,
         }),
@@ -307,22 +390,14 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       }
 
       const result = await response.json();
-      
-      // 生成されたセクションを保存
       generatedSections[sectionName] = result.content;
       completedSections.push(sectionName);
-      
       options.onSectionComplete?.(sectionName, result.content);
       
-      console.log(`Section ${i + 1}/${totalSections} completed: ${sectionName} (${result.duration}ms)`);
+      console.log(`Section ${i + 1}/${totalSections} completed: ${sectionName}`);
     }
 
-    // ========================================
     // Phase 3: レポート組み立て
-    // ========================================
-    console.log('Phase 3: Assembling report...');
-
-    // 全セクションを結合してレポートを作成
     const reportContent = sections
       .map(section => `【${section}】\n${generatedSections[section]}`)
       .join('\n\n');
@@ -358,40 +433,34 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
 
   /**
    * メインのレポート生成関数
-   * Lambda URLが設定されていればLambdaを使用、なければNext.js APIを使用
    */
   const generateReport = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
     console.log('=== [generateReport] called ===');
-    console.log('forceLambda:', options.forceLambda);
     console.log('isLambdaGenerationAvailable():', isLambdaGenerationAvailable());
-    console.log('LAMBDA_FUNCTION_URL:', LAMBDA_FUNCTION_URL);
 
     setIsGenerating(true);
     setError(null);
+    setStreamingContent('');
+    streamingContentRef.current = '';
 
     try {
-      // Lambda使用を強制している場合
       if (options.forceLambda) {
-        console.log('[generateReport] forceLambda is true');
         if (!isLambdaGenerationAvailable()) {
-          throw new Error('Lambda Function URLが設定されていません。環境変数 NEXT_PUBLIC_LAMBDA_FUNCTION_URL を確認してください。');
+          throw new Error('Lambda Function URLが設定されていません。');
         }
         return await generateReportWithLambda(params);
       }
 
-      // Lambda URLが設定されていればLambdaを使用
       if (isLambdaGenerationAvailable()) {
         console.log('[generateReport] Lambda is available, using Lambda...');
         try {
           return await generateReportWithLambda(params);
         } catch (lambdaError) {
           console.warn('Lambda generation failed, falling back to Next.js API:', lambdaError);
-          // Lambdaが失敗した場合はNext.js APIにフォールバック
           return await generateReportWithNextJS(params);
         }
       }
 
-      // Lambda URLがなければNext.js APIを使用
       console.log('[generateReport] Lambda not available, using Next.js API...');
       return await generateReportWithNextJS(params);
 
@@ -416,6 +485,8 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
   const reset = useCallback(() => {
     setIsGenerating(false);
     setError(null);
+    setStreamingContent('');
+    streamingContentRef.current = '';
     setProgress({
       currentSection: 0,
       totalSections: 0,
@@ -432,7 +503,8 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     progress,
     error,
     reset,
-    // Lambda利用可能かどうかを公開
     isLambdaAvailable: isLambdaGenerationAvailable(),
+    // ストリーミング中のコンテンツ
+    streamingContent,
   };
 }

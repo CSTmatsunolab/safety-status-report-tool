@@ -44,14 +44,18 @@ export default function Home() {
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
 
   // セクション分割生成フック
+// セクション分割生成フック
   const {
     generateReport: generateReportBySection,
     isGenerating: isSectionGenerating,
     progress,
     error: sectionError,
     reset: resetSectionGeneration,
+    streamingContent,  // ← 追加
   } = useSectionGeneration();
 
+
+  
   // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
     if (authStatus !== 'loading') {
@@ -837,15 +841,75 @@ export default function Home() {
               </div>
             )}
 
-            {/* セクション生成進捗表示（セクション分割方式の場合のみ） */}
+            {/* セクション生成進捗表示 */}
             {USE_SECTION_GENERATION && isSectionGenerating && progress && (
               <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h4 className="text-blue-800 dark:text-blue-200 font-medium mb-3">
                   {language === 'en' ? 'Generating Report...' : 'レポート生成中...'}
                 </h4>
                 
-                {/* コンテキスト準備中 */}
-                {progress.status === 'preparing' && (
+                {/* Lambda使用時：ストリーミング進捗表示 */}
+                {progress.usingLambda && progress.status === 'generating' && (
+                  <div className="space-y-3">
+                    {/* スピナーとメッセージ */}
+                    <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
+                      <div className="relative">
+                        <div className="w-8 h-8 border-4 border-blue-200 dark:border-blue-700 rounded-full"></div>
+                        <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
+                      </div>
+                      <div>
+                        <p className="font-medium">
+                          {progress.lambdaProgress?.message || 
+                            (language === 'en' ? 'Processing...' : '処理中...')
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* リアルタイム進捗バー */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs text-blue-600 dark:text-blue-400">
+                        <span>
+                          {progress.lambdaProgress?.status === 'searching' && (language === 'en' ? 'Searching...' : '検索中...')}
+                          {progress.lambdaProgress?.status === 'preparing' && (language === 'en' ? 'Preparing...' : '準備中...')}
+                          {progress.lambdaProgress?.status === 'building' && (language === 'en' ? 'Building...' : '構築中...')}
+                          {progress.lambdaProgress?.status === 'generating' && (language === 'en' ? 'Generating...' : '生成中...')}
+                          {progress.lambdaProgress?.status === 'finalizing' && (language === 'en' ? 'Finalizing...' : '仕上げ中...')}
+                          {!progress.lambdaProgress?.status && (language === 'en' ? 'Starting...' : '開始中...')}
+                        </span>
+                        <span>{progress.lambdaProgress?.percent || 0}%</span>
+                      </div>
+                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${progress.lambdaProgress?.percent || 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {/* 処理ステップ */}
+                    <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 pt-2">
+                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? 'opacity-100' : 'opacity-40'}>
+                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? '✓' : '○'} {language === 'en' ? 'RAG search from knowledge base' : '知識ベースからRAG検索'}
+                      </p>
+                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 30 ? 'opacity-100' : 'opacity-40'}>
+                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 30 ? '✓' : '○'} {language === 'en' ? 'Prepare context' : 'コンテキスト準備'}
+                      </p>
+                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 50 ? 'opacity-100' : 'opacity-40'}>
+                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 50 ? '✓' : '○'} {language === 'en' ? 'Build prompt' : 'プロンプト構築'}
+                      </p>
+                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 60 ? 'opacity-100' : 'opacity-40'}>
+                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 60 ? '✓' : '○'} {language === 'en' ? 'Generate report with Claude AI' : 'Claude AIでレポート生成'}
+                      </p>
+                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 90 ? 'opacity-100' : 'opacity-40'}>
+                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 90 ? '✓' : '○'} {language === 'en' ? 'Finalize report' : 'レポート仕上げ'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Next.js API使用時：コンテキスト準備中 */}
+                {!progress.usingLambda && progress.status === 'preparing' && (
                   <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
                     <FiLoader className="animate-spin" />
                     <span>
@@ -857,8 +921,8 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* セクション生成中 */}
-                {progress.status === 'generating' && (
+                {/* Next.js API使用時：セクション生成中 */}
+                {!progress.usingLambda && progress.status === 'generating' && (
                   <>
                     {/* 全体進捗バー */}
                     <div className="mb-3">
@@ -944,7 +1008,27 @@ export default function Home() {
               }`}>
                 {t('report.preview')}
               </h2>
-              {generatedReport ? (
+
+              {/* ストリーミング中のプレビュー */}
+              {progress.usingLambda && isSectionGenerating && streamingContent ? (
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {language === 'en' ? 'Streaming...' : 'ストリーミング中...'}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+                      {streamingContent.length.toLocaleString()} {language === 'en' ? 'chars' : '文字'}
+                    </span>
+                  </div>
+                  <div className="max-h-[600px] overflow-y-auto">
+                    <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-sans leading-relaxed">
+                      {streamingContent}
+                      <span className="inline-block w-0.5 h-4 bg-green-500 animate-pulse ml-0.5 align-middle"></span>
+                    </pre>
+                  </div>
+                </div>
+              ) : generatedReport ? (
                 <ReportPreview 
                   report={generatedReport} 
                   onUpdate={setGeneratedReport}
