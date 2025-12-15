@@ -8,16 +8,18 @@ import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
 import { SettingsMenu } from './components/SettingsMenu';
 import { useI18n } from './components/I18nProvider';
+import { useAuth } from './components/AuthProvider';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2 } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
-import { getBrowserId } from '@/lib/browser-id';
+import { getUserStorageKey } from '@/lib/browser-id';
 
 export default function Home() {
   const { t, language } = useI18n();
+  const { getUserIdentifier, status: authStatus } = useAuth();
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
@@ -29,14 +31,27 @@ export default function Home() {
   const [selectedStructure, setSelectedStructure] = useState<ReportStructureTemplate | null>(null);
   const [recommendedStructureId, setRecommendedStructureId] = useState<string>('');
   const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
-  const [browserId, setBrowserId] = useState<string>('');
+  const [userIdentifier, setUserIdentifier] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
 
-  // 言語が変わったらステークホルダーを更新
+  // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
-    const saved = localStorage.getItem('customStakeholders');
+    if (authStatus !== 'loading') {
+      const id = getUserIdentifier();
+      setUserIdentifier(id);
+      console.log('User Identifier:', id, '(Auth Status:', authStatus, ')');
+    }
+  }, [authStatus, getUserIdentifier]);
+
+  // 言語またはユーザー識別子が変わったらステークホルダーを更新
+  useEffect(() => {
+    if (!userIdentifier) return;
+    
+    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
+    const saved = localStorage.getItem(storageKey);
+    
     if (saved) {
       try {
         const customStakeholders = JSON.parse(saved) as Stakeholder[];
@@ -58,7 +73,7 @@ export default function Home() {
     } else {
       setStakeholders(getPredefinedStakeholders(language));
     }
-  }, [language]);
+  }, [language, userIdentifier]);
 
   // 言語が変わったら選択中のステークホルダーも更新
   useEffect(() => {
@@ -72,17 +87,16 @@ export default function Home() {
     }
   }, [language, selectedStakeholder]);
 
+  // カスタム構成を読み込む
   useEffect(() => {
-    const id = getBrowserId();
-    setBrowserId(id);
-    console.log('Browser ID:', id);
-
-    // カスタム構成を読み込む
-    const savedStructures = localStorage.getItem('customReportStructures');
+    if (!userIdentifier) return;
+    
+    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
+    const savedStructures = localStorage.getItem(storageKey);
     if (savedStructures) {
       setCustomStructures(JSON.parse(savedStructures));
     }
-  }, []);
+  }, [userIdentifier]);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => {
@@ -143,13 +157,17 @@ export default function Home() {
   const handleAddCustomStructure = (structure: ReportStructureTemplate) => {
     const updatedStructures = [...customStructures, structure];
     setCustomStructures(updatedStructures);
-    localStorage.setItem('customReportStructures', JSON.stringify(updatedStructures));
+    
+    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
+    localStorage.setItem(storageKey, JSON.stringify(updatedStructures));
   };
 
   const handleDeleteCustomStructure = (structureId: string) => {
     const updatedStructures = customStructures.filter(s => s.id !== structureId);
     setCustomStructures(updatedStructures);
-    localStorage.setItem('customReportStructures', JSON.stringify(updatedStructures));
+    
+    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
+    localStorage.setItem(storageKey, JSON.stringify(updatedStructures));
     
     // 削除された構成が選択されていた場合はクリア
     if (selectedStructure?.id === structureId) {
@@ -159,7 +177,7 @@ export default function Home() {
 
   // 知識ベースを構築する関数
   const buildKnowledgeBase = async (isTriggeredByReportGeneration = false) => {
-    if (!selectedStakeholder || files.length === 0) return;
+    if (!selectedStakeholder || files.length === 0 || !userIdentifier) return;
 
     if (knowledgeBaseStatus === 'idle' && !isTriggeredByReportGeneration) {
       const confirmMessage = t('knowledgeBase.confirmBuild');
@@ -180,7 +198,7 @@ export default function Home() {
         body: JSON.stringify({
           files,
           stakeholderId: selectedStakeholder.id,
-          browserId: browserId,
+          userIdentifier: userIdentifier,
         }),
       });
       
@@ -238,7 +256,7 @@ export default function Home() {
   };
 
   const deleteKnowledgeBase = async () => {
-    if (!selectedStakeholder) return;
+    if (!selectedStakeholder || !userIdentifier) return;
     
     setIsDeleting(true);
     
@@ -249,7 +267,7 @@ export default function Home() {
       
       try {
         const statsResponse = await fetch(
-          `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&browserId=${browserId}`,
+          `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
           { method: 'GET' }
         );
         
@@ -289,7 +307,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stakeholderId: selectedStakeholder.id,
-          browserId: browserId,
+          userIdentifier: userIdentifier,
         }),
       });
       
@@ -331,7 +349,7 @@ export default function Home() {
 
 
   const handleGenerateReport = async () => {
-    if (!selectedStakeholder || !selectedStructure) return;
+    if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
     
     setErrorMessage(null);
     setWarningMessages([]);
@@ -401,7 +419,7 @@ export default function Home() {
             .filter(file => file.includeFullText)
             .map(file => file.id),
           reportStructure: selectedStructure,
-          browserId: browserId,
+          userIdentifier: userIdentifier,
           language: language, // 言語設定をAPIに渡す
         }),
       });

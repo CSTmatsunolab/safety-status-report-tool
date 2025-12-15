@@ -167,7 +167,7 @@ async function performRAGSearch(
   stakeholder: Stakeholder,
   vectorStoreType: string,
   fullTextFiles: UploadedFile[],
-  browserId?: string
+  userIdentifier?: string
 ): Promise<{ contextContent: string; relevantDocs: Document[] }> {
   let contextContent = '';
   let relevantDocs: Document[] = [];
@@ -178,14 +178,14 @@ async function performRAGSearch(
       const vectorStore = await VectorStoreFactory.getExistingStore(
         embeddings,
         stakeholder.id,
-        browserId
+        userIdentifier
       );
       
       if (vectorStore) {
         const stats = await VectorStoreFactory.getVectorStoreStats(
           vectorStore,
           stakeholder.id,
-          browserId
+          userIdentifier
         );
         
         console.log('Vector store stats:', stats);
@@ -266,7 +266,7 @@ async function performRAGSearch(
     }
   } else {
     // メモリストアの場合
-    const namespace = generateNamespace(stakeholder.id, browserId);
+    const namespace = generateNamespace(stakeholder.id, userIdentifier);
     const storeKey = `ssr_${namespace}`; 
     const vectorStoreCandidate = globalStores.get(storeKey);
     
@@ -278,7 +278,7 @@ async function performRAGSearch(
         const stats = await VectorStoreFactory.getVectorStoreStats(
           vectorStore,
           stakeholder.id,
-          browserId
+          userIdentifier
         );
         console.log('Vector store stats:', stats);
         
@@ -475,14 +475,19 @@ async function generateReportWithClaude(
 // メインのPOSTハンドラ
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholder, reportStructure, browserId, language = 'ja' }: { 
+    // userIdentifier と browserId の両方を受け付け（後方互換性）
+    const { files, stakeholder, reportStructure, userIdentifier, browserId, language = 'ja' }: { 
       files: UploadedFile[]; 
       stakeholder: Stakeholder;
       fullTextFileIds?: string[];
       reportStructure?: ReportStructureTemplate;
+      userIdentifier?: string;
       browserId?: string;
       language?: 'ja' | 'en';
     } = await request.json();
+    
+    // userIdentifier を優先、なければ browserId を使用
+    const identifier = userIdentifier || browserId;
     
     if (!stakeholder) {
       return NextResponse.json(
@@ -493,6 +498,7 @@ export async function POST(request: NextRequest) {
     
     const safeFiles = files || [];
     console.log('Generating report for:', stakeholder.role);
+    console.log('User identifier:', identifier);
     console.log('Language:', language);
     console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
 
@@ -513,7 +519,7 @@ export async function POST(request: NextRequest) {
       stakeholder,
       vectorStoreType,
       fullTextFiles,
-      browserId
+      identifier
     );
 
     // 全文使用ファイルの追加

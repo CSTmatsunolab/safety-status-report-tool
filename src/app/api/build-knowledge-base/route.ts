@@ -180,11 +180,15 @@ const globalStores: Map<string, unknown> =
 
 export async function POST(request: NextRequest) {
   try {
-    const { files, stakeholderId, browserId }: { 
-      files: ExtendedUploadedFile[]; // 型を変更
+    // userIdentifier と browserId の両方を受け付け（後方互換性）
+    const { files, stakeholderId, userIdentifier, browserId }: { 
+      files: ExtendedUploadedFile[];
       stakeholderId: string; 
+      userIdentifier?: string;
       browserId?: string; 
     } = await request.json();
+    
+    const identifier = userIdentifier || browserId;
     
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -194,6 +198,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Building knowledge base for stakeholder:', stakeholderId);
+    console.log('User identifier:', identifier);
     console.log('Processing files:', files.length);
     console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
 
@@ -360,7 +365,7 @@ export async function POST(request: NextRequest) {
     
     // チャンクが0の場合の処理
     if (documents.length === 0) {
-      const namespace = generateNamespace(stakeholderId, browserId);
+      const namespace = generateNamespace(stakeholderId, identifier);
       console.log('No documents to store in vector database (all files are full-text)');
       
       return NextResponse.json({
@@ -378,10 +383,10 @@ export async function POST(request: NextRequest) {
       const vectorStore = await VectorStoreFactory.fromDocuments(
         documents,
         embeddings,
-        { stakeholderId, embeddings, browserId }
+        { stakeholderId, embeddings, userIdentifier: identifier }
       );
     
-      const namespace = generateNamespace(stakeholderId, browserId);
+      const namespace = generateNamespace(stakeholderId, identifier);
       const storeKey = `ssr_${namespace.replace(/-/g, '_')}`;
 
       globalStores.set(storeKey, vectorStore);
@@ -393,7 +398,8 @@ export async function POST(request: NextRequest) {
         success: true,
         documentCount: documents.length,
         vectorStore: process.env.VECTOR_STORE || 'pinecone',
-        warnings: warnings.length > 0 ? warnings : undefined
+        warnings: warnings.length > 0 ? warnings : undefined,
+        namespace: namespace
       });
       
     } catch (embedError) {

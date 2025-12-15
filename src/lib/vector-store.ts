@@ -1,3 +1,4 @@
+//src/lib/vector-store.ts
 import { Document } from '@langchain/core/documents';
 import { Embeddings } from '@langchain/core/embeddings';
 import { VectorStore } from '@langchain/core/vectorstores';
@@ -10,7 +11,7 @@ import { createSparseVector, type SparseValues } from './sparse-vector-utils';
 export interface VectorStoreConfig {
   stakeholderId: string;
   embeddings: Embeddings;
-  browserId?: string;
+  userIdentifier?: string;
 }
 
 // ベクトルストア統計情報のインターフェース
@@ -50,13 +51,13 @@ export class VectorStoreFactory {
   static async getExistingStore(
     embeddings: Embeddings,
     stakeholderId: string,
-    browserId?: string // ブラウザIDパラメータを追加
+    userIdentifier?: string
   ): Promise<VectorStore | null> {
     // デフォルトをpineconeに設定
     const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
     
-    // ブラウザIDを使用してユニークなネームスペースを生成
-    const namespace = generateNamespace(stakeholderId, browserId);
+    // ユーザー識別子を使用してユニークなネームスペースを生成
+    const namespace = generateNamespace(stakeholderId, userIdentifier);
     
     if (vectorStoreType === 'pinecone') {
       try {
@@ -73,7 +74,7 @@ export class VectorStoreFactory {
           embeddings,
           {
             pineconeIndex,
-            namespace: namespace, // ユニークなネームスペースを使用
+            namespace: namespace,
           }
         );
       } catch (error) {
@@ -91,10 +92,10 @@ export class VectorStoreFactory {
   static async getVectorStoreStats(
     vectorStore: VectorStore,
     stakeholderId: string,
-    browserId?: string // ブラウザIDパラメータを追加
+    userIdentifier?: string
   ): Promise<VectorStoreStats> {
     const storeType = vectorStore._vectorstoreType();
-    const namespace = generateNamespace(stakeholderId, browserId);
+    const namespace = generateNamespace(stakeholderId, userIdentifier);
     
     switch (storeType) {
       case 'pinecone':
@@ -148,7 +149,7 @@ export class VectorStoreFactory {
     config: VectorStoreConfig
   ): Promise<VectorStore> {
     // ユニークなネームスペースを生成
-    const namespace = generateNamespace(config.stakeholderId, config.browserId);
+    const namespace = generateNamespace(config.stakeholderId, config.userIdentifier);
     const storeKey = `ssr_${namespace}`;
     
     console.log(`Creating memory store for namespace: ${namespace}`);
@@ -180,12 +181,12 @@ export class VectorStoreFactory {
     config: VectorStoreConfig
   ): Promise<VectorStore> {
     // ユニークなネームスペースを生成
-    const namespace = generateNamespace(config.stakeholderId, config.browserId);
+    const namespace = generateNamespace(config.stakeholderId, config.userIdentifier);
     
     console.log(`Creating Pinecone store (Hybrid) with configuration:`);
     console.log(`- Namespace: ${namespace}`);
     console.log(`- StakeholderId: ${config.stakeholderId}`);
-    console.log(`- BrowserId: ${config.browserId || 'auto-generated'}`);
+    console.log(`- UserIdentifier: ${config.userIdentifier || 'auto-generated'}`);
     console.log(`- Number of documents: ${docs.length}`);
 
     if (!process.env.PINECONE_API_KEY) {
@@ -352,8 +353,8 @@ export class VectorStoreFactory {
   /**
    * 特定のステークホルダーのメモリストアをクリア
    */
-  static clearMemoryStore(stakeholderId: string, browserId?: string): void {
-    const namespace = generateNamespace(stakeholderId, browserId);
+  static clearMemoryStore(stakeholderId: string, userIdentifier?: string): void {
+    const namespace = generateNamespace(stakeholderId, userIdentifier);
     const storeKey = `ssr_${namespace}`;
     
     console.log(`Clearing memory store for ${storeKey}`);
@@ -375,7 +376,7 @@ export class VectorStoreFactory {
   } {
     return {
       memoryStores: Array.from(this.memoryStores.keys()),
-      vectorStoreType: process.env.VECTOR_STORE || 'pinecone', // デフォルトはpinecone
+      vectorStoreType: process.env.VECTOR_STORE || 'pinecone',
       pineconeConfigured: !!process.env.PINECONE_API_KEY
     };
   }

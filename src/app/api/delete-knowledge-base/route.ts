@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { generateNamespace } from '@/lib/browser-id';
 
-//指定されたステークホルダーのPineconeネームスペースを削除
+// 指定されたステークホルダーのPineconeネームスペースを削除
 export async function DELETE(request: NextRequest) {
   try {
-    const { stakeholderId, browserId } = await request.json();
+    const { stakeholderId, userIdentifier, browserId } = await request.json();
 
     // 入力検証
     if (!stakeholderId) {
@@ -16,15 +16,17 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    if (!browserId) {
+    const identifier = userIdentifier || browserId;
+    
+    if (!identifier) {
       return NextResponse.json(
-        { error: 'Browser ID is required' },
+        { error: 'User identifier is required' },
         { status: 400 }
       );
     }
 
     // ネームスペースを生成
-    const namespace = generateNamespace(stakeholderId, browserId);
+    const namespace = generateNamespace(stakeholderId, identifier);
     
     console.log(`Deleting knowledge base for namespace: ${namespace}`);
 
@@ -165,16 +167,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const stakeholderId = searchParams.get('stakeholderId');
-    const browserId = searchParams.get('browserId');
+    const userIdentifier = searchParams.get('userIdentifier') || searchParams.get('browserId');
 
-    if (!stakeholderId || !browserId) {
+    if (!stakeholderId || !userIdentifier) {
       return NextResponse.json(
-        { error: 'Stakeholder ID and Browser ID are required' },
+        { error: 'Stakeholder ID and User Identifier are required' },
         { status: 400 }
       );
     }
 
-    const namespace = generateNamespace(stakeholderId, browserId);
+    const namespace = generateNamespace(stakeholderId, userIdentifier);
     const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
     
     if (vectorStoreType === 'pinecone' && process.env.PINECONE_API_KEY) {

@@ -1,8 +1,12 @@
-// lib/browser-id.ts
+// src/lib/browser-id.ts
 
 /**
  * ブラウザ固有のIDを管理するユーティリティ
  * localStorageにUUIDを保存し、ユーザーごとのデータ分離を実現
+ * 
+ * 認証対応:
+ * - ゲスト（未ログイン）: ブラウザIDを使用
+ * - ログイン済み: Cognito User IDを使用
  */
 
 const BROWSER_ID_KEY = 'ssr-browser-id';
@@ -46,17 +50,19 @@ function generateBrowserId(): string {
 }
 
 /**
- * ステークホルダーIDとブラウザIDを組み合わせて
+ * ステークホルダーIDとユーザー識別子を組み合わせて
  * ユニークなネームスペースを生成
+ * 
  * @param stakeholderId ステークホルダーのID
- * @param browserId ブラウザ固有のID（省略時は自動取得）
+ * @param userIdentifier ユーザー識別子（Cognito User IDまたはブラウザID）
  * @returns ユニークなネームスペース
  */
 export function generateNamespace(
   stakeholderId: string, 
-  browserId?: string
+  userIdentifier?: string
 ): string {
-  const id = browserId || getBrowserId();
+  // userIdentifierが指定されていない場合はブラウザIDを使用
+  const id = userIdentifier || getBrowserId();
   
   // カスタムステークホルダーの場合
   if (stakeholderId.startsWith('custom-') || stakeholderId.startsWith('custom_')) {
@@ -70,23 +76,23 @@ export function generateNamespace(
 }
 
 /**
- * ネームスペースからステークホルダーIDとブラウザIDを抽出
+ * ネームスペースからステークホルダーIDとユーザー識別子を抽出
  * @param namespace ネームスペース文字列
- * @returns ステークホルダーIDとブラウザIDのオブジェクト
+ * @returns ステークホルダーIDとユーザー識別子のオブジェクト
  */
 export function parseNamespace(namespace: string): {
   stakeholderId: string;
-  browserId: string;
+  userIdentifier: string;
 } {
   // カスタムステークホルダーの場合
   if (namespace.startsWith('custom_')) {
     const parts = namespace.split('_');
     if (parts.length >= 3) {
-      const browserId = parts[1];
-      const customId = parts.slice(2).join('_');
+      const customId = parts[1];
+      const userIdentifier = parts.slice(2).join('_');
       return {
         stakeholderId: `custom-${customId}`,
-        browserId
+        userIdentifier
       };
     }
   }
@@ -96,14 +102,14 @@ export function parseNamespace(namespace: string): {
   if (parts.length >= 2) {
     return {
       stakeholderId: parts[0],
-      browserId: parts.slice(1).join('_')
+      userIdentifier: parts.slice(1).join('_')
     };
   }
   
   // パースできない場合はそのまま返す
   return {
     stakeholderId: namespace,
-    browserId: 'unknown'
+    userIdentifier: 'unknown'
   };
 }
 
@@ -122,20 +128,35 @@ export function resetBrowserId(): string {
 }
 
 /**
+ * ユーザー識別子に基づいたlocalStorageキーを生成
+ * @param baseKey 基本キー名
+ * @param userIdentifier ユーザー識別子
+ * @returns ユーザー固有のキー
+ */
+export function getUserStorageKey(baseKey: string, userIdentifier: string): string {
+  return `${baseKey}_${userIdentifier}`;
+}
+
+/**
  * デバッグ用：現在のブラウザIDとすべてのネームスペース情報を取得
  * @param stakeholders ステークホルダーのリスト
+ * @param userIdentifier ユーザー識別子（省略時はブラウザIDを使用）
  * @returns デバッグ情報オブジェクト
  */
-export function getDebugInfo(stakeholders?: Array<{ id: string; role: string }>) {
-  const browserId = getBrowserId();
+export function getDebugInfo(
+  stakeholders?: Array<{ id: string; role: string }>,
+  userIdentifier?: string
+) {
+  const id = userIdentifier || getBrowserId();
   const namespaces = stakeholders?.map(s => ({
     stakeholder: s.role,
     stakeholderId: s.id,
-    namespace: generateNamespace(s.id, browserId)
+    namespace: generateNamespace(s.id, id)
   }));
   
   return {
-    browserId,
+    userIdentifier: id,
+    isAuthenticated: userIdentifier ? true : false,
     namespaces,
     browserIdKey: BROWSER_ID_KEY
   };

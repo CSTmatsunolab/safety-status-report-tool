@@ -7,7 +7,7 @@ import { Stakeholder } from '@/types';
 
 interface KnowledgeBaseManagerProps {
   stakeholder: Stakeholder | null;
-  browserId: string;
+  userIdentifier: string;
   filesCount: number;
   onBuildComplete?: () => void;
   onDeleteComplete?: () => void;
@@ -15,7 +15,7 @@ interface KnowledgeBaseManagerProps {
 
 export function KnowledgeBaseManager({
   stakeholder,
-  browserId,
+  userIdentifier,
   filesCount,
   onBuildComplete,
   onDeleteComplete
@@ -26,11 +26,11 @@ export function KnowledgeBaseManager({
 
   // 既存の知識ベースをチェック
   const checkExistingKnowledgeBase = useCallback(async () => {
-    if (!stakeholder || !browserId) return;
+    if (!stakeholder || !userIdentifier) return;
     
     try {
       const response = await fetch(
-        `/api/delete-knowledge-base?stakeholderId=${stakeholder.id}&browserId=${browserId}`,
+        `/api/delete-knowledge-base?stakeholderId=${stakeholder.id}&userIdentifier=${userIdentifier}`,
         { method: 'GET' }
       );
       
@@ -44,16 +44,16 @@ export function KnowledgeBaseManager({
     } catch (error) {
       console.error('Failed to check knowledge base:', error);
     }
-  }, [stakeholder, browserId]);
+  }, [stakeholder, userIdentifier]);
 
     // ステークホルダーが変更されたらステータスをリセット
   useEffect(() => {
     setStatus('idle');
     setStats(null);
-    if (stakeholder && browserId) {
+    if (stakeholder && userIdentifier) {
       checkExistingKnowledgeBase();
     }
-  }, [stakeholder, browserId, checkExistingKnowledgeBase]);
+  }, [stakeholder, userIdentifier, checkExistingKnowledgeBase]);
   
   // 知識ベースを構築
   const buildKnowledgeBase = async () => {
@@ -68,7 +68,7 @@ export function KnowledgeBaseManager({
         body: JSON.stringify({
           files: [], // 実際のファイルデータは親コンポーネントから渡す
           stakeholderId: stakeholder.id,
-          browserId: browserId,
+          userIdentifier: userIdentifier,
         }),
       });
       
@@ -94,7 +94,7 @@ export function KnowledgeBaseManager({
   const deleteKnowledgeBase = async () => {
     if (!stakeholder) return;
     
-    const namespace = `${stakeholder.id}_${browserId.substring(0, 8)}...`;
+    const namespace = `${stakeholder.id}_${userIdentifier.substring(0, 8)}...`;
     const vectorCount = stats?.vectorCount || 0;
     
     const confirmMessage = 
@@ -116,7 +116,7 @@ export function KnowledgeBaseManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           stakeholderId: stakeholder.id,
-          browserId: browserId,
+          userIdentifier: userIdentifier,
         }),
       });
       
@@ -148,7 +148,7 @@ export function KnowledgeBaseManager({
     return null;
   }
 
-  const namespace = `${stakeholder.id}_${browserId.substring(0, 8)}...`;
+  const namespace = `${stakeholder.id}_${userIdentifier.substring(0, 8)}...`;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 transition-colors">
@@ -215,7 +215,7 @@ export function KnowledgeBaseManager({
               <span className="font-medium">ベクトル数:</span> {stats.vectorCount.toLocaleString()}
             </p>
             <p className="mt-1 text-xs">
-              このブラウザ専用のデータ空間です。他のユーザーやブラウザとは完全に分離されています。
+              このユーザー専用のデータ空間です。他のユーザーとは完全に分離されています。
             </p>
           </div>
         )}
