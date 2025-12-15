@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "ssr-generator-stack"
+resolve_s3 = true
+s3_prefix = "ssr-generator-stack"
+region = "ap-northeast-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "PineconeIndexName=\"safety-status-report-tool\" S3BucketName=\"safety-status-report-tool\""
+image_repositories = []
+
+[default.global.parameters]
+region = "ap-northeast-1"
