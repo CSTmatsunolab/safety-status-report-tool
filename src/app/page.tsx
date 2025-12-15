@@ -35,7 +35,6 @@ export default function Home() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
-  const [streamingContent, setStreamingContent] = useState<string>('');
 
   // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
@@ -409,8 +408,6 @@ export default function Home() {
     }
     
     setIsGenerating(true);
-    setStreamingContent('');
-    setGeneratedReport(null);
     try {
       const response = await fetch('/api/generate-report', {
         method: 'POST',
@@ -423,65 +420,54 @@ export default function Home() {
             .map(file => file.id),
           reportStructure: selectedStructure,
           userIdentifier: userIdentifier,
-          language: language,
+          language: language, // 言語設定をAPIに渡す
         }),
       });
 
-      // ストリーミングレスポンスを処理
-      if (!response.body) {
-        throw new Error('Response body is null');
-      }
+      const result = await response.json();
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'content') {
-                accumulatedContent += data.text;
-                setStreamingContent(accumulatedContent);
-              } else if (data.type === 'done') {
-                setGeneratedReport(data.report);
-                setStreamingContent('');
-              } else if (data.type === 'error') {
-                throw new Error(data.error);
-              }
-            } catch {
-              // JSONパースエラーは無視
-            }
-          }
+      if (!response.ok) {
+        let errorMsg = language === 'en'
+          ? 'Report generation failed.\n\n'
+          : 'レポート生成に失敗しました。\n\n';
+        
+        if (result.error) {
+          errorMsg += language === 'en' ? `Error: ${result.error}\n` : `エラー: ${result.error}\n`;
         }
+        if (result.details) {
+          errorMsg += language === 'en' ? `Details: ${result.details}\n` : `詳細: ${result.details}\n`;
+        }
+        
+        // よくあるエラーに対する具体的なアドバイス
+        if (result.details?.includes('quota') || result.details?.includes('Quota')) {
+          errorMsg += language === 'en'
+            ? '\n[Solution] Usage limit exceeded.'
+            : '\n【対処法】使用制限を超えています。';
+        } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
+          errorMsg += language === 'en'
+            ? '\n[Solution] Processing timed out.\n• Reduce file size\n• Reduce number of full-text files'
+            : '\n【対処法】処理がタイムアウトしました。\n・ファイルサイズを小さくしてください\n・全文使用ファイル数を減らしてください';
+        } else if (result.details?.includes('context') || result.details?.includes('token')) {
+          errorMsg += language === 'en'
+            ? '\n[Solution] Input data too large.\n• Reduce number of full-text files\n• Reduce file size'
+            : '\n【対処法】入力データが大きすぎます。\n・全文使用ファイル数を減らしてください\n・ファイルサイズを小さくしてください';
+        }
+        
+        setErrorMessage(errorMsg);
+        throw new Error(result.error || 'Report generation failed');
       }
-
+      
+      // 警告がある場合は表示（レポートは成功）
+      if (result.warnings && result.warnings.length > 0) {
+        setWarningMessages(result.warnings);
+      }
+      
+      setGeneratedReport(result);
     } catch (error) {
       console.error('Report generation failed:', error);
-      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-      
-      let displayError = language === 'en'
-        ? 'Report generation failed.\n\n'
-        : 'レポート生成に失敗しました。\n\n';
-      
-      displayError += language === 'en' ? `Error: ${errorMsg}` : `エラー: ${errorMsg}`;
-      
-      if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
-        displayError += language === 'en'
-          ? '\n\n[Solution] Processing timed out.\n• Reduce file size\n• Reduce number of full-text files'
-          : '\n\n【対処法】処理がタイムアウトしました。\n・ファイルサイズを小さくしてください\n・全文使用ファイル数を減らしてください';
+      if (!errorMessage) {
+        setErrorMessage(t('report.generationFailed'));
       }
-      
-      setErrorMessage(displayError);
-      setStreamingContent('');
     } finally {
       setIsGenerating(false);
     }
@@ -761,31 +747,17 @@ export default function Home() {
           <div className="lg:sticky lg:top-8 h-fit">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
-                generatedReport || streamingContent
+                generatedReport 
                   ? 'text-gray-900 dark:text-white' 
                   : 'text-gray-400 dark:text-gray-500'
               }`}>
                 {t('report.preview')}
-                {isGenerating && streamingContent && (
-                  <span className="ml-2 text-sm font-normal text-blue-500 dark:text-blue-400">
-                    {language === 'en' ? '(Generating...)' : '（生成中...）'}
-                  </span>
-                )}
               </h2>
               {generatedReport ? (
                 <ReportPreview 
                   report={generatedReport} 
                   onUpdate={setGeneratedReport}
                 />
-              ) : streamingContent ? (
-                <div className="prose dark:prose-invert max-w-none">
-                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-[600px] overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-sans">
-                      {streamingContent}
-                      <span className="inline-block w-2 h-4 bg-blue-500 animate-pulse ml-1" />
-                    </pre>
-                  </div>
-                </div>
               ) : (
                 <div className="text-center py-12 sm:py-16">
                   <div className="text-gray-400 dark:text-gray-500 space-y-2">
