@@ -1,10 +1,10 @@
 // src/app/api/generate-report/route.ts
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { Document } from '@langchain/core/documents'; 
 import { VectorStore } from "@langchain/core/vectorstores";
-import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
+import { UploadedFile, Stakeholder, ReportStructureTemplate } from '@/types';
 import { VectorStoreFactory } from '@/lib/vector-store';
 import { createEmbeddings } from '@/lib/embeddings';
 import { getRecommendedStructure, buildFinalReportStructure } from '@/lib/report-structures';
@@ -453,154 +453,199 @@ function limitContextSize(
   return contextContent;
 }
 
-// Claude APIを使用してレポートを生成
-async function generateReportWithClaude(
-  promptContent: string
-): Promise<string> {
-  const message = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 4000,
-    temperature: 0.7,
-    messages: [
-      {
-        role: 'user',
-        content: promptContent
-      }
-    ]
-  });
-
-  return message.content[0].type === 'text' ? message.content[0].text : '';
+// ストリーミングレスポンス用のエンコーダー
+function createSSEEncoder() {
+  const encoder = new TextEncoder();
+  return {
+    encode: (data: object) => {
+      return encoder.encode(`data: ${JSON.stringify(data)}\n\n`);
+    },
+    encodeText: (text: string) => {
+      return encoder.encode(`data: ${JSON.stringify({ type: 'content', text })}\n\n`);
+    },
+    encodeDone: (report: object) => {
+      return encoder.encode(`data: ${JSON.stringify({ type: 'done', report })}\n\n`);
+    },
+    encodeError: (error: string) => {
+      return encoder.encode(`data: ${JSON.stringify({ type: 'error', error })}\n\n`);
+    }
+  };
 }
 
-// メインのPOSTハンドラ
+// メインのPOSTハンドラ（ストリーミング対応）
 export async function POST(request: NextRequest) {
-  try {
-    // userIdentifier と browserId の両方を受け付け（後方互換性）
-    const { files, stakeholder, reportStructure, userIdentifier, browserId, language = 'ja' }: { 
-      files: UploadedFile[]; 
-      stakeholder: Stakeholder;
-      fullTextFileIds?: string[];
-      reportStructure?: ReportStructureTemplate;
-      userIdentifier?: string;
-      browserId?: string;
-      language?: 'ja' | 'en';
-    } = await request.json();
-    
-    // userIdentifier を優先、なければ browserId を使用
-    const identifier = userIdentifier || browserId;
-    
-    if (!stakeholder) {
-      return NextResponse.json(
-        { error: 'Invalid request data' },
-        { status: 400 }
+  // ストリーミングレスポンスを作成
+  const stream = new TransformStream();
+  const writer = stream.writable.getWriter();
+  const sse = createSSEEncoder();
+
+  // 非同期でレポート生成を実行
+  (async () => {
+    try {
+      // userIdentifier と browserId の両方を受け付け（後方互換性）
+      const { files, stakeholder, reportStructure, userIdentifier, browserId, language = 'ja' }: { 
+        files: UploadedFile[]; 
+        stakeholder: Stakeholder;
+        fullTextFileIds?: string[];
+        reportStructure?: ReportStructureTemplate;
+        userIdentifier?: string;
+        browserId?: string;
+        language?: 'ja' | 'en';
+      } = await request.json();
+      
+      // userIdentifier を優先、なければ browserId を使用
+      const identifier = userIdentifier || browserId;
+      
+      if (!stakeholder) {
+        await writer.write(sse.encodeError('Invalid request data'));
+        await writer.close();
+        return;
+      }
+      
+      const safeFiles = files || [];
+      console.log('Generating report for:', stakeholder.role);
+      console.log('User identifier:', identifier);
+      console.log('Language:', language);
+      console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
+
+      // ファイルの分類
+      const fullTextFiles = safeFiles.filter(f => f.includeFullText);
+      const ragTargetFiles = safeFiles.filter(f => !f.includeFullText);
+      console.log(`Files breakdown: ${fullTextFiles.length} full-text, ${ragTargetFiles.length} RAG target`);
+
+      // 大きなファイル数のログ
+      const largeFullTextFiles = fullTextFiles.filter(f => f.metadata?.s3Key);
+      if (largeFullTextFiles.length > 0) {
+        console.log(`Large files (S3) with full-text: ${largeFullTextFiles.length}`);
+      }
+
+      // RAG検索の実行
+      const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
+      const { contextContent: ragContent } = await performRAGSearch(
+        stakeholder,
+        vectorStoreType,
+        fullTextFiles,
+        identifier
       );
+
+      // 全文使用ファイルの追加
+      const { content: contextWithFullText, warnings } = await addFullTextToContext(ragContent, fullTextFiles);
+      let contextContent = contextWithFullText;
+
+      // 警告があればログ出力
+      if (warnings.length > 0) {
+        console.warn('Full-text processing warnings:', warnings);
+      }
+
+      // フォールバック処理
+      if (!contextContent) {
+        console.log('No content found, using fallback');
+        contextContent = safeFiles.map(f => f.content.substring(0, 10000)).join('\n\n');
+      }
+
+      // コンテキストサイズの制限
+      contextContent = limitContextSize(contextContent, stakeholder);
+
+      // レトリック戦略の決定
+      const strategy = determineAdvancedRhetoricStrategy(stakeholder);
+
+      // レポート構成の決定
+      const baseStructure = reportStructure || getRecommendedStructure(
+        stakeholder,
+        strategy,
+        safeFiles
+      );
+      const reportSections = buildFinalReportStructure(baseStructure, safeFiles);
+      const structureDescription = baseStructure.description?.slice(0, 500);
+      
+      console.log(`Using report structure: ${baseStructure.name}`);
+      console.log(`Final sections: ${reportSections.join(', ')}`);
+
+      // GSNファイルの有無を確認
+      const hasGSN = safeFiles.some(f => 
+        f.type === 'gsn' || (f.metadata as { isGSN?: boolean })?.isGSN
+      );
+
+      // プロンプトの構築（言語に応じて切り替え）
+      const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
+      const promptContent = promptBuilder({
+        stakeholder,
+        strategy,
+        contextContent,
+        reportSections,
+        hasGSN,
+        structureDescription
+      });
+
+      // Claude APIでストリーミング生成
+      let reportContent = '';
+      
+      const streamResponse = await anthropic.messages.stream({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        temperature: 0.7,
+        messages: [
+          {
+            role: 'user',
+            content: promptContent
+          }
+        ]
+      });
+
+      // ストリームからテキストを読み取り、クライアントに送信
+      for await (const event of streamResponse) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          const text = event.delta.text;
+          reportContent += text;
+          await writer.write(sse.encodeText(text));
+        }
+      }
+
+      // 完了理由を確認
+      const finalMessage = await streamResponse.finalMessage();
+      console.log('Stream completed. Stop reason:', finalMessage.stop_reason);
+      console.log('Usage:', finalMessage.usage);
+      
+      if (finalMessage.stop_reason === 'max_tokens') {
+        console.warn('Warning: Report was truncated due to max_tokens limit');
+      }
+
+      // レポートオブジェクトの作成
+      const reportTitle = language === 'en' 
+        ? `Safety Status Report for ${stakeholder.role}`
+        : `${stakeholder.role}向け Safety Status Report`;
+      
+      const report = {
+        id: Math.random().toString(36).substr(2, 9),
+        title: reportTitle,
+        stakeholder,
+        content: reportContent,
+        rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 完了イベントを送信
+      await writer.write(sse.encodeDone(report));
+      await writer.close();
+      
+    } catch (error) {
+      console.error('Report generation error:', error);
+      await writer.write(sse.encodeError(
+        error instanceof Error ? error.message : 'Unknown error'
+      ));
+      await writer.close();
     }
-    
-    const safeFiles = files || [];
-    console.log('Generating report for:', stakeholder.role);
-    console.log('User identifier:', identifier);
-    console.log('Language:', language);
-    console.log('Using vector store:', process.env.VECTOR_STORE || 'pinecone');
+  })();
 
-    // ファイルの分類
-    const fullTextFiles = safeFiles.filter(f => f.includeFullText);
-    const ragTargetFiles = safeFiles.filter(f => !f.includeFullText);
-    console.log(`Files breakdown: ${fullTextFiles.length} full-text, ${ragTargetFiles.length} RAG target`);
-
-    // 大きなファイル数のログ
-    const largeFullTextFiles = fullTextFiles.filter(f => f.metadata?.s3Key);
-    if (largeFullTextFiles.length > 0) {
-      console.log(`Large files (S3) with full-text: ${largeFullTextFiles.length}`);
-    }
-
-    // RAG検索の実行
-    const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
-    const { contextContent: ragContent } = await performRAGSearch(
-      stakeholder,
-      vectorStoreType,
-      fullTextFiles,
-      identifier
-    );
-
-    // 全文使用ファイルの追加
-    const { content: contextWithFullText, warnings } = await addFullTextToContext(ragContent, fullTextFiles);
-    let contextContent = contextWithFullText;
-
-    // 警告があればログ出力
-    if (warnings.length > 0) {
-      console.warn('Full-text processing warnings:', warnings);
-    }
-
-    // フォールバック処理
-    if (!contextContent) {
-      console.log('No content found, using fallback');
-      contextContent = safeFiles.map(f => f.content.substring(0, 10000)).join('\n\n');
-    }
-
-    // コンテキストサイズの制限
-    contextContent = limitContextSize(contextContent, stakeholder);
-
-    // レトリック戦略の決定
-    const strategy = determineAdvancedRhetoricStrategy(stakeholder);
-
-    // レポート構成の決定
-    const baseStructure = reportStructure || getRecommendedStructure(
-      stakeholder,
-      strategy,
-      safeFiles
-    );
-    const reportSections = buildFinalReportStructure(baseStructure, safeFiles);
-    const structureDescription = baseStructure.description?.slice(0, 500);
-    
-    console.log(`Using report structure: ${baseStructure.name}`);
-    console.log(`Final sections: ${reportSections.join(', ')}`);
-
-    // GSNファイルの有無を確認
-    const hasGSN = safeFiles.some(f => 
-      f.type === 'gsn' || (f.metadata as { isGSN?: boolean })?.isGSN
-    );
-
-    // プロンプトの構築（言語に応じて切り替え）
-    const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
-    const promptContent = promptBuilder({
-      stakeholder,
-      strategy,
-      contextContent,
-      reportSections,
-      hasGSN,
-      structureDescription
-    });
-
-    // Claude APIでレポート生成
-    const reportContent = await generateReportWithClaude(promptContent);
-
-    // レポートオブジェクトの作成
-    const reportTitle = language === 'en' 
-      ? `Safety Status Report for ${stakeholder.role}`
-      : `${stakeholder.role}向け Safety Status Report`;
-    
-    const report: Report = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: reportTitle,
-      stakeholder,
-      content: reportContent,
-      rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-
-    return NextResponse.json(report);
-    
-  } catch (error) {
-    console.error('Report generation error:', error);
-    return NextResponse.json(
-      { 
-        error: 'Report generation failed', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
-    );
-  }
+  // ストリーミングレスポンスを返す
+  return new Response(stream.readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  });
 }
 
 export const maxDuration = 120;
