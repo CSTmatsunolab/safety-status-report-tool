@@ -59,12 +59,21 @@ export function generateFormatRestrictionsEN(): string {
 export function generateInvalidFileGuidelinesEN(): string {
   return `
 ## Response for Inappropriate Documents
-If the provided documents are not suitable for SSR creation (no safety-related information, not GSN or technical documents, etc.), respond in the following format:
+Only judge documents as inappropriate when the following condition is met:
+- No information related to safety, risks, hazards, system evaluation, or technical evaluation/verification is included at all
 
+Important Judgment Criteria:
+- Text-based GSN descriptions (such as "G1 is...", "S1 is...") are valid GSN files
+- GSN does not need to be in diagram format; text-based structure descriptions are sufficient
+- Reports can be created even without GSN files, as long as safety reports or risk assessment documents are available
+- Safety reports, risk assessment documents, and demonstration experiment reports are valid documents
+- Even with partial information, create the best possible report from the provided information
+
+Only if documents are completely inappropriate, respond in the following format:
 1. Clearly state: "A Safety Status Report cannot be created from the provided documents."
 2. Briefly explain the reason (e.g., no safety-related information included)
 3. Describe the types of documents required for SSR creation:
-   - GSN (Goal Structuring Notation) files
+   - GSN (Goal Structuring Notation) files (text format acceptable)
    - Safety assessment reports
    - Risk assessment documents
    - Technical specifications (with safety requirements)
@@ -73,7 +82,7 @@ If the provided documents are not suitable for SSR creation (no safety-related i
    - Hazard analysis materials
 4. Request: "Please upload documents related to safety as described above."
 
-In this case, do not force report creation; request appropriate documents instead.`;
+Note: If any safety-related information is included, maximize the use of that information to create a report. However, do not fabricate or speculate information not found in the provided documents (no hallucination). Clearly state "Not documented in provided materials" for unknown points.`;
 }
 
 /**

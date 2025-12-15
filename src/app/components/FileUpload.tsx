@@ -730,11 +730,34 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
                 {language === 'en' ? 'Recommended settings for GSN documents' : 'GSNドキュメントの推奨設定'}
               </p>
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                {language === 'en' 
-                  ? '• Checking GSN adds a GSN section to the report structure.\n• Since structure is important for GSN documents, we recommend enabling "Full Text".'
-                  : '・GSNにチェックを入れると，レポート構成にGSNセクションが追加されます．\n・GSNドキュメントは構造が重要なため，「全文使用」をONにすることを推奨します．'}
-              </p>
+              <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+                <p>
+                  {language === 'en' 
+                    ? '• Checking GSN adds a GSN section to the report structure.'
+                    : '・GSNにチェックを入れると，レポート構成にGSNセクションが追加されます'}
+                </p>
+                <p>
+                  {language === 'en' 
+                    ? '• Since structure is important for GSN documents, we recommend enabling "Full Text".'
+                    : '・GSNドキュメントは構造が重要なため，「全文使用」をONにすることを推奨します'}
+                </p>
+                <p>
+                  {language === 'en' 
+                    ? '• We recommend creating GSN files with '
+                    : '・GSNファイルは'}
+                  <a 
+                    href="https://www.matsulab.org/dcase/login.html" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="underline hover:text-amber-900 dark:hover:text-amber-100"
+                  >
+                    D-Case Communicator
+                  </a>
+                  {language === 'en' 
+                    ? ' and using text files exported via "Export LLM Input Text" feature.'
+                    : 'で作成し，「Export LLM Input Text」機能で出力されるテキストファイルを使用することをお勧めします'}
+                </p>
+              </div>
             </div>
           )}
 
