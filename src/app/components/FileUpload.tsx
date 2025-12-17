@@ -11,7 +11,7 @@ import { PREVIEW_LENGTH } from '@/lib/config/constants';
 import { useI18n } from './I18nProvider';
 
 // ファイルサイズの閾値
-const S3_THRESHOLD = 4 * 1024 * 1024; // 4MB - これ以上はS3経由
+const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - これ以上はS3経由
 
 // タイムアウトエラーメッセージを生成する関数
 function getTimeoutErrorMessage(fileType: 'excel' | 'word' | 'pdf' | 'image' | 'text' | 'other', language: string): string {
