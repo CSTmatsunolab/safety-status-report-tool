@@ -9,6 +9,8 @@ import ReportPreview from './components/ReportPreview';
 import { SettingsMenu } from './components/SettingsMenu';
 import { useI18n } from './components/I18nProvider';
 import { useAuth } from './components/AuthProvider';
+import { GenerationProgress } from './components/GenerationProgress';
+import { StreamingPreview } from './components/StreamingPreview';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2 } from 'react-icons/fi';
@@ -18,13 +20,6 @@ import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { getUserStorageKey } from '@/lib/browser-id';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 
-// =============================================================================
-// 生成方式について
-// - NEXT_PUBLIC_LAMBDA_FUNCTION_URL が設定されている場合: Lambda (ストリーミング)
-// - 設定されていない場合: Next.js API (セクション分割)
-// useSectionGenerationフックが自動で判定します
-// =============================================================================
-
 export default function Home() {
   const { t, language } = useI18n();
   const { getUserIdentifier, status: authStatus } = useAuth();
@@ -32,7 +27,6 @@ export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [generatedReport, setGeneratedReport] = useState<Report | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [isKnowledgeBaseBuilding, setIsKnowledgeBaseBuilding] = useState(false);
   const [knowledgeBaseStatus, setKnowledgeBaseStatus] = useState<'idle' | 'building' | 'ready' | 'error'>('idle');
@@ -44,19 +38,16 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
 
-  // セクション分割生成フック
-// セクション分割生成フック
+  // セクション生成フック
   const {
     generateReport: generateReportBySection,
     isGenerating: isSectionGenerating,
     progress,
     error: sectionError,
     reset: resetSectionGeneration,
-    streamingContent,  // ← 追加
+    streamingContent,
   } = useSectionGeneration();
 
-
-  
   // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
     if (authStatus !== 'loading') {
@@ -76,16 +67,13 @@ export default function Home() {
     if (saved) {
       try {
         const customStakeholders = JSON.parse(saved) as Stakeholder[];
-        // カスタムステークホルダーがあるかチェック（custom_で始まるIDを持つもの）
         const hasCustom = customStakeholders.some(s => s.id.startsWith('custom_'));
         
         if (hasCustom) {
-          // カスタムがある場合は、デフォルト部分だけ言語に応じて更新
           const predefined = getPredefinedStakeholders(language);
           const customOnly = customStakeholders.filter(s => s.id.startsWith('custom_'));
           setStakeholders([...predefined, ...customOnly]);
         } else {
-          // 保存されているのがデフォルトのみなら言語に応じて更新
           setStakeholders(getPredefinedStakeholders(language));
         }
       } catch {
@@ -99,7 +87,6 @@ export default function Home() {
   // 言語が変わったら選択中のステークホルダーも更新
   useEffect(() => {
     if (selectedStakeholder && !selectedStakeholder.id.startsWith('custom_')) {
-      // デフォルトステークホルダーの場合、言語に応じた版に更新
       const predefined = getPredefinedStakeholders(language);
       const updated = predefined.find(s => s.id === selectedStakeholder.id);
       if (updated && updated.role !== selectedStakeholder.role) {
@@ -128,22 +115,17 @@ export default function Home() {
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => {
-      // 既存ファイルと新規ファイルを結合
       const allFiles = [...prevFiles, ...newFiles];
-      
-      // IDで重複を排除
       const uniqueMap = new Map<string, UploadedFile>();
       allFiles.forEach(file => {
         uniqueMap.set(file.id, file);
       });
-      
       return Array.from(uniqueMap.values());
     });
   };
 
   const handleFileRemove = (id: string) => {
     setFiles(prevFiles => prevFiles.filter(f => f.id !== id));
-    // ファイルが削除されたら知識ベースの状態をリセット
     setKnowledgeBaseStatus('idle');
   };
   
@@ -197,7 +179,6 @@ export default function Home() {
     const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
     localStorage.setItem(storageKey, JSON.stringify(updatedStructures));
     
-    // 削除された構成が選択されていた場合はクリア
     if (selectedStructure?.id === structureId) {
       setSelectedStructure(null);
     }
@@ -233,7 +214,6 @@ export default function Home() {
       const result = await response.json();
       
       if (!response.ok) {
-        // APIからのエラー詳細を取得
         let errorMsg = language === 'en' 
           ? 'Failed to build knowledge base.\n\n'
           : '知識ベースの構築に失敗しました。\n\n';
@@ -245,7 +225,6 @@ export default function Home() {
           errorMsg += language === 'en' ? `Details: ${result.details}\n` : `詳細: ${result.details}\n`;
         }
         
-        // よくあるエラーに対する具体的なアドバイス
         if (result.details?.includes('quota') || result.details?.includes('Quota')) {
           errorMsg += language === 'en'
             ? '\n[Solution] Usage limit exceeded.\nEnable "Use Full Text" to generate without RAG.'
@@ -261,11 +240,7 @@ export default function Home() {
       }
       
       console.log('Knowledge base built:', result);
-      if (result.namespace) {
-        console.log('Namespace used:', result.namespace);
-      }
       
-      // 警告がある場合は表示
       if (result.warnings && result.warnings.length > 0) {
         setWarningMessages(result.warnings);
       }
@@ -289,7 +264,6 @@ export default function Home() {
     setIsDeleting(true);
     
     try {
-      // まず現在のデータ状況を確認
       let vectorCount = 0;
       let hasData = false;
       
@@ -329,7 +303,6 @@ export default function Home() {
         return;
       }
       
-      // 削除実行
       const response = await fetch('/api/delete-knowledge-base', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
@@ -375,10 +348,8 @@ export default function Home() {
     }
   };
 
-  // =============================================================================
-  // レポート生成（セクション分割方式）
-  // =============================================================================
-  const handleGenerateReportBySection = async () => {
+  // レポート生成
+  const handleGenerateReport = async () => {
     if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
     
     setErrorMessage(null);
@@ -391,7 +362,7 @@ export default function Home() {
       if (knowledgeBaseStatus === 'error') return;
     }
     
-    // 大きいファイルの確認（既存のロジックを維持）
+    // 大きいファイルの確認
     const LARGE_CONTENT_THRESHOLD = 50000;
     const MAX_LARGE_FULL_TEXT_FILES = 2;
     const MAX_CONTENT_CHARS_PER_FILE = 50000;
@@ -430,13 +401,13 @@ export default function Home() {
 
     if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
       const confirmMsg = language === 'en'
-        ? `[Warning] ${largeFullTextFiles.length} large files (50,000+ chars or S3 stored) are selected for full text use.\n\nTo reduce processing load, only the first ${MAX_LARGE_FULL_TEXT_FILES} will use full text.\nThe rest will use RAG to extract relevant parts.\n\nContinue?`
-        : `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n残りのファイルはRAGで関連部分のみ抽出されます。\n\n続行しますか？`;
+        ? `[Warning] ${largeFullTextFiles.length} large files (50,000+ chars) are selected for full text use.\n\nTo reduce processing load, only the first ${MAX_LARGE_FULL_TEXT_FILES} will use full text.\nThe rest will use relevant parts extraction.\n\nContinue?`
+        : `【警告】大きなファイル（5万文字以上）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n残りのファイルは関連部分のみ抽出されます。\n\n続行しますか？`;
       
       if (!confirm(confirmMsg)) return;
     }
 
-    // セクション分割生成を実行
+    // レポート生成を実行
     const report = await generateReportBySection({
       files,
       stakeholder: selectedStakeholder,
@@ -450,12 +421,6 @@ export default function Home() {
     }
   };
 
-// =============================================================================
-  // レポート生成ハンドラー
-  // useSectionGenerationフックがLambda/Next.js APIを自動判定
-  // =============================================================================
-  const handleGenerateReport = handleGenerateReportBySection;
-
   // 生成中フラグ
   const isCurrentlyGenerating = isSectionGenerating;
 
@@ -464,13 +429,12 @@ export default function Home() {
     setKnowledgeBaseStatus('idle');
     setIsDeleting(false);
     
-    // 推奨構成を取得して設定（言語を渡す）
     const recommended = getSimpleRecommendedStructure(
       stakeholder,
       language
     );
     setRecommendedStructureId(recommended.id);
-    setSelectedStructure(recommended); // 自動選択
+    setSelectedStructure(recommended);
   };
 
   return (
@@ -479,18 +443,10 @@ export default function Home() {
         {/* ヘッダー */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-            
-            <Link 
-              href="/" 
-              className="flex items-center gap-3" 
-            >
-              <span>
-                {t('app.title')}
-              </span>
+            <Link href="/" className="flex items-center gap-3">
+              <span>{t('app.title')}</span>
             </Link>
-
           </h1>
-          {/* ハンバーガーメニュー（設定をまとめて配置） */}
           <SettingsMenu />
         </div>
         
@@ -631,7 +587,6 @@ export default function Home() {
                     <p>
                       {t('knowledgeBase.description')}
                     </p>
-                    {/* ステータスに応じた追加メッセージ */}
                     {knowledgeBaseStatus === 'idle' && files.length === 0 && (
                       <p className="text-amber-600 dark:text-amber-400">
                         {t('knowledgeBase.needsUpload')}
@@ -709,140 +664,13 @@ export default function Home() {
               </div>
             )}
 
-            {/* セクション生成進捗表示 */}
-            { isSectionGenerating && progress && (
+            {/* 生成進捗表示 */}
+            {isSectionGenerating && progress && (
               <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h4 className="text-blue-800 dark:text-blue-200 font-medium mb-3">
                   {language === 'en' ? 'Generating Report...' : 'レポート生成中...'}
                 </h4>
-                
-                {/* Lambda使用時：ストリーミング進捗表示 */}
-                {progress.usingLambda && progress.status === 'generating' && (
-                  <div className="space-y-3">
-                    {/* スピナーとメッセージ */}
-                    <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
-                      <div className="relative">
-                        <div className="w-8 h-8 border-4 border-blue-200 dark:border-blue-700 rounded-full"></div>
-                        <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {progress.lambdaProgress?.message || 
-                            (language === 'en' ? 'Processing...' : '処理中...')
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {/* リアルタイム進捗バー */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-blue-600 dark:text-blue-400">
-                        <span>
-                          {progress.lambdaProgress?.status === 'searching' && (language === 'en' ? 'Searching...' : '検索中...')}
-                          {progress.lambdaProgress?.status === 'preparing' && (language === 'en' ? 'Preparing...' : '準備中...')}
-                          {progress.lambdaProgress?.status === 'building' && (language === 'en' ? 'Building...' : '構築中...')}
-                          {progress.lambdaProgress?.status === 'generating' && (language === 'en' ? 'Generating...' : '生成中...')}
-                          {progress.lambdaProgress?.status === 'finalizing' && (language === 'en' ? 'Finalizing...' : '仕上げ中...')}
-                          {!progress.lambdaProgress?.status && (language === 'en' ? 'Starting...' : '開始中...')}
-                        </span>
-                        <span>{progress.lambdaProgress?.percent || 0}%</span>
-                      </div>
-                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2 overflow-hidden">
-                        <div 
-                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: `${progress.lambdaProgress?.percent || 0}%` }}
-                        />
-                      </div>
-                    </div>
-                    
-                    {/* 処理ステップ */}
-                    <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 pt-2">
-                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? 'opacity-100' : 'opacity-40'}>
-                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? '✓' : '○'} {language === 'en' ? 'RAG search from knowledge base' : '知識ベースからRAG検索'}
-                      </p>
-                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 30 ? 'opacity-100' : 'opacity-40'}>
-                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 30 ? '✓' : '○'} {language === 'en' ? 'Prepare context' : 'コンテキスト準備'}
-                      </p>
-                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 50 ? 'opacity-100' : 'opacity-40'}>
-                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 50 ? '✓' : '○'} {language === 'en' ? 'Build prompt' : 'プロンプト構築'}
-                      </p>
-                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 60 ? 'opacity-100' : 'opacity-40'}>
-                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 60 ? '✓' : '○'} {language === 'en' ? 'Generate report with Claude AI' : 'Claude AIでレポート生成'}
-                      </p>
-                      <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 90 ? 'opacity-100' : 'opacity-40'}>
-                        {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 90 ? '✓' : '○'} {language === 'en' ? 'Finalize report' : 'レポート仕上げ'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Next.js API使用時：コンテキスト準備中 */}
-                {!progress.usingLambda && progress.status === 'preparing' && (
-                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-                    <FiLoader className="animate-spin" />
-                    <span>
-                      {language === 'en' 
-                        ? 'Preparing context (RAG search + file loading)...'
-                        : 'コンテキスト準備中（RAG検索 + ファイル読み込み）...'
-                      }
-                    </span>
-                  </div>
-                )}
-
-                {/* Next.js API使用時：セクション生成中 */}
-                {!progress.usingLambda && progress.status === 'generating' && (
-                  <>
-                    {/* 全体進捗バー */}
-                    <div className="mb-3">
-                      <div className="flex justify-between text-sm text-blue-700 dark:text-blue-300 mb-1">
-                        <span>
-                          {language === 'en' 
-                            ? `Section ${progress.currentSection} of ${progress.totalSections}`
-                            : `${progress.totalSections}セクション中 ${progress.currentSection}セクション目`
-                          }
-                        </span>
-                        <span>{Math.round((progress.completedSections.length / progress.totalSections) * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${(progress.completedSections.length / progress.totalSections) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* 現在生成中のセクション */}
-                    <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-                      <FiLoader className="animate-spin" />
-                      <span>
-                        {language === 'en' 
-                          ? `Generating: ${progress.sectionName}`
-                          : `生成中: ${progress.sectionName}`
-                        }
-                      </span>
-                    </div>
-
-                    {/* 完了したセクション一覧 */}
-                    {progress.completedSections.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
-                        <p className="text-xs text-blue-600 dark:text-blue-400 mb-2">
-                          {language === 'en' ? 'Completed:' : '完了:'}
-                        </p>
-                        <div className="flex flex-wrap gap-1">
-                          {progress.completedSections.map((section) => (
-                            <span 
-                              key={section}
-                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded text-xs"
-                            >
-                              <FiCheckCircle className="w-3 h-3" />
-                              {section}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
+                <GenerationProgress progress={progress} language={language} />
               </div>
             )}
             
@@ -878,24 +706,8 @@ export default function Home() {
               </h2>
 
               {/* ストリーミング中のプレビュー */}
-              {progress.usingLambda && isSectionGenerating && streamingContent ? (
-                <div>
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {language === 'en' ? 'Streaming...' : 'ストリーミング中...'}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
-                      {streamingContent.length.toLocaleString()} {language === 'en' ? 'chars' : '文字'}
-                    </span>
-                  </div>
-                  <div className="max-h-[600px] overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-sans leading-relaxed">
-                      {streamingContent}
-                      <span className="inline-block w-0.5 h-4 bg-green-500 animate-pulse ml-0.5 align-middle"></span>
-                    </pre>
-                  </div>
-                </div>
+              {isSectionGenerating && streamingContent ? (
+                <StreamingPreview content={streamingContent} language={language} />
               ) : generatedReport ? (
                 <ReportPreview 
                   report={generatedReport} 

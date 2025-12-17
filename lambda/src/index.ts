@@ -10,6 +10,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import * as XLSX from 'xlsx';
+import * as mammoth from 'mammoth';
+
+const pdfParse = require('pdf-parse');
 import { 
   GenerateReportRequest, 
   Stakeholder,
@@ -172,7 +176,7 @@ async function streamHandler(
     sendMessage({
       type: 'progress',
       status: 'searching',
-      message: language === 'ja' ? 'ナレッジベースを検索中（RRF）...' : 'Searching knowledge base (RRF)...',
+      message: language === 'ja' ? 'ナレッジベースを検索中...' : 'Searching knowledge base...',
       percent: 10
     });
 
@@ -233,7 +237,7 @@ async function streamHandler(
     for (const file of fullTextFiles) {
       let content = file.content;
       if (file.s3Key && (!content || content.length < 100)) {
-        content = await getS3FileContent(file.s3Key);
+        content = await getS3FileContent(file.s3Key, file.name);
       }
       if (content) {
         const truncatedContent = content.length > MAX_CONTENT_CHARS_PER_FILE 
@@ -299,7 +303,7 @@ async function streamHandler(
     sendMessage({
       type: 'progress',
       status: 'generating',
-      message: language === 'ja' ? 'Claude AIでレポートを生成中...' : 'Generating report with Claude AI...',
+      message: language === 'ja' ? 'AIでレポートを生成中...' : 'Generating report with AI...',
       percent: 60
     });
 
@@ -384,8 +388,9 @@ export const handler = awslambda.streamifyResponse(streamHandler);
 
 /**
  * S3からファイルコンテンツを取得
+ * XLSX/DOCX/テキストファイルを適切に処理
  */
-async function getS3FileContent(key: string): Promise<string> {
+async function getS3FileContent(key: string, fileName: string): Promise<string> {
   try {
     const command = new GetObjectCommand({
       Bucket: process.env.S3_BUCKET_NAME,
@@ -393,15 +398,58 @@ async function getS3FileContent(key: string): Promise<string> {
     });
 
     const response = await s3Client.send(command);
-    const buffer = await response.Body?.transformToByteArray();
+    const bodyContents = await response.Body?.transformToByteArray();
     
-    if (!buffer) {
+    if (!bodyContents) {
       throw new Error('Failed to get file content from S3');
     }
 
+    const buffer = Buffer.from(bodyContents);
+    const lowerFileName = fileName.toLowerCase();
+
+    // Excel ファイル (.xlsx, .xls) の処理
+    if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls')) {
+      console.log(`Processing Excel file: ${fileName}`);
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      let content = '';
+      
+      workbook.SheetNames.forEach((sheetName, index) => {
+        const sheet = workbook.Sheets[sheetName];
+        content += `\n=== Sheet ${index + 1}: ${sheetName} ===\n`;
+        content += XLSX.utils.sheet_to_txt(sheet);
+        content += '\n';
+      });
+      
+      console.log(`Excel file processed: ${workbook.SheetNames.length} sheets, ${content.length} chars`);
+      return content;
+    }
+
+    // Word ファイル (.docx) の処理
+    if (lowerFileName.endsWith('.docx')) {
+      console.log(`Processing Word file: ${fileName}`);
+      const result = await mammoth.extractRawText({ buffer });
+      console.log(`Word file processed: ${result.value.length} chars`);
+      return result.value;
+    }
+
+    // PDF ファイル (.pdf) の処理
+    if (lowerFileName.endsWith('.pdf')) {
+      console.log(`Processing PDF file: ${fileName}`);
+      const pdfData = await pdfParse(buffer);
+      console.log(`PDF file processed: ${pdfData.numpages} pages, ${pdfData.text.length} chars`);
+      
+      // ページ数情報を含めてAIにわかりやすく
+      let content = `=== PDF Document: ${fileName} ===\n`;
+      content += `(Total pages: ${pdfData.numpages})\n\n`;
+      content += pdfData.text;
+      return content;
+    }
+
+    // その他のファイル（テキストとして処理）
     return new TextDecoder().decode(buffer);
+    
   } catch (error) {
-    console.error(`Error fetching from S3: ${key}`, error);
+    console.error(`Error fetching/processing from S3: ${key}`, error);
     throw error;
   }
 }

@@ -1,18 +1,12 @@
 // src/hooks/useSectionGeneration.ts
 // セクション分割生成用のReactフック
-// Lambda Function URL（ストリーミング対応）またはNext.js APIを使用
+// Lambda Function URL（ストリーミング対応）を使用
 
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
-import { getRhetoricStrategyDisplayName, determineAdvancedRhetoricStrategy } from '@/lib/rhetoric-strategies';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
-
-// デバッグログ
-console.log('=== useSectionGeneration.ts loaded ===');
-console.log('LAMBDA_FUNCTION_URL:', LAMBDA_FUNCTION_URL);
-console.log('isLambdaAvailable:', !!LAMBDA_FUNCTION_URL);
 
 // 進捗状態の型定義
 interface SectionProgress {
@@ -28,8 +22,6 @@ interface SectionProgress {
     gsnFileCount: number;
     totalCharacters: number;
   };
-  // Lambda用
-  usingLambda?: boolean;
   lambdaProgress?: {
     status: string;
     message: string;
@@ -44,7 +36,6 @@ interface UseSectionGenerationOptions {
   onContextPrepared?: (metadata: SectionProgress['contextMetadata']) => void;
   // ストリーミング用：テキストチャンク受信時のコールバック
   onStreamChunk?: (chunk: string, fullContent: string) => void;
-  forceLambda?: boolean;
 }
 
 interface GenerateReportParams {
@@ -53,25 +44,6 @@ interface GenerateReportParams {
   reportStructure: ReportStructureTemplate;
   userIdentifier: string;
   language: 'ja' | 'en';
-}
-
-interface PrepareContextResponse {
-  success: boolean;
-  context: {
-    fullTextContent: string;
-    ragContent: string;
-    gsnContent: string;
-    combinedContext: string;
-  };
-  metadata: {
-    fullTextFileCount: number;
-    ragResultCount: number;
-    gsnFileCount: number;
-    totalCharacters: number;
-    hasContent: boolean;
-  };
-  error?: string;
-  duration: number;
 }
 
 interface LambdaStreamMessage {
@@ -121,9 +93,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
     const { files, stakeholder, reportStructure, userIdentifier, language } = params;
 
-    console.log('🚀 [generateReportWithLambda] Starting streaming Lambda generation');
-    console.log('🚀 [generateReportWithLambda] URL:', LAMBDA_FUNCTION_URL);
-
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
     setStreamingContent('');
@@ -136,7 +105,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       status: 'generating',
       completedSections: [],
       contextPrepared: false,
-      usingLambda: true,
       lambdaProgress: {
         status: 'starting',
         message: language === 'ja' ? '処理を開始しています...' : 'Starting process...',
@@ -161,8 +129,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       .filter(f => f.includeFullText)
       .map(f => f.name);
 
-    console.log('🚀 [generateReportWithLambda] Sending streaming request to Lambda...');
-
     const response = await fetch(LAMBDA_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -177,8 +143,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         userIdentifier,
       }),
     });
-
-    console.log('🚀 [generateReportWithLambda] Response status:', response.status);
 
     if (!response.ok) {
       throw new Error(`Lambda error: ${response.status}`);
@@ -226,7 +190,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
                 status: 'generating',
                 completedSections: [],
                 contextPrepared: message.status === 'generating' || message.status === 'finalizing',
-                usingLambda: true,
                 lambdaProgress: {
                   status: message.status || 'processing',
                   message: message.message || '',
@@ -245,9 +208,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
               options.onStreamChunk?.(message.text, streamingContentRef.current);
 
             } else if (message.type === 'complete' && message.report) {
-              // 完了
-              console.log('🚀 [generateReportWithLambda] Complete!', message.totalDuration, 'ms');
-              
+
               report = {
                 id: Math.random().toString(36).substring(2, 11),
                 title: message.report.title,
@@ -265,7 +226,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
                 status: 'complete',
                 completedSections: reportStructure.sections,
                 contextPrepared: true,
-                usingLambda: true,
                 lambdaProgress: {
                   status: 'complete',
                   message: message.message || 'Complete!',
@@ -293,145 +253,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
   }, [options]);
 
   /**
-   * Next.js APIを使用してレポートを生成（既存のセクション分割方式）
-   */
-  const generateReportWithNextJS = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language } = params;
-    
-    console.log('📦 [generateReportWithNextJS] Starting Next.js API generation');
-
-    const sections = reportStructure.sections;
-    const totalSections = sections.length;
-    const generatedSections: Record<string, string> = {};
-    const completedSections: string[] = [];
-
-    // Phase 1: コンテキスト準備
-    console.log('Phase 1: Preparing context...');
-    
-    const preparingProgress: SectionProgress = {
-      currentSection: 0,
-      totalSections,
-      sectionName: language === 'ja' ? 'コンテキスト準備中...' : 'Preparing context...',
-      status: 'preparing',
-      completedSections: [],
-      contextPrepared: false,
-      usingLambda: false,
-    };
-    setProgress(preparingProgress);
-    options.onProgress?.(preparingProgress);
-
-    const prepareResponse = await fetch('/api/prepare-context', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        files,
-        stakeholder,
-        reportStructure,
-        userIdentifier,
-        language,
-      }),
-    });
-
-    const prepareResult: PrepareContextResponse = await prepareResponse.json();
-
-    if (!prepareResult.success || !prepareResult.metadata.hasContent) {
-      const errorMessage = prepareResult.error || 
-        (language === 'ja' 
-          ? 'レポート生成に必要な文書コンテンツがありません。'
-          : 'No document content available for report generation.');
-      throw new Error(errorMessage);
-    }
-
-    console.log(`Context prepared: ${prepareResult.metadata.totalCharacters} chars in ${prepareResult.duration}ms`);
-    options.onContextPrepared?.(prepareResult.metadata);
-
-    const preparedContext = prepareResult.context.combinedContext;
-    const hasGSNFile = prepareResult.metadata.gsnFileCount > 0;
-
-    // Phase 2: セクション生成
-    console.log('Phase 2: Generating sections...');
-
-    for (let i = 0; i < sections.length; i++) {
-      const sectionName = sections[i];
-      
-      const currentProgress: SectionProgress = {
-        currentSection: i + 1,
-        totalSections,
-        sectionName,
-        status: 'generating',
-        completedSections: [...completedSections],
-        contextPrepared: true,
-        contextMetadata: prepareResult.metadata,
-        usingLambda: false,
-      };
-      setProgress(currentProgress);
-      options.onProgress?.(currentProgress);
-
-      const response = await fetch('/api/generate-section', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sectionName,
-          sectionIndex: i,
-          totalSections,
-          allSections: sections,
-          previousSectionsContent: generatedSections,
-          stakeholder,
-          reportStructure,
-          preparedContext,
-          hasGSNFile,
-          language,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || errorData.error || `Failed to generate section: ${sectionName}`);
-      }
-
-      const result = await response.json();
-      generatedSections[sectionName] = result.content;
-      completedSections.push(sectionName);
-      options.onSectionComplete?.(sectionName, result.content);
-      
-      console.log(`Section ${i + 1}/${totalSections} completed: ${sectionName}`);
-    }
-
-    // Phase 3: レポート組み立て
-    const reportContent = sections
-      .map(section => `【${section}】\n${generatedSections[section]}`)
-      .join('\n\n');
-
-    const strategy = determineAdvancedRhetoricStrategy(stakeholder);
-    
-    const report: Report = {
-      id: Math.random().toString(36).substring(2, 11),
-      title: language === 'en'
-        ? `Safety Status Report for ${stakeholder.role}`
-        : `${stakeholder.role}向け Safety Status Report`,
-      stakeholder,
-      content: reportContent,
-      rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    setProgress({
-      currentSection: totalSections,
-      totalSections,
-      sectionName: sections[sections.length - 1],
-      status: 'complete',
-      completedSections,
-      contextPrepared: true,
-      contextMetadata: prepareResult.metadata,
-      usingLambda: false,
-    });
-
-    console.log('Report generation complete!');
-    return report;
-  }, [options]);
-
-  /**
    * メインのレポート生成関数
    */
   const generateReport = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
@@ -444,25 +265,11 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     streamingContentRef.current = '';
 
     try {
-      if (options.forceLambda) {
-        if (!isLambdaGenerationAvailable()) {
-          throw new Error('Lambda Function URLが設定されていません。');
-        }
-        return await generateReportWithLambda(params);
+      if (!isLambdaGenerationAvailable()) {
+        throw new Error('Lambda Function URLが設定されていません。環境変数 NEXT_PUBLIC_LAMBDA_FUNCTION_URL を確認してください。');
       }
 
-      if (isLambdaGenerationAvailable()) {
-        console.log('[generateReport] Lambda is available, using Lambda...');
-        try {
-          return await generateReportWithLambda(params);
-        } catch (lambdaError) {
-          console.warn('Lambda generation failed, falling back to Next.js API:', lambdaError);
-          return await generateReportWithNextJS(params);
-        }
-      }
-
-      console.log('[generateReport] Lambda not available, using Next.js API...');
-      return await generateReportWithNextJS(params);
+      return await generateReportWithLambda(params);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -480,7 +287,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     } finally {
       setIsGenerating(false);
     }
-  }, [options, progress.sectionName, generateReportWithLambda, generateReportWithNextJS]);
+  }, [options, progress.sectionName, generateReportWithLambda]);
 
   const reset = useCallback(() => {
     setIsGenerating(false);

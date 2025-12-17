@@ -1,157 +1,206 @@
 # Lambda SSR Generator
 
-AWS Lambda Function for generating Safety Status Reports with streaming response.
+Safety Status Report を生成する AWS Lambda Function です。ストリーミングレスポンスに対応しています。
 
-## Architecture
+## クイックスタート
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Lambda Function URL (Streaming)                                 │
-│                                                                 │
-│  1. Receive request                                             │
-│  2. Prepare context (RAG + S3)                                  │
-│  3. Generate sections (Claude API)                              │
-│  4. Stream events back to client                                │
-│                                                                 │
-│  Max execution time: 15 minutes                                 │
-│  Response mode: RESPONSE_STREAM                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Stream Events
-
-The function sends Server-Sent Events (SSE) format:
-
-```typescript
-// Progress event
-{
-  type: 'progress',
-  data: {
-    phase: 'context' | 'generation',
-    message: string,
-    current?: number,
-    total?: number,
-    sectionName?: string
-  }
-}
-
-// Section complete event
-{
-  type: 'section',
-  data: {
-    sectionName: string,
-    sectionIndex: number,
-    content: string
-  }
-}
-
-// Complete event
-{
-  type: 'complete',
-  data: {
-    title: string,
-    content: string,
-    stakeholder: Stakeholder,
-    rhetoricStrategy: string,
-    totalDuration: number
-  }
-}
-
-// Error event
-{
-  type: 'error',
-  data: {
-    message: string,
-    details?: string
-  }
-}
-```
-
-## Deployment
-
-### Prerequisites
-
-- AWS CLI configured
-- AWS SAM CLI installed
-- Node.js 20.x
-
-### Build and Deploy
+### 初回デプロイ
 
 ```bash
-# Install dependencies
+cd lambda
+
+# 依存関係をインストール
 npm install
 
-# Build TypeScript
-npm run build
-
-# Deploy with SAM
+# ビルド & デプロイ（初回は --guided で対話形式）
 sam build
 sam deploy --guided
 ```
 
-### SAM Parameters
-
-| Parameter | Description |
-|-----------|-------------|
-| AnthropicApiKey | Anthropic API key for Claude |
-| OpenAIApiKey | OpenAI API key for embeddings |
-| PineconeApiKey | Pinecone API key |
-| PineconeIndexName | Pinecone index name (default: ssr-index) |
-| S3BucketName | S3 bucket for file storage |
-| AllowedOrigin | CORS allowed origin |
-
-## Local Development
+### 2回目以降のデプロイ
 
 ```bash
-# Install dependencies
-npm install
+cd lambda
 
-# Set environment variables
-cp .env.example .env
-# Edit .env with your API keys
-
-# Build
-npm run build
-
-# Test locally with SAM
-sam local invoke SSRGeneratorFunction -e events/test-event.json
+# コード変更時は必ず sam build が必要
+sam build
+sam deploy
 ```
 
-## Project Structure
+> **重要**: `sam deploy` だけではダメです。TypeScriptのコードを変更した場合は、必ず `sam build` を先に実行してください。
+
+## デプロイ後の設定
+
+デプロイ完了後、出力される **Lambda Function URL** をコピーして、Next.jsアプリの環境変数に設定します：
+
+```bash
+# .env.local または Amplify環境変数
+NEXT_PUBLIC_LAMBDA_FUNCTION_URL=https://xxxxxxxx.lambda-url.ap-northeast-1.on.aws/
+```
+
+## 環境変数（SAMパラメータ）
+
+| パラメータ | 説明 | 必須 |
+|-----------|------|------|
+| AnthropicApiKey | Anthropic API キー（Claude用） | ✅ |
+| OpenAIApiKey | OpenAI API キー（エンベディング用） | ✅ |
+| PineconeApiKey | Pinecone API キー | ✅ |
+| PineconeIndexName | Pinecone インデックス名 | デフォルト: `safety-status-report-tool` |
+| S3BucketName | S3 バケット名 | ✅ |
+
+## プロジェクト構成
 
 ```
-lambda-ssr-generator/
+lambda/
 ├── src/
-│   ├── index.ts              # Main handler (streaming)
-│   ├── types.ts              # Type definitions
+│   ├── index.ts                 # メインハンドラー（ストリーミング）
+│   ├── types.ts                 # 型定義
+│   ├── wink-tokenizer.d.ts      # WinkTokenizer型定義
 │   └── lib/
-│       ├── anthropic.ts      # Claude API client
-│       ├── pinecone.ts       # Pinecone client
-│       ├── s3.ts             # S3 client
-│       ├── query-enhancer.ts # Query enhancement
-│       ├── sparse-vector.ts  # Sparse vector generation
-│       ├── prompts.ts        # Prompt templates
-│       └── rhetoric-strategies.ts # Rhetoric strategies
+│       ├── rag/
+│       │   ├── index.ts             # RAGモジュールエクスポート
+│       │   ├── types.ts             # RAG型定義
+│       │   ├── query-enhancer.ts    # クエリ拡張（5クエリ自動生成）
+│       │   ├── rag-utils.ts         # RAGユーティリティ
+│       │   ├── rrf-fusion.ts        # RRF検索・動的K値計算
+│       │   └── sparse-vector-utils.ts # 疎ベクトル生成（Kuromoji/Wink）
+│       ├── report-prompts.ts        # 日本語プロンプト
+│       ├── report-prompts-en.ts     # 英語プロンプト
+│       └── rhetoric-strategies.ts   # レトリック戦略
+│
 ├── package.json
 ├── tsconfig.json
-├── template.yaml             # SAM template
-├── .env.example
+├── template.yaml                # SAMテンプレート
+├── samconfig.toml               # SAM設定（デプロイ後に生成）
 └── README.md
 ```
 
-## Integration with Next.js Frontend
+## 処理フロー
 
-See `src/hooks/useLambdaGeneration.ts` in the main project for the frontend integration hook.
+```
+リクエスト受信
+    ↓
+1. RRF検索（5クエリ自動生成 + 動的K値）
+    ↓
+2. コンテキスト準備
+   - S3からファイル取得
+   - XLSX → シート別テキスト
+   - DOCX → テキスト抽出
+   - PDF → ページ数付きテキスト
+    ↓
+3. プロンプト構築
+    ↓
+4. Claude API（ストリーミング）
+    ↓
+5. SSEでリアルタイム送信
+```
+
+## ストリームイベント形式
+
+Server-Sent Events (SSE) 形式でレスポンスを返します：
 
 ```typescript
-// Example usage
-const { generateReport, progress, isGenerating } = useLambdaGeneration();
+// 進捗イベント
+{
+  type: 'progress',
+  status: 'searching' | 'preparing' | 'building' | 'generating' | 'finalizing',
+  message: string,
+  percent: number
+}
+
+// テキストストリーミングイベント
+{
+  type: 'text',
+  content: string  // 生成されたテキストの断片
+}
+
+// 完了イベント
+{
+  type: 'complete',
+  report: {
+    title: string,
+    content: string,
+    stakeholder: Stakeholder,
+    rhetoricStrategy: string
+  }
+}
+
+// エラーイベント
+{
+  type: 'error',
+  message: string,
+  details?: string
+}
+```
+
+## フロントエンド連携
+
+`src/hooks/useSectionGeneration.ts` を使用してLambda Functionを呼び出します：
+
+```typescript
+const { 
+  generateReport, 
+  isGenerating, 
+  progress,
+  streamingContent 
+} = useSectionGeneration();
 
 await generateReport({
+  files,
   stakeholder,
   reportStructure,
-  files,
-  fullTextFileIds,
+  userIdentifier,
   language: 'ja'
 });
 ```
+
+## トラブルシューティング
+
+### ビルドエラー
+
+```bash
+# node_modules を削除して再インストール
+rm -rf node_modules
+npm install
+sam build
+```
+
+### デプロイエラー
+
+```bash
+# キャッシュをクリア
+rm -rf .aws-sam
+sam build
+sam deploy
+```
+
+### 依存関係の追加
+
+新しいnpmパッケージを追加した場合：
+
+```bash
+npm install <package-name>
+sam build   # 必須！
+sam deploy
+```
+
+## ローカルテスト
+
+```bash
+# SAMローカル実行（Docker必要）
+sam local invoke SSRGeneratorFunction -e events/test-event.json
+```
+
+## 主要な依存関係
+
+| パッケージ | 用途 |
+|-----------|------|
+| @anthropic-ai/sdk | Claude API |
+| @pinecone-database/pinecone | ベクトル検索 |
+| @aws-sdk/client-s3 | S3ファイル取得 |
+| openai | エンベディング生成 |
+| kuromoji | 日本語トークナイザー |
+| wink-tokenizer | 英語トークナイザー |
+| xlsx | Excelファイル処理 |
+| mammoth | Wordファイル処理 |
+| pdf-parse | PDFファイル処理 |
