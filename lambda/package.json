@@ -12,7 +12,9 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@aws-sdk/client-s3": "^3.700.0",
     "@pinecone-database/pinecone": "^4.0.0",
-    "openai": "^4.77.0"
+    "kuromoji": "^0.1.2",
+    "openai": "^4.77.0",
+    "wink-tokenizer": "^5.3.0"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.145",

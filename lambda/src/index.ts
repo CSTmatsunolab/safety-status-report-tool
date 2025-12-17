@@ -1,5 +1,5 @@
 // src/index.ts
-// Lambda Function URL handler - ストリーミング版（Claude APIストリーミング対応）
+// Lambda Function URL handler - ストリーミング版（RRF実装統合）
 
 import { 
   APIGatewayProxyEventV2,
@@ -13,6 +13,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { 
   GenerateReportRequest, 
   Stakeholder,
+  ReportStructureTemplate,
 } from './types';
 import { buildCompleteUserPrompt } from './lib/report-prompts';
 import { buildCompleteUserPromptEN } from './lib/report-prompts-en';
@@ -20,6 +21,13 @@ import {
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
 } from './lib/rhetoric-strategies';
+
+// RAGモジュールのインポート
+import { 
+  performAdaptiveRRFSearch,
+  generateNamespace,
+  debugQueryEnhancement
+} from './lib/rag';
 
 // クライアント初期化
 const anthropic = new Anthropic({
@@ -61,6 +69,42 @@ interface StreamMessage {
   error?: string;
   details?: string;
   totalDuration?: number;
+}
+
+/**
+ * GSNファイルがある場合にセクションを動的に追加
+ */
+function buildFinalReportStructure(
+  baseStructure: ReportStructureTemplate,
+  hasGSN: boolean
+): string[] {
+  if (!hasGSN) {
+    return baseStructure.sections;
+  }
+
+  // GSNファイルがある場合、適切な位置にGSNセクションを挿入
+  const finalSections = [...baseStructure.sections];
+  const gsnSections = baseStructure.gsnSections || [];
+
+  // GSNセクションがない場合はそのまま返す
+  if (gsnSections.length === 0) {
+    return finalSections;
+  }
+
+  // エグゼクティブサマリーの後にGSN概要を挿入
+  if (gsnSections.length > 0) {
+    finalSections.splice(1, 0, gsnSections[0]);
+  }
+
+  // 技術系レポートの場合は詳細分析を中間に挿入
+  if (baseStructure.id === 'technical-detailed' && gsnSections.length > 1) {
+    finalSections.splice(4, 0, ...gsnSections.slice(1));
+  } else if (gsnSections.length > 1) {
+    // その他のレポートは分析結果の後に挿入
+    finalSections.splice(3, 0, ...gsnSections.slice(1));
+  }
+
+  return finalSections;
 }
 
 // ストリーミングハンドラーの実装
@@ -111,6 +155,7 @@ async function streamHandler(
     console.log('Starting streaming report generation:', {
       stakeholder: stakeholder.id,
       sections: reportStructure.sections.length,
+      gsnSections: reportStructure.gsnSections?.length || 0,
       files: files.length,
       language
     });
@@ -123,16 +168,51 @@ async function streamHandler(
       percent: 0
     });
 
-    // ステップ2: RAG検索
+    // ステップ2: RRF検索
     sendMessage({
       type: 'progress',
       status: 'searching',
-      message: language === 'ja' ? '知識ベースを検索中...' : 'Searching knowledge base...',
+      message: language === 'ja' ? 'ナレッジベースを検索中（RRF）...' : 'Searching knowledge base (RRF)...',
       percent: 10
     });
 
     const namespace = generateNamespace(stakeholder.id, userIdentifier);
-    const ragContent = await performRAGSearch(stakeholder, namespace);
+    const indexName = process.env.PINECONE_INDEX_NAME || 'safety-status-report-tool';
+    
+    // デバッグモードの場合、クエリ拡張をログ出力
+    if (process.env.DEBUG_LOGGING === 'true') {
+      debugQueryEnhancement(stakeholder, {
+        maxQueries: 5,
+        includeEnglish: true,
+        includeSynonyms: true,
+        includeRoleTerms: true
+      });
+    }
+
+    // RRF検索を実行
+    const ragResult = await performAdaptiveRRFSearch(
+      openai,
+      pinecone,
+      stakeholder,
+      namespace,
+      indexName,
+      {
+        enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
+        debug: process.env.DEBUG_LOGGING === 'true'
+      }
+    );
+
+    const ragContent = ragResult.content;
+
+    // 検索結果のログ
+    console.log('RRF Search completed:', {
+      documentsFound: ragResult.documents.length,
+      dynamicK: ragResult.metadata.dynamicK,
+      queriesUsed: ragResult.metadata.queriesUsed.length,
+      totalChunks: ragResult.metadata.totalChunks,
+      searchDuration: ragResult.metadata.searchDuration,
+      hybridEnabled: ragResult.metadata.hybridSearchEnabled
+    });
 
     // ステップ3: コンテキスト準備
     sendMessage({
@@ -164,6 +244,11 @@ async function streamHandler(
       }
     }
 
+    // ファイル配列からもGSNチェック
+    if (!hasGSNFile) {
+      hasGSNFile = files.some(f => f.isGSN);
+    }
+
     if (ragContent) {
       contextParts.push(`=== RAG抽出内容 ===\n\n${ragContent}`);
     }
@@ -193,12 +278,19 @@ async function streamHandler(
     });
 
     const strategy = determineAdvancedRhetoricStrategy(stakeholder);
+    
+    // GSNファイルがある場合、動的にセクションを追加
+    const finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+    
+    console.log('Final sections:', finalSections);
+    console.log('Has GSN:', hasGSNFile);
+
     const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
     const promptContent = promptBuilder({
       stakeholder,
       strategy,
       contextContent,
-      reportSections: reportStructure.sections,
+      reportSections: finalSections,
       hasGSN: hasGSNFile,
       structureDescription: reportStructure.description
     });
@@ -312,99 +404,4 @@ async function getS3FileContent(key: string): Promise<string> {
     console.error(`Error fetching from S3: ${key}`, error);
     throw error;
   }
-}
-
-/**
- * Pinecone RAG検索
- */
-async function performRAGSearch(
-  stakeholder: Stakeholder,
-  namespace: string
-): Promise<string | null> {
-  try {
-    const indexName = process.env.PINECONE_INDEX_NAME || 'safety-status-report-tool';
-    const index = pinecone.index(indexName);
-
-    const stats = await index.describeIndexStats();
-    const namespaceStats = stats.namespaces?.[namespace];
-    
-    if (!namespaceStats || namespaceStats.recordCount === 0) {
-      console.log(`No vectors found in namespace: ${namespace}`);
-      return null;
-    }
-
-    const totalChunks = namespaceStats.recordCount;
-    const baseK = Math.ceil(totalChunks * 0.3);
-    const roleMultiplier = stakeholder.id === 'technical-fellows' ? 1.2 : 1.0;
-    const dynamicK = Math.min(Math.ceil(baseK * roleMultiplier), 50);
-
-    console.log(`Dynamic K: ${dynamicK}`);
-
-    const queries = enhanceQueries(stakeholder);
-    console.log(`Enhanced queries (${queries.length}):`, queries);
-
-    const allResults: Map<string, { content: string; score: number }> = new Map();
-
-    for (const query of queries) {
-      const embeddingResponse = await openai.embeddings.create({
-        model: 'text-embedding-3-small',
-        input: query,
-      });
-      const queryVector = embeddingResponse.data[0].embedding;
-
-      const searchResults = await index.namespace(namespace).query({
-        vector: queryVector,
-        topK: dynamicK,
-        includeMetadata: true,
-      });
-
-      for (const match of searchResults.matches || []) {
-        const content = match.metadata?.pageContent as string || '';
-        const existingScore = allResults.get(match.id)?.score || 0;
-        
-        if (match.score && match.score > existingScore) {
-          allResults.set(match.id, { content, score: match.score });
-        }
-      }
-    }
-
-    const sortedResults = Array.from(allResults.values())
-      .sort((a, b) => b.score - a.score)
-      .slice(0, dynamicK);
-
-    console.log(`Pinecone search completed: ${sortedResults.length} results`);
-
-    if (sortedResults.length === 0) {
-      return null;
-    }
-
-    return sortedResults.map(r => r.content).join('\n\n---\n\n');
-
-  } catch (error) {
-    console.error('Pinecone search error:', error);
-    return null;
-  }
-}
-
-/**
- * クエリ拡張
- */
-function enhanceQueries(stakeholder: Stakeholder): string[] {
-  const baseQuery = `${stakeholder.role} ${stakeholder.concerns.slice(0, 3).join(' ')}`;
-  
-  const queries = [
-    baseQuery,
-    ...stakeholder.concerns.slice(0, 2),
-    'GSN Goal Strategy Evidence',
-    '安全性 リスク 対策'
-  ];
-
-  return queries.slice(0, 5);
-}
-
-/**
- * namespace生成
- */
-function generateNamespace(stakeholderId: string, userIdentifier: string): string {
-  return `${stakeholderId}_${userIdentifier}`;
 }

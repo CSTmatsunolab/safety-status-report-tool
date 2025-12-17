@@ -1,90 +1,76 @@
 // src/types.ts
+// Lambda側の共通型定義
+
+export interface UploadedFile {
+  id: string;
+  name: string;
+  type: 'gsn' | 'minutes' | 'other';
+  content: string;
+  uploadedAt: Date;
+  metadata?: FileMetadata;
+  includeFullText?: boolean;
+  useFullText?: boolean;
+  isGSN?: boolean;
+  s3Key?: string;
+}
 
 export interface Stakeholder {
   id: string;
   role: string;
   concerns: string[];
-  readingTime?: {
-    min: number;
-    max: number;
-  };
+}
+
+export interface AnalysisResult {
+  stakeholders: Stakeholder[];
+  keyTopics: string[];
+  risks: string[];
+  recommendations: string[];
+}
+
+export interface Report {
+  id: string;
+  title: string;
+  stakeholder: Stakeholder;
+  content: string;
+  rhetoricStrategy: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ReportStructureTemplate {
   id: string;
   name: string;
-  description?: string;
+  description: string;
   sections: string[];
   gsnSections?: string[];
   recommendedFor?: string[];
 }
 
-export interface FileInfo {
-  name: string;
-  content: string;
-  type: string;
+export interface GSNValidationResult {
+  isValid: boolean;
+  issues: string[];
+}
+
+export interface FileMetadata {
+  originalType: string;
+  extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed';
   size: number;
+  confidence?: number;
+  service?: string;
+  gsnValidation?: GSNValidationResult | null;
   isGSN?: boolean;
-  useFullText?: boolean;
+  userDesignatedGSN: boolean;
   s3Key?: string;
-  metadata?: {
-    originalType?: string;
-    extractionMethod?: string;
-    s3Key?: string;
-    contentPreview?: string;
-    originalContentLength?: number;
-    userDesignatedGSN?: boolean;
-    isGSN?: boolean;
-  };
+  contentPreview?: string;
+  isBase64?: boolean;
+  [key: string]: unknown;
 }
 
 export interface GenerateReportRequest {
   stakeholder: Stakeholder;
   reportStructure: ReportStructureTemplate;
-  files: FileInfo[];
+  files?: UploadedFile[];
   fullTextFileIds?: string[];
   language?: 'ja' | 'en';
   userIdentifier?: string;
-}
-
-export interface Report {
-  id?: string;
-  title: string;
-  content: string;
-  stakeholder: Stakeholder;
-  rhetoricStrategy: string;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface GenerateReportResponse {
-  success: boolean;
-  report?: Report;
-  error?: string;
-  details?: string;
-  totalDuration?: number;
-}
-
-/**
- * ステークホルダーの読了時間設定を取得
- */
-export function getReadingConfig(stakeholder: Stakeholder): { min: number; max: number } {
-  // デフォルト値
-  const defaultConfig = { min: 5, max: 15 };
-  
-  if (stakeholder.readingTime) {
-    return stakeholder.readingTime;
-  }
-  
-  // ステークホルダーIDに基づくデフォルト設定
-  const configMap: { [key: string]: { min: number; max: number } } = {
-    'cxo': { min: 3, max: 7 },
-    'business': { min: 5, max: 10 },
-    'product': { min: 5, max: 12 },
-    'technical-fellows': { min: 10, max: 20 },
-    'architect': { min: 8, max: 15 },
-    'r-and-d': { min: 10, max: 25 }
-  };
-  
-  return configMap[stakeholder.id] || defaultConfig;
 }

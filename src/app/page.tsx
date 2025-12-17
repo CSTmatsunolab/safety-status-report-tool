@@ -19,10 +19,11 @@ import { getUserStorageKey } from '@/lib/browser-id';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 
 // =============================================================================
-// 生成方式の切り替え設定
-// Lambda Function URL実装後は USE_SECTION_GENERATION を false に変更
+// 生成方式について
+// - NEXT_PUBLIC_LAMBDA_FUNCTION_URL が設定されている場合: Lambda (ストリーミング)
+// - 設定されていない場合: Next.js API (セクション分割)
+// useSectionGenerationフックが自動で判定します
 // =============================================================================
-const USE_SECTION_GENERATION = true;  // true: セクション分割方式, false: 一括生成方式
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -449,147 +450,14 @@ export default function Home() {
     }
   };
 
+// =============================================================================
+  // レポート生成ハンドラー
+  // useSectionGenerationフックがLambda/Next.js APIを自動判定
   // =============================================================================
-  // レポート生成（一括生成方式 - Lambda Function URL用）
-  // =============================================================================
-  const handleGenerateReportBulk = async () => {
-    if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
-    
-    setErrorMessage(null);
-    setWarningMessages([]);
-    
-    // ファイルがある場合のみナレッジベース構築
-    if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
-      await buildKnowledgeBase(true);
-      if (knowledgeBaseStatus === 'error') return;
-    }
-    
-    const LARGE_CONTENT_THRESHOLD = 50000;
-    const MAX_LARGE_FULL_TEXT_FILES = 2;
-    const MAX_CONTENT_CHARS_PER_FILE = 50000;
+  const handleGenerateReport = handleGenerateReportBySection;
 
-    const fullTextFiles = files.filter(f => f.includeFullText);
-
-    // 5万文字を超えるファイルをチェック（切り詰め対象）
-    // originalContentLengthがある場合はそちらを優先
-    const oversizedFiles = fullTextFiles.filter(f => {
-      const metadata = f.metadata as { originalContentLength?: number };
-      const contentLength = metadata?.originalContentLength || f.content.length;
-      return contentLength > MAX_CONTENT_CHARS_PER_FILE;
-    });
-
-    if (oversizedFiles.length > 0) {
-      const fileList = oversizedFiles
-        .map(f => {
-          const metadata = f.metadata as { originalContentLength?: number };
-          const contentLength = metadata?.originalContentLength || f.content.length;
-          return language === 'en'
-            ? `• ${f.name} (${contentLength.toLocaleString()} chars)`
-            : `・${f.name}（${contentLength.toLocaleString()}文字）`;
-        })
-        .join('\n');
-      
-      const confirmMsg = language === 'en'
-        ? `[Confirmation] The following full-text files exceed 50,000 characters:\n\n${fileList}\n\nThese files will be truncated to 50,000 characters.\nContinue?`
-        : `【確認】以下の全文使用ファイルは5万文字を超えています：\n\n${fileList}\n\nこれらのファイルは5万文字まで切り詰められます。\n続行しますか？`;
-      
-      if (!confirm(confirmMsg)) return;
-    }
-
-    // 大きいファイル（5万文字以上またはS3保存）の数をチェック
-    const largeFullTextFiles = fullTextFiles.filter(f => {
-      const metadata = f.metadata as { originalContentLength?: number; s3Key?: string };
-      const contentLength = metadata?.originalContentLength || f.content.length;
-      return contentLength >= LARGE_CONTENT_THRESHOLD || metadata?.s3Key;
-    });
-
-    if (largeFullTextFiles.length > MAX_LARGE_FULL_TEXT_FILES) {
-      const confirmMsg = language === 'en'
-        ? `[Warning] ${largeFullTextFiles.length} large files (50,000+ chars or S3 stored) are selected for full text use.\n\nTo reduce processing load, only the first ${MAX_LARGE_FULL_TEXT_FILES} will use full text.\nThe rest will use RAG to extract relevant parts.\n\nContinue?`
-        : `【警告】大きなファイル（5万文字以上またはS3保存）の全文使用が${largeFullTextFiles.length}個選択されています。\n\n処理負荷を軽減するため、最初の${MAX_LARGE_FULL_TEXT_FILES}個のみが全文使用されます。\n残りのファイルはRAGで関連部分のみ抽出されます。\n\n続行しますか？`;
-      
-      if (!confirm(confirmMsg)) return;
-    }
-    
-    setIsGenerating(true);
-    try {
-      // Lambda Function URL実装後はここのエンドポイントを変更
-      // const endpoint = '/api/generate-report-lambda'; // Lambda版
-      const endpoint = '/api/generate-report'; // 現行版
-      
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          files: files,
-          stakeholder: selectedStakeholder,
-          fullTextFileIds: files
-            .filter(file => file.includeFullText)
-            .map(file => file.id),
-          reportStructure: selectedStructure,
-          userIdentifier: userIdentifier,
-          language: language,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        let errorMsg = language === 'en'
-          ? 'Report generation failed.\n\n'
-          : 'レポート生成に失敗しました。\n\n';
-        
-        if (result.error) {
-          errorMsg += language === 'en' ? `Error: ${result.error}\n` : `エラー: ${result.error}\n`;
-        }
-        if (result.details) {
-          errorMsg += language === 'en' ? `Details: ${result.details}\n` : `詳細: ${result.details}\n`;
-        }
-        
-        // よくあるエラーに対する具体的なアドバイス
-        if (result.details?.includes('quota') || result.details?.includes('Quota')) {
-          errorMsg += language === 'en'
-            ? '\n[Solution] Usage limit exceeded.'
-            : '\n【対処法】使用制限を超えています。';
-        } else if (result.details?.includes('timeout') || result.details?.includes('Timeout')) {
-          errorMsg += language === 'en'
-            ? '\n[Solution] Processing timed out.\n• Reduce file size\n• Reduce number of full-text files'
-            : '\n【対処法】処理がタイムアウトしました。\n・ファイルサイズを小さくしてください\n・全文使用ファイル数を減らしてください';
-        } else if (result.details?.includes('context') || result.details?.includes('token')) {
-          errorMsg += language === 'en'
-            ? '\n[Solution] Input data too large.\n• Reduce number of full-text files\n• Reduce file size'
-            : '\n【対処法】入力データが大きすぎます。\n・全文使用ファイル数を減らしてください\n・ファイルサイズを小さくしてください';
-        }
-        
-        setErrorMessage(errorMsg);
-        throw new Error(result.error || 'Report generation failed');
-      }
-      
-      // 警告がある場合は表示（レポートは成功）
-      if (result.warnings && result.warnings.length > 0) {
-        setWarningMessages(result.warnings);
-      }
-      
-      setGeneratedReport(result);
-    } catch (error) {
-      console.error('Report generation failed:', error);
-      if (!errorMessage) {
-        setErrorMessage(t('report.generationFailed'));
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // =============================================================================
-  // 生成方式の切り替え
-  // =============================================================================
-  const handleGenerateReport = USE_SECTION_GENERATION 
-    ? handleGenerateReportBySection 
-    : handleGenerateReportBulk;
-
-  // 生成中フラグ（方式に応じて切り替え）
-  const isCurrentlyGenerating = USE_SECTION_GENERATION ? isSectionGenerating : isGenerating;
+  // 生成中フラグ
+  const isCurrentlyGenerating = isSectionGenerating;
 
   const handleStakeholderSelect = (stakeholder: Stakeholder) => {
     setSelectedStakeholder(stakeholder);
@@ -842,7 +710,7 @@ export default function Home() {
             )}
 
             {/* セクション生成進捗表示 */}
-            {USE_SECTION_GENERATION && isSectionGenerating && progress && (
+            { isSectionGenerating && progress && (
               <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
                 <h4 className="text-blue-800 dark:text-blue-200 font-medium mb-3">
                   {language === 'en' ? 'Generating Report...' : 'レポート生成中...'}

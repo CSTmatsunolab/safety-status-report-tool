@@ -86,9 +86,6 @@ APP_AWS_S3_BUCKET_NAME=your_s3_bucket_name
 # S3クリーンアップAPI用 (Vercel Cronなどで使用)
 CLEANUP_AUTH_TOKEN=your_secure_random_token
 
-# セクション分割生成（オプション）
-USE_SECTION_GENERATION=true  # セクション分割方式を有効化（デフォルト: false）
-```
 
 4. **Google Cloud Vision APIのセットアップ
 
@@ -134,12 +131,6 @@ npm start
 
 #### 概要
 AWS AmplifyやVercelなどのサーバーレス環境における30秒タイムアウト制限を回避するため、レポートをセクション単位で段階的に生成する方式を導入しました。
-
-#### 有効化方法
-```bash
-# .env.local
-USE_SECTION_GENERATION=true
-```
 
 #### アーキテクチャ（2フェーズ方式）
 
@@ -653,7 +644,6 @@ safety-status-report-tool/
 - **対処法**:
   1. ネットワーク接続を確認
   2. ページをリロードして再試行
-  3. 「一括生成」モード（USE_SECTION_GENERATION=false）を試す
 
 ### 多言語対応関連
 
