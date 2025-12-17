@@ -2,7 +2,7 @@
 // RAG関連の型定義
 
 // Stakeholderを再エクスポート（便利のため）
-export { Stakeholder } from '../../types';
+export type { Stakeholder } from '../../types';
 
 // RRF関連の型
 export interface DocumentWithScore {

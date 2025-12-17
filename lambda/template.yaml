@@ -22,6 +22,7 @@ Resources:
           OPENAI_API_KEY: !Ref OpenAIApiKey
           PINECONE_API_KEY: !Ref PineconeApiKey
           PINECONE_INDEX_NAME: !Ref PineconeIndexName
+          ENABLE_HYBRID_SEARCH: 'true'
           S3_BUCKET_NAME: !Ref S3BucketName
       Policies:
         - S3ReadPolicy:
