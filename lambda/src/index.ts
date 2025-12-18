@@ -12,8 +12,9 @@ import OpenAI from 'openai';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
-// 注意: pdf-parse はLambda環境で動作しないため削除
-// PDFの全文使用は知識ベースからの検索結果で代替
+
+const pdfParse = require('pdf-parse-new');
+
 import { 
   GenerateReportRequest, 
   Stakeholder,
@@ -433,14 +434,15 @@ async function getS3FileContent(key: string, fileName: string): Promise<string> 
     }
 
     // PDF ファイル (.pdf) の処理
-    // 注意: Lambda環境ではpdf-parseが動作しないため、全文抽出はスキップ
-    // PDFの内容は知識ベースからの検索結果で代替される
     if (lowerFileName.endsWith('.pdf')) {
-      console.warn(`PDF file ${fileName} - text extraction not supported in Lambda environment`);
-      return `=== PDF Document: ${fileName} ===\n` +
-        `※このPDFファイルは全文抽出できません。\n` +
-        `※知識ベースからの検索結果が代わりに使用されます。\n` +
-        `※PDFの全文使用が必要な場合は、事前にテキストファイルに変換してください。`;
+      console.log(`Processing PDF file: ${fileName}`);
+      const pdfData = await pdfParse(buffer);
+      console.log(`PDF file processed: ${pdfData.numpages} pages, ${pdfData.text.length} chars`);
+      
+      let content = `=== PDF Document: ${fileName} ===\n`;
+      content += `(Total pages: ${pdfData.numpages})\n\n`;
+      content += pdfData.text;
+      return content;
     }
 
     // その他のファイル（テキストとして処理）
