@@ -7,10 +7,14 @@ import { getPredefinedStakeholders } from '@/lib/stakeholders';
 import { FiPlus, FiTrash2, FiX } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { SettingsMenu } from '../components/SettingsMenu';
+import { useAuth } from '../components/AuthProvider';
+import { getUserStorageKey } from '@/lib/browser-id';
 
 export default function StakeholderSettings() {
   const { language } = useI18n();
+  const { getUserIdentifier, status: authStatus } = useAuth();
   const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+  const [userIdentifier, setUserIdentifier] = useState<string>('');
   const [concernsError, setConcernsError] = useState('');
   const [newStakeholder, setNewStakeholder] = useState({
     id: '',
@@ -22,9 +26,21 @@ export default function StakeholderSettings() {
   // 言語に応じたデフォルトステークホルダーを取得
   const predefinedStakeholders = getPredefinedStakeholders(language);
 
+  // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
-    // ローカルストレージから保存されたステークホルダーを読み込む
-    const saved = localStorage.getItem('customStakeholders');
+    if (authStatus !== 'loading') {
+      const id = getUserIdentifier();
+      setUserIdentifier(id);
+    }
+  }, [authStatus, getUserIdentifier]);
+
+  // ローカルストレージから保存されたステークホルダーを読み込む
+  useEffect(() => {
+    if (!userIdentifier) return;
+    
+    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
+    const saved = localStorage.getItem(storageKey);
+    
     if (saved) {
       try {
         const customStakeholders = JSON.parse(saved) as Stakeholder[];
@@ -43,10 +59,12 @@ export default function StakeholderSettings() {
     } else {
       setStakeholders(predefinedStakeholders);
     }
-  }, [language, predefinedStakeholders]);
+  }, [language, userIdentifier, predefinedStakeholders]);
 
   const saveToLocalStorage = (data: Stakeholder[]) => {
-    localStorage.setItem('customStakeholders', JSON.stringify(data));
+    if (!userIdentifier) return;
+    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
+    localStorage.setItem(storageKey, JSON.stringify(data));
   };
 
   // ID検証関数（大文字小文字を区別）

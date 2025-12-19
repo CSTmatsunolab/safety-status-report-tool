@@ -169,10 +169,9 @@ export default function ReportStructureSelector({
     <>
       <div className="space-y-4">
         <div>
-          <h3 className="text-base font-medium text-gray-700 dark:text-gray-300 mb-3">
-            {language === 'en' ? 'Select report structure' : 'レポート構成を選択'}
+          <h3 className="text-base font-medium text-gray-700 dark:text-gray-300 mb-3">         
             {recommendedStructureId && (
-              <span className="ml-2 text-base text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
+              <span className="ml-2 text-sm text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
                 {language === 'en' ? 'Recommended auto-selected' : '推奨構成を自動選択済み'}
               </span>
             )}
@@ -192,14 +191,14 @@ export default function ReportStructureSelector({
               >
                 {/* 推奨バッジは緑 */}
                 {structure.id === recommendedStructureId && (
-                  <span className="absolute top-2 right-2 text-base bg-green-100 text-green-800 dark:bg-green-700 dark:text-white px-2 py-1 rounded">
+                  <span className="absolute top-2 right-2 text-sm bg-green-100 text-green-800 dark:bg-green-700 dark:text-white px-2 py-1 rounded">
                     {language === 'en' ? 'Recommended' : '推奨'}
                   </span>
                 )}
                 
                 <div className="flex items-start">
                   <div className="flex-1">
-                    <h4 className="font-medium text-gray-900 dark:text-white">
+                    <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                       {structure.name}
                       {/* 情報アイコンはグレー */}
                       {((structure.gsnSections && structure.gsnSections.length > 0) || 
@@ -304,9 +303,9 @@ export default function ReportStructureSelector({
                   >
                     <div className="flex items-start">
                       <div className="flex-1">
-                        <h4 className="font-medium text-gray-900 dark:text-white">
+                        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {structure.name}
-                          <span className="ml-2 text-base bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
+                          <span className="ml-2 text-sm bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
                             {language === 'en' ? 'Custom' : 'カスタム'}
                           </span>
                         </h4>
