@@ -1,14 +1,30 @@
 // src/app/history/page.tsx
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FiFileText, FiTrash2, FiClock, FiUser, FiFile, FiLoader, FiArrowLeft, FiAlertCircle } from 'react-icons/fi';
+import { 
+  FiFileText, 
+  FiTrash2, 
+  FiClock, 
+  FiUser, 
+  FiFile, 
+  FiLoader, 
+  FiArrowLeft, 
+  FiAlertCircle,
+  FiArrowUp,
+  FiArrowDown,
+  FiFilter,
+  FiChevronDown,
+  FiCheck
+} from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useAuth } from '../components/AuthProvider';
 import { SettingsMenu } from '../components/SettingsMenu';
 import { useReportHistory, ReportMetadata } from '@/hooks/useReportHistory';
+
+type SortOrder = 'newest' | 'oldest';
 
 export default function HistoryPage() {
   const { t, language } = useI18n();
@@ -26,12 +42,59 @@ export default function HistoryPage() {
     isAuthenticated,
   } = useReportHistory();
 
+  // ソート・フィルター状態
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest');
+  const [stakeholderFilter, setStakeholderFilter] = useState<string>('all');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // ドロップダウン外クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // 初回読み込み
   useEffect(() => {
     if (authStatus === 'authenticated') {
       loadReports();
     }
   }, [authStatus, loadReports]);
+
+  // ユニークなステークホルダー一覧を取得
+  const uniqueStakeholders = useMemo(() => {
+    const stakeholderMap = new Map<string, string>();
+    reports.forEach(report => {
+      if (!stakeholderMap.has(report.stakeholder.id)) {
+        stakeholderMap.set(report.stakeholder.id, report.stakeholder.role);
+      }
+    });
+    return Array.from(stakeholderMap.entries()).map(([id, role]) => ({ id, role }));
+  }, [reports]);
+
+  // フィルタリング・ソート済みレポート
+  const filteredAndSortedReports = useMemo(() => {
+    let result = [...reports];
+
+    // ステークホルダーフィルター
+    if (stakeholderFilter !== 'all') {
+      result = result.filter(r => r.stakeholder.id === stakeholderFilter);
+    }
+
+    // ソート
+    result.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+    });
+
+    return result;
+  }, [reports, stakeholderFilter, sortOrder]);
 
   // 削除処理
   const handleDelete = async (report: ReportMetadata) => {
@@ -68,11 +131,17 @@ export default function HistoryPage() {
     noReportsHint: language === 'en' 
       ? 'Generate a report and click "Save to History" to save it here.'
       : 'レポートを生成して「履歴に保存」をクリックすると、ここに保存されます。',
+    noFilteredReports: language === 'en' ? 'No reports match the filter' : '条件に一致するレポートはありません',
     loginRequired: language === 'en' ? 'Login required to view history' : '履歴を見るにはログインが必要です',
     loginButton: language === 'en' ? 'Login' : 'ログイン',
     loadMore: language === 'en' ? 'Load More' : 'もっと読み込む',
     loading: language === 'en' ? 'Loading...' : '読み込み中...',
     files: language === 'en' ? 'files' : 'ファイル',
+    sortNewest: language === 'en' ? 'Newest first' : '新しい順',
+    sortOldest: language === 'en' ? 'Oldest first' : '古い順',
+    filterAll: language === 'en' ? 'All stakeholders' : 'すべて',
+    filterLabel: language === 'en' ? 'Filter' : '絞り込み',
+    sortLabel: language === 'en' ? 'Sort' : '並び替え',
   };
 
   // 未ログイン時
@@ -142,6 +211,129 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {/* ソート・フィルターコントロール */}
+        {reports.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
+            <div className="flex flex-wrap gap-4 items-center">
+              {/* ソート */}
+              <div className="flex items-center gap-2">
+                <span className="text-base text-gray-500 dark:text-gray-400">
+                  {texts.sortLabel}:
+                </span>
+                <button
+                  onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
+                  className={`
+                    flex items-center gap-1 px-3 py-1.5 rounded-md text-base font-medium transition-colors
+                    ${sortOrder === 'newest' 
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
+                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}
+                    hover:bg-blue-200 dark:hover:bg-blue-900/50
+                  `}
+                >
+                  {sortOrder === 'newest' ? (
+                    <>
+                      <FiArrowDown size={14} />
+                      {texts.sortNewest}
+                    </>
+                  ) : (
+                    <>
+                      <FiArrowUp size={14} />
+                      {texts.sortOldest}
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* ステークホルダーフィルター - カスタムドロップダウン */}
+              {uniqueStakeholders.length > 1 && (
+                <div className="flex items-center gap-2">
+                  <FiFilter className="text-gray-400" size={14} />
+                  <span className="text-base text-gray-500 dark:text-gray-400">
+                    {texts.filterLabel}:
+                  </span>
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                      className="
+                        flex items-center gap-2 px-3 py-1.5 rounded-md text-base
+                        bg-gray-100 dark:bg-gray-700
+                        text-gray-700 dark:text-gray-300
+                        hover:bg-gray-200 dark:hover:bg-gray-600
+                        transition-colors cursor-pointer min-w-[180px]
+                      "
+                    >
+                      <span className="flex-1 text-left truncate">
+                        {stakeholderFilter === 'all' 
+                          ? texts.filterAll 
+                          : uniqueStakeholders.find(s => s.id === stakeholderFilter)?.role || texts.filterAll}
+                      </span>
+                      <FiChevronDown 
+                        className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                        size={16} 
+                      />
+                    </button>
+                    
+                    {/* ドロップダウンメニュー */}
+                    {isDropdownOpen && (
+                      <div className="
+                        absolute top-full left-0 mt-1 z-50
+                        bg-white dark:bg-gray-800
+                        border border-gray-200 dark:border-gray-600
+                        rounded-lg shadow-lg
+                        min-w-[220px] max-h-[300px] overflow-y-auto
+                      ">
+                        {/* すべて */}
+                        <button
+                          onClick={() => {
+                            setStakeholderFilter('all');
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`
+                            w-full flex items-center gap-2 px-4 py-3 text-base text-left
+                            hover:bg-gray-100 dark:hover:bg-gray-700
+                            ${stakeholderFilter === 'all' 
+                              ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                              : 'text-gray-700 dark:text-gray-300'}
+                          `}
+                        >
+                          {stakeholderFilter === 'all' && <FiCheck size={16} />}
+                          <span className={stakeholderFilter === 'all' ? '' : 'ml-6'}>{texts.filterAll}</span>
+                        </button>
+                        
+                        {/* ステークホルダー一覧 */}
+                        {uniqueStakeholders.map(({ id, role }) => (
+                          <button
+                            key={id}
+                            onClick={() => {
+                              setStakeholderFilter(id);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`
+                              w-full flex items-center gap-2 px-4 py-3 text-base text-left
+                              hover:bg-gray-100 dark:hover:bg-gray-700
+                              ${stakeholderFilter === id 
+                                ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                                : 'text-gray-700 dark:text-gray-300'}
+                            `}
+                          >
+                            {stakeholderFilter === id && <FiCheck size={16} />}
+                            <span className={stakeholderFilter === id ? '' : 'ml-6'}>{role}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* 件数表示 */}
+              <div className="ml-auto text-base text-gray-500 dark:text-gray-400">
+                {filteredAndSortedReports.length} / {reports.length} {language === 'en' ? 'reports' : '件'}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* エラー表示 */}
         {error && (
           <div className="mb-6 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -164,9 +356,22 @@ export default function HistoryPage() {
               {texts.noReportsHint}
             </p>
           </div>
+        ) : filteredAndSortedReports.length === 0 ? (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
+            <FiFilter className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+              {texts.noFilteredReports}
+            </h3>
+            <button
+              onClick={() => setStakeholderFilter('all')}
+              className="mt-4 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+            >
+              {language === 'en' ? 'Clear filter' : 'フィルターを解除'}
+            </button>
+          </div>
         ) : (
           <div className="space-y-4">
-            {reports.map((report) => (
+            {filteredAndSortedReports.map((report) => (
               <div
                 key={report.reportId}
                 className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
@@ -185,7 +390,7 @@ export default function HistoryPage() {
                       </Link>
 
                       {/* メタ情報 */}
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base text-gray-500 dark:text-gray-400">
                         <span className="flex items-center">
                           <FiUser className="mr-1" />
                           {report.stakeholder.role}
