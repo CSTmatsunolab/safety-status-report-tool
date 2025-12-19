@@ -443,6 +443,20 @@
           <p class="ja">知識ベースに登録されているファイルとアップロード日時を確認できます。</p>
           <p class="en">View files registered in the knowledge base with their upload dates.</p>
         </div>
+        <div class="feature-item">
+          <div class="icon">📚</div>
+          <h4 class="ja">レポート履歴</h4>
+          <h4 class="en">Report History</h4>
+          <p class="ja">生成したレポートをクラウドに保存し、いつでも閲覧・エクスポートできます（ログイン必要）。</p>
+          <p class="en">Save generated reports to cloud and access them anytime for viewing and export (login required).</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🔽</div>
+          <h4 class="ja">履歴のソート・フィルター</h4>
+          <h4 class="en">Sort & Filter History</h4>
+          <p class="ja">履歴一覧を日時でソート、ステークホルダーで絞り込みできます。</p>
+          <p class="en">Sort history by date and filter by stakeholder.</p>
+        </div>
       </div>
     </div>
 
@@ -612,6 +626,98 @@
         <div>
           <p class="ja"><strong>便利:</strong> 同じファイル名を再アップロードすると、古いデータが自動削除され、最新のデータで上書きされます。手動で削除する必要はありません。</p>
           <p class="en"><strong>Convenient:</strong> Re-uploading a file with the same name automatically deletes old data and overwrites with the latest. No manual deletion needed.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- レポート履歴機能 -->
+    <div class="card">
+      <h2><span class="icon">📚</span><span class="ja">レポート履歴機能</span><span class="en">Report History Feature</span></h2>
+      
+      <p class="ja">
+        生成したレポートをクラウドに保存し、いつでも閲覧・エクスポートできる機能です。
+        <strong>ログインが必要</strong>です。
+      </p>
+      <p class="en">
+        A feature to save generated reports to the cloud for viewing and exporting anytime.
+        <strong>Login required</strong>.
+      </p>
+
+      <h3 class="ja">履歴に保存する方法</h3>
+      <h3 class="en">How to Save to History</h3>
+      <ol class="step-list">
+        <li>
+          <strong class="ja">レポートを生成</strong>
+          <strong class="en">Generate a report</strong>
+          <span class="ja">通常どおりレポートを生成します。</span>
+          <span class="en">Generate a report as usual.</span>
+        </li>
+        <li>
+          <strong class="ja">「履歴に保存」をクリック</strong>
+          <strong class="en">Click "Save to History"</strong>
+          <span class="ja">プレビューセクション右上の「履歴に保存」ボタンをクリックします。</span>
+          <span class="en">Click the "Save to History" button at the top right of the preview section.</span>
+        </li>
+        <li>
+          <strong class="ja">保存完了</strong>
+          <strong class="en">Save complete</strong>
+          <span class="ja">「保存完了」と表示されれば成功です。</span>
+          <span class="en">Success when "Saved!" is displayed.</span>
+        </li>
+      </ol>
+
+      <h3 class="ja">履歴一覧の確認方法</h3>
+      <h3 class="en">How to View History List</h3>
+      <p class="ja">
+        右上のメニュー（≡）から「レポート履歴」をクリックすると、保存済みレポートの一覧が表示されます。
+      </p>
+      <p class="en">
+        Click "Report History" from the menu (≡) at the top right to view the list of saved reports.
+      </p>
+
+      <h3 class="ja">履歴の並び替え・絞り込み</h3>
+      <h3 class="en">Sort & Filter History</h3>
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="icon">📅</div>
+          <h4 class="ja">日時ソート</h4>
+          <h4 class="en">Sort by Date</h4>
+          <p class="ja">「新しい順」「古い順」でソートを切り替えられます。</p>
+          <p class="en">Toggle between "Newest first" and "Oldest first".</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🎯</div>
+          <h4 class="ja">ステークホルダーフィルター</h4>
+          <h4 class="en">Stakeholder Filter</h4>
+          <p class="ja">特定のステークホルダーのレポートのみ表示できます。</p>
+          <p class="en">Display only reports for a specific stakeholder.</p>
+        </div>
+      </div>
+
+      <h3 class="ja">履歴詳細ページ</h3>
+      <h3 class="en">History Detail Page</h3>
+      <p class="ja">
+        レポートのタイトルをクリックすると詳細ページが開きます。以下の操作が可能です：
+      </p>
+      <p class="en">
+        Click on a report title to open the detail page. The following operations are available:
+      </p>
+      <ul style="margin-left: 1.5rem; color: var(--text-secondary);">
+        <li class="ja"><strong>エクスポート:</strong> Markdown、Word、HTML、PDF形式でダウンロード</li>
+        <li class="en"><strong>Export:</strong> Download in Markdown, Word, HTML, or PDF format</li>
+        <li class="ja"><strong>印刷:</strong> ブラウザの印刷機能でプリント</li>
+        <li class="en"><strong>Print:</strong> Print using browser's print function</li>
+        <li class="ja"><strong>入力ファイル確認:</strong> 折りたたみ式でファイル一覧を確認</li>
+        <li class="en"><strong>View Input Files:</strong> Check file list in collapsible section</li>
+        <li class="ja"><strong>削除:</strong> 不要なレポートを削除</li>
+        <li class="en"><strong>Delete:</strong> Delete unwanted reports</li>
+      </ul>
+
+      <div class="tip-box info" style="margin-top: 1.5rem;">
+        <span class="icon">💡</span>
+        <div>
+          <p class="ja"><strong>ヒント:</strong> 入力ファイル一覧では、「全文使用」と「RAG」のバッジで、各ファイルがどのように処理されたかを確認できます。</p>
+          <p class="en"><strong>Tip:</strong> In the input files list, "Full Text" and "RAG" badges indicate how each file was processed.</p>
         </div>
       </div>
     </div>
