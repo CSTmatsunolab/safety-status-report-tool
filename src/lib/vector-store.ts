@@ -165,7 +165,7 @@ export class VectorStoreFactory {
     const store = await MemoryVectorStore.fromDocuments(docs, embeddings);
     this.memoryStores.set(storeKey, store);
     
-    // グローバルストレージにも保存（Next.jsのホットリロード対策）
+    // グローバルストレージにも保存
     const globalStores: Map<string, unknown> = 
       (global as { vectorStores?: Map<string, unknown> }).vectorStores || new Map();
     (global as { vectorStores?: Map<string, unknown> }).vectorStores = globalStores;
@@ -233,6 +233,48 @@ export class VectorStoreFactory {
         }
       }
       
+      
+      // アップロードするファイルの古いベクトルを削除（重複防止）
+      const fileNamesToUpload = [...new Set(docs.map(doc => doc.metadata?.fileName).filter(Boolean))] as string[];
+      if (fileNamesToUpload.length > 0) {
+        console.log(`Deleting existing vectors for ${fileNamesToUpload.length} files to prevent duplicates...`);
+        
+        for (const fileName of fileNamesToUpload) {
+          try {
+            // ファイル名をサニタイズ（ベクトルID生成時と同じ処理）
+            const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
+            const idPrefix = `${namespace}_${sanitizedFileName}_`;
+            
+            // prefixに一致するベクトルIDを取得（ページネーションで全件取得）
+            const allVectorIds: string[] = [];
+            let paginationToken: string | undefined = undefined;
+            
+            do {
+              const listResponse = await pineconeIndex.namespace(namespace).listPaginated({
+                prefix: idPrefix,
+                limit: 100, // Pineconeの上限は100
+                paginationToken: paginationToken,
+              });
+              
+              const ids = listResponse.vectors?.map(v => v.id).filter((id): id is string => !!id) || [];
+              allVectorIds.push(...ids);
+              paginationToken = listResponse.pagination?.next;
+            } while (paginationToken);
+            
+            if (allVectorIds.length > 0) {
+              // 取得したIDで削除
+              await pineconeIndex.namespace(namespace).deleteMany(allVectorIds);
+              console.log(`  - Deleted ${allVectorIds.length} existing vectors for: ${fileName}`);
+            } else {
+              console.log(`  - No existing vectors found for: ${fileName}`);
+            }
+          } catch (deleteError) {
+            console.warn(`  - Failed to delete vectors for ${fileName}:`, deleteError);
+          }
+        }
+        // 削除の反映を待つ
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       console.log(`Pinecone store created successfully with namespace: ${namespace}`);
       console.log(`Generating dense vectors for ${docs.length} documents...`);
       // 1. 全ドキュメントの密ベクトルを生成

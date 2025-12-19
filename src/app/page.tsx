@@ -265,29 +265,52 @@ export default function Home() {
     setIsDeleting(true);
     
     try {
-      let vectorCount = 0;
+      let fileCount = 0;
       let hasData = false;
       
+      // ファイル数を取得
       try {
-        const statsResponse = await fetch(
-          `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
+        const filesResponse = await fetch(
+          `/api/list-knowledge-files?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
           { method: 'GET' }
         );
         
-        if (statsResponse.ok) {
-          const stats = await statsResponse.json();
-          vectorCount = stats.vectorCount || 0;
-          hasData = vectorCount > 0;
+        if (filesResponse.ok) {
+          const filesData = await filesResponse.json();
+          console.log('Files data:', filesData);
+          fileCount = filesData.totalFiles || 0;
+          hasData = fileCount > 0;
+        } else {
+          console.log('list-knowledge-files response not ok:', filesResponse.status);
+          throw new Error('API returned non-ok status');
         }
       } catch (error) {
-        console.log('Stats check skipped:', error);
+        console.log('Files check failed, falling back to vector count:', error);
+        // フォールバック: ベクトル数で確認（ファイル数は不明なので「データあり」のみ判定）
+        try {
+          const statsResponse = await fetch(
+            `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
+            { method: 'GET' }
+          );
+          if (statsResponse.ok) {
+            const stats = await statsResponse.json();
+            const vectorCount = stats.vectorCount || 0;
+            hasData = vectorCount > 0;
+            // ベクトル数からファイル数を推定（正確ではないが目安として）
+            // 通常1ファイルあたり数チャンクなので、概算で表示
+            fileCount = hasData ? Math.max(1, Math.ceil(vectorCount / 5)) : 0;
+            console.log('Fallback: estimated file count from vectors:', fileCount);
+          }
+        } catch {
+          console.log('Stats check also failed');
+        }
       }
       
       let confirmMessage;
       if (hasData) {
         confirmMessage = t('knowledgeBase.confirmDelete', {
           role: selectedStakeholder.role,
-          count: vectorCount.toLocaleString()
+          count: fileCount.toString()
         });
       } else if (knowledgeBaseStatus === 'ready') {
         confirmMessage = t('knowledgeBase.confirmReset', {
@@ -332,8 +355,7 @@ export default function Home() {
       } else if (hasData) {
         alert(t('knowledgeBase.deleteComplete', {
           role: selectedStakeholder.role,
-          count: vectorCount.toLocaleString(),
-          remaining: result.remainingVectors || 0
+          count: fileCount.toString()
         }));
       } else {
         alert(t('knowledgeBase.cleared', { role: selectedStakeholder.role }));

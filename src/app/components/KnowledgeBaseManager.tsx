@@ -1,7 +1,7 @@
 // src/components/KnowledgeBaseManager.tsx
 // 知識ベース管理用の専用コンポーネント
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2, FiFile, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { Stakeholder } from '@/types';
 import { useI18n } from './I18nProvider';
@@ -41,6 +41,7 @@ export function KnowledgeBaseManager({
   const [loadingFiles, setLoadingFiles] = useState(false);
   const [vectorCount, setVectorCount] = useState<number | null>(null);
   const [initialCheckDone, setInitialCheckDone] = useState(false);
+  const [recentlyDeleted, setRecentlyDeleted] = useState(false);
 
   // テキスト
   const texts = {
@@ -66,6 +67,9 @@ export function KnowledgeBaseManager({
     description: language === 'en' 
       ? 'Knowledge base extracts relevant information from your documents.'
       : '知識ベースはドキュメントから関連情報を抽出します。',
+    syncDelayNotice: language === 'en'
+      ? '* Changes may take a moment to reflect.'
+      : '※ 反映に少し時間がかかることがあります。',
   };
 
   // 既存のベクトル数をチェック
@@ -120,6 +124,7 @@ export function KnowledgeBaseManager({
     setShowFiles(false);
     setVectorCount(null);
     setInitialCheckDone(false);
+    setRecentlyDeleted(false);
     if (stakeholder && userIdentifier) {
       checkVectorCount();
       fetchFiles(); // 初回にファイル一覧も取得
@@ -131,8 +136,37 @@ export function KnowledgeBaseManager({
     if (status === 'ready' && stakeholder && userIdentifier) {
       checkVectorCount();
       setFiles([]); // ファイル一覧をリセットして再取得を促す
+      fetchFiles(); // 再取得
     }
-  }, [status, stakeholder, userIdentifier, checkVectorCount]);
+  }, [status, stakeholder, userIdentifier, checkVectorCount, fetchFiles]);
+
+  // 削除完了時（statusがidleに戻った時）にファイル一覧をクリア
+  useEffect(() => {
+    if (status === 'idle') {
+      setFiles([]);
+      setVectorCount(null);
+      // 再度チェックしてファイル一覧を更新
+      if (stakeholder && userIdentifier) {
+        checkVectorCount();
+        fetchFiles();
+      }
+    }
+  }, [status, stakeholder, userIdentifier, checkVectorCount, fetchFiles]);
+
+  // 削除中から削除完了への遷移を検知
+  const prevIsDeletingRef = useRef(isDeleting);
+  useEffect(() => {
+    if (prevIsDeletingRef.current && !isDeleting) {
+      // 削除が完了した
+      setRecentlyDeleted(true);
+      // 10秒後にフラグをリセット
+      const timer = setTimeout(() => {
+        setRecentlyDeleted(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+    prevIsDeletingRef.current = isDeleting;
+  }, [isDeleting]);
 
   // ファイル一覧を展開したときにファイルを取得
   useEffect(() => {
@@ -179,7 +213,7 @@ export function KnowledgeBaseManager({
           {/* ステータス表示と構築ボタン */}
           {!initialCheckDone && (
             <span className="text-sm text-gray-400 flex items-center gap-1">
-              <FiLoader className="animate-spin" />
+              <FiLoader className="w-4 h-4 animate-spin" />
               {texts.checking}
             </span>
           )}
@@ -190,14 +224,14 @@ export function KnowledgeBaseManager({
               disabled={isBuilding || isDeleting}
               className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
             >
-              <FiDatabase />
+              <FiDatabase className="w-4 h-4" />
               {texts.buildKnowledgeBase}
             </button>
           )}
           
           {status === 'building' && (
             <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-              <FiLoader className="animate-spin" />
+              <FiLoader className="w-4 h-4 animate-spin" />
               {texts.building}
             </span>
           )}
@@ -205,9 +239,8 @@ export function KnowledgeBaseManager({
           {status === 'ready' && (
             <>
               <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                <FiCheckCircle />
+                <FiCheckCircle className="w-4 h-4" />
                 {texts.ready}
-                {vectorCount !== null && ` (${vectorCount.toLocaleString()} ${texts.vectors})`}
               </span>
               {filesCount > 0 && (
                 <button
@@ -216,7 +249,7 @@ export function KnowledgeBaseManager({
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                   title={texts.rebuildKnowledgeBase}
                 >
-                  <FiDatabase />
+                  <FiDatabase className="w-4 h-4" />
                   {texts.rebuildKnowledgeBase}
                 </button>
               )}
@@ -234,7 +267,7 @@ export function KnowledgeBaseManager({
                   disabled={isBuilding || isDeleting}
                   className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                 >
-                  <FiDatabase />
+                  <FiDatabase className="w-4 h-4" />
                   {texts.rebuildKnowledgeBase}
                 </button>
               )}
@@ -244,16 +277,16 @@ export function KnowledgeBaseManager({
           <button
             onClick={onDelete}
             disabled={isDeleting || isBuilding}
-            className="p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             title={`${texts.resetKnowledgeBase} - ${stakeholder.role}`}
           >
             {isDeleting ? (
               <FiLoader className="w-4 h-4 animate-spin" />
             ) : (
-              <span className="flex items-center gap-1">
+              <>
                 <FiTrash2 className="w-4 h-4" />
                 {texts.resetKnowledgeBase}
-              </span>
+              </>
             )}
           </button>
         </div>
@@ -326,6 +359,12 @@ export function KnowledgeBaseManager({
                     </div>
                   ))}
                 </div>
+              )}
+              {/* 削除直後の注意メッセージ */}
+              {recentlyDeleted && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 text-center">
+                  {texts.syncDelayNotice}
+                </p>
               )}
             </div>
           )}
