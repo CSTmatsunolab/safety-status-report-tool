@@ -157,12 +157,14 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     const decoder = new TextDecoder();
     let report: Report | null = null;
     let buffer = '';
+    let lambdaError: string | null = null; // Lambdaからのエラーメッセージを保持
 
     try {
       while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
+          console.log('🚀 [generateReportWithLambda] Stream ended');
           break;
         }
 
@@ -233,15 +235,28 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
               });
 
             } else if (message.type === 'error') {
-              throw new Error(message.error || message.details || 'Unknown error');
+              // エラーメッセージを保存してループを抜ける
+              lambdaError = message.error || message.details || 'Unknown error from Lambda';
+              console.error('Lambda error received:', lambdaError);
+              break;
             }
           } catch (parseError) {
             console.warn('Failed to parse SSE message:', line, parseError);
           }
         }
+        
+        // エラーが発生した場合はループを抜ける
+        if (lambdaError) {
+          break;
+        }
       }
     } finally {
       reader.releaseLock();
+    }
+
+    // Lambdaからのエラーをチェック
+    if (lambdaError) {
+      throw new Error(lambdaError);
     }
 
     if (!report) {

@@ -127,7 +127,6 @@ export default function Home() {
     if (authStatus !== 'loading') {
       const id = getUserIdentifier();
       setUserIdentifier(id);
-      console.log('User Identifier:', id, '(Auth Status:', authStatus, ')');
     }
   }, [authStatus, getUserIdentifier]);
 
