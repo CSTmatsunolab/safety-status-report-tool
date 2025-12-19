@@ -77,10 +77,66 @@ export default function ReportDetailPage() {
     }
   };
 
+  // プレーンテキストをMarkdown形式に変換
+  const convertToMarkdown = (text: string, title: string): string => {
+    const lines = text.split('\n');
+    const result: string[] = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // 1. セクション番号のパターン（例: "1. セクション名", "2. 概要"）
+      if (/^(\d+)\.\s+(.+)$/.test(line) && line.length <= 80) {
+        const match = line.match(/^(\d+)\.\s+(.+)$/);
+        if (match) {
+          line = `## ${match[1]}. ${match[2]}`;
+        }
+      }
+      // 2. サブセクション番号のパターン（例: "1.1 サブセクション"）
+      else if (/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/.test(line) && line.length <= 80) {
+        const match = line.match(/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/);
+        if (match) {
+          line = `### ${match[1]} ${match[2]}`;
+        }
+      }
+      // 3. 箇条書きパターン（・、•、‣、※）
+      else if (/^[・•‣※]\s*(.+)$/.test(line)) {
+        const match = line.match(/^[・•‣※]\s*(.+)$/);
+        if (match) {
+          line = `- ${match[1]}`;
+        }
+      }
+      // 4. 番号付きリスト（括弧付き: (1), ①）
+      else if (/^[（(](\d+)[)）]\s*(.+)$/.test(line)) {
+        const match = line.match(/^[（(](\d+)[)）]\s*(.+)$/);
+        if (match) {
+          line = `${match[1]}. ${match[2]}`;
+        }
+      }
+      else if (/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/.test(line)) {
+        const circleNums: { [key: string]: string } = {
+          '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
+          '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10'
+        };
+        const match = line.match(/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/);
+        if (match) {
+          line = `${circleNums[match[1]]}. ${match[2]}`;
+        }
+      }
+
+      result.push(line);
+    }
+
+    // タイトルを先頭に追加
+    const titleLine = `# ${title}\n\n`;
+    return titleLine + result.join('\n');
+  };
+
   // エクスポート: Markdown
   const handleExportMarkdown = () => {
     if (!report) return;
-    const blob = new Blob([report.content], { type: 'text/markdown' });
+    const markdownContent = convertToMarkdown(report.content, report.title);
+    const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

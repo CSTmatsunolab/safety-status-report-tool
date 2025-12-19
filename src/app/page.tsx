@@ -59,7 +59,7 @@ export default function Home() {
 
   // レポート履歴フック
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
   // 履歴に保存
   const handleSaveToHistory = async () => {
@@ -76,7 +76,8 @@ export default function Home() {
     
     if (result.success) {
       setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 3000);
+      // 3秒後に「再保存」表示に切り替え
+      setTimeout(() => setSaveStatus('resave'), 3000);
     } else {
       setSaveStatus('error');
       alert(result.error || (language === 'en' ? 'Failed to save' : '保存に失敗しました'));
@@ -104,6 +105,12 @@ export default function Home() {
           text: language === 'en' ? 'Error' : 'エラー',
           icon: <FiSave className="mr-1" />,
           className: 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-white',
+        };
+      case 'resave':
+        return {
+          text: language === 'en' ? 'Re-save' : '再保存',
+          icon: <FiSave className="mr-1" />,
+          className: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-600 dark:text-white dark:hover:bg-gray-500',
         };
       default:
         return {
@@ -474,6 +481,7 @@ export default function Home() {
 
     if (report) {
       setGeneratedReport(report);
+      setSaveStatus('idle'); // 新しいレポートが生成されたらリセット
     }
   };
 
