@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { I18nProvider } from "./components/I18nProvider";
 import { AuthProvider } from "./components/AuthProvider";
+import { ZoomProvider } from "./components/ZoomProvider";
+import { ZoomControl } from "./components/ZoomControl";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -39,7 +41,10 @@ export default function RootLayout({
         >
           <I18nProvider defaultLanguage="ja">
             <AuthProvider>
-              {children}
+              <ZoomProvider> 
+                {children}
+                <ZoomControl /> 
+              </ZoomProvider>
             </AuthProvider>
           </I18nProvider>
         </ThemeProvider>

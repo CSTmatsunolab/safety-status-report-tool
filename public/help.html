@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>使い方ガイド - Safety Status Report 自動生成ツール</title>
+  <style>
+    :root {
+      --primary-color: #3b82f6;
+      --primary-dark: #2563eb;
+      --bg-color: #f9fafb;
+      --card-bg: #ffffff;
+      --text-color: #111827;
+      --text-secondary: #6b7280;
+      --border-color: #e5e7eb;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --info-color: #3b82f6;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #111827;
+        --card-bg: #1f2937;
+        --text-color: #f9fafb;
+        --text-secondary: #9ca3af;
+        --border-color: #374151;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      line-height: 1.8;
+      padding: 2rem 1rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--primary-color);
+    }
+
+    .subtitle {
+      font-size: 1.25rem;
+      color: var(--text-secondary);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 1rem;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      border: 1px solid var(--border-color);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 2px solid var(--primary-color);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h2 .icon {
+      font-size: 1.75rem;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin: 1.5rem 0 1rem;
+      color: var(--text-color);
+    }
+
+    p {
+      margin-bottom: 1rem;
+      color: var(--text-secondary);
+    }
+
+    .step-list {
+      list-style: none;
+      counter-reset: step;
+    }
+
+    .step-list li {
+      counter-increment: step;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: var(--bg-color);
+      border-radius: 0.75rem;
+      position: relative;
+      padding-left: 4rem;
+    }
+
+    .step-list li::before {
+      content: counter(step);
+      position: absolute;
+      left: 1rem;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 2.5rem;
+      height: 2.5rem;
+      background: var(--primary-color);
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1.25rem;
+    }
+
+    .step-list li strong {
+      display: block;
+      color: var(--text-color);
+      margin-bottom: 0.25rem;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+
+    .feature-item {
+      padding: 1.25rem;
+      background: var(--bg-color);
+      border-radius: 0.75rem;
+    }
+
+    .feature-item .icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .feature-item h4 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: var(--text-color);
+    }
+
+    .feature-item p {
+      font-size: 0.95rem;
+      margin-bottom: 0;
+    }
+
+    .tip-box {
+      padding: 1.25rem;
+      border-radius: 0.75rem;
+      margin: 1rem 0;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    .tip-box.info {
+      background: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid var(--info-color);
+    }
+
+    .tip-box.warning {
+      background: rgba(245, 158, 11, 0.1);
+      border-left: 4px solid var(--warning-color);
+    }
+
+    .tip-box.success {
+      background: rgba(16, 185, 129, 0.1);
+      border-left: 4px solid var(--success-color);
+    }
+
+    .tip-box .icon {
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .tip-box p {
+      margin-bottom: 0;
+      color: var(--text-color);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    th {
+      background: var(--bg-color);
+      font-weight: 600;
+      color: var(--text-color);
+    }
+
+    td {
+      color: var(--text-secondary);
+    }
+
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--primary-color);
+      color: white;
+      text-decoration: none;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+
+    .back-button:hover {
+      background: var(--primary-dark);
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+
+    .lang-switch {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .lang-switch button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      background: var(--card-bg);
+      color: var(--text-color);
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .lang-switch button.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
+    .en { display: none; }
+    body.lang-en .ja { display: none; }
+    body.lang-en .en { display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="lang-switch">
+      <button onclick="setLang('ja')" id="btn-ja" class="active">日本語</button>
+      <button onclick="setLang('en')" id="btn-en">English</button>
+    </div>
+
+    <header>
+      <h1 class="ja">📄 使い方ガイド</h1>
+      <h1 class="en">📄 User Guide</h1>
+      <p class="subtitle ja">Safety Status Report 自動生成ツール</p>
+      <p class="subtitle en">Safety Status Report Generator</p>
+    </header>
+
+    <!-- 基本的な使い方 -->
+    <div class="card">
+      <h2><span class="icon">🚀</span><span class="ja">基本的な使い方</span><span class="en">Basic Usage</span></h2>
+      
+      <ol class="step-list ja">
+        <li>
+          <strong>ドキュメントをアップロード</strong>
+          GSNファイル、議事録、仕様書などをドラッグ＆ドロップ、またはクリックしてアップロードします。
+        </li>
+        <li>
+          <strong>ステークホルダーを選択</strong>
+          レポートの対象者（CxO、技術者、事業部門など）を選択します。選択に応じてレポートの内容と分量が最適化されます。
+        </li>
+        <li>
+          <strong>レポート構成を選択</strong>
+          「経営向け」「技術詳細」などの推奨構成から選ぶか、カスタム構成を作成できます。
+        </li>
+        <li>
+          <strong>レポートを生成</strong>
+          「レポートを生成」ボタンをクリックすると、AIがドキュメントを分析してレポートを作成します。
+        </li>
+        <li>
+          <strong>編集・出力</strong>
+          生成されたレポートは編集可能。PDF、Word、HTML形式でダウンロードできます。
+        </li>
+      </ol>
+
+      <ol class="step-list en">
+        <li>
+          <strong>Upload Documents</strong>
+          Drag & drop or click to upload GSN files, meeting notes, specifications, etc.
+        </li>
+        <li>
+          <strong>Select Stakeholder</strong>
+          Choose the target audience (CxO, engineers, business units, etc.). The report content and length will be optimized accordingly.
+        </li>
+        <li>
+          <strong>Choose Report Structure</strong>
+          Select from recommended structures like "Executive" or "Technical Detail", or create a custom structure.
+        </li>
+        <li>
+          <strong>Generate Report</strong>
+          Click "Generate Report" and the AI will analyze your documents to create the report.
+        </li>
+        <li>
+          <strong>Edit & Export</strong>
+          Edit the generated report and download in PDF, Word, or HTML format.
+        </li>
+      </ol>
+    </div>
+
+    <!-- 対応ファイル形式 -->
+    <div class="card">
+      <h2><span class="icon">📁</span><span class="ja">対応ファイル形式</span><span class="en">Supported File Formats</span></h2>
+      
+      <table>
+        <thead>
+          <tr>
+            <th class="ja">形式</th><th class="en">Format</th>
+            <th class="ja">説明</th><th class="en">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>PDF</td>
+            <td class="ja">テキストPDF、画像PDF（OCR対応）</td>
+            <td class="en">Text PDF, Image PDF (OCR supported)</td>
+          </tr>
+          <tr>
+            <td>Word (.docx)</td>
+            <td class="ja">Microsoft Wordドキュメント</td>
+            <td class="en">Microsoft Word documents</td>
+          </tr>
+          <tr>
+            <td>Excel (.xlsx, .xls)</td>
+            <td class="ja">スプレッドシート（シート別に処理）</td>
+            <td class="en">Spreadsheets (processed by sheet)</td>
+          </tr>
+          <tr>
+            <td>Text (.txt)</td>
+            <td class="ja">プレーンテキスト</td>
+            <td class="en">Plain text files</td>
+          </tr>
+          <tr>
+            <td>CSV</td>
+            <td class="ja">カンマ区切りデータ</td>
+            <td class="en">Comma-separated values</td>
+          </tr>
+          <tr>
+            <td class="ja">画像 (JPG, PNG)</td>
+            <td class="en">Images (JPG, PNG)</td>
+            <td class="ja">OCRでテキスト抽出</td>
+            <td class="en">Text extraction via OCR</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 便利な機能 -->
+    <div class="card">
+      <h2><span class="icon">✨</span><span class="ja">便利な機能</span><span class="en">Useful Features</span></h2>
+      
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="icon">📝</div>
+          <h4 class="ja">全文使用オプション</h4>
+          <h4 class="en">Full Text Option</h4>
+          <p class="ja">重要なファイルの内容を確実にAIに渡したい場合にONにします。GSNファイルは特に推奨。</p>
+          <p class="en">Turn ON to ensure important file contents are fully passed to AI. Especially recommended for GSN files.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🏷️</div>
+          <h4 class="ja">GSNマーク</h4>
+          <h4 class="en">GSN Mark</h4>
+          <p class="ja">GSNファイルにチェックを入れると、専用の分析セクションが自動追加されます。</p>
+          <p class="en">Check this for GSN files to automatically add dedicated analysis sections.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🌙</div>
+          <h4 class="ja">ダークモード</h4>
+          <h4 class="en">Dark Mode</h4>
+          <p class="ja">右上のメニューからテーマを切り替えられます。</p>
+          <p class="en">Switch themes from the menu in the top right corner.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🌐</div>
+          <h4 class="ja">多言語対応</h4>
+          <h4 class="en">Multi-language</h4>
+          <p class="ja">日本語・英語でUIとレポート出力が切り替わります。</p>
+          <p class="en">Switch between Japanese and English for UI and report output.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🔍</div>
+          <h4 class="ja">拡大・縮小</h4>
+          <h4 class="en">Zoom Control</h4>
+          <p class="ja">画面右下の+/-ボタンで表示サイズを調整できます。</p>
+          <p class="en">Adjust display size with +/- buttons at the bottom right.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">👤</div>
+          <h4 class="ja">認証機能</h4>
+          <h4 class="en">Authentication</h4>
+          <p class="ja">ログインすると、どのブラウザからでもデータにアクセス可能。ゲストでも利用可能です。</p>
+          <p class="en">Login to access your data from any browser. Guest usage is also available.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- GSNファイルについて -->
+    <div class="card">
+      <h2><span class="icon">🔗</span><span class="ja">GSNファイルについて</span><span class="en">About GSN Files</span></h2>
+      
+      <p class="ja">
+        GSN（Goal Structuring Notation）ファイルは、<strong>D-Case Communicator</strong>で作成できます。
+        「Export LLM Input Text」機能で出力されるテキストファイルを使用することをお勧めします。
+      </p>
+      <p class="en">
+        GSN (Goal Structuring Notation) files can be created with <strong>D-Case Communicator</strong>.
+        We recommend using text files output via the "Export LLM Input Text" feature.
+      </p>
+
+      <div class="tip-box success">
+        <span class="icon">💡</span>
+        <div>
+          <p class="ja"><strong>推奨設定:</strong> GSNファイルは「GSN」にチェック＋「全文使用」ONで最適な分析結果が得られます。</p>
+          <p class="en"><strong>Recommended:</strong> Check "GSN" + turn ON "Full Text" for optimal analysis of GSN files.</p>
+        </div>
+      </div>
+
+      <p style="margin-top: 1.5rem;">
+        <a href="https://www.matsulab.org/dcase/login.html" target="_blank" rel="noopener noreferrer" class="back-button">
+          <span class="ja">D-Case Communicatorを開く →</span>
+          <span class="en">Open D-Case Communicator →</span>
+        </a>
+      </p>
+    </div>
+
+    <!-- ステークホルダー別の読了時間 -->
+    <div class="card">
+      <h2><span class="icon">⏱️</span><span class="ja">ステークホルダー別レポート分量</span><span class="en">Report Length by Stakeholder</span></h2>
+      
+      <p class="ja">選択したステークホルダーに応じて、レポートの分量が自動調整されます。</p>
+      <p class="en">Report length is automatically adjusted based on the selected stakeholder.</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th class="ja">ステークホルダー</th><th class="en">Stakeholder</th>
+            <th class="ja">目標読了時間</th><th class="en">Target Reading Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ja">CxO / 経営層</td><td class="en">CxO / Executive</td>
+            <td class="ja">約5分</td><td class="en">~5 min</td>
+          </tr>
+          <tr>
+            <td class="ja">事業部門</td><td class="en">Business Division</td>
+            <td class="ja">約7分</td><td class="en">~7 min</td>
+          </tr>
+          <tr>
+            <td class="ja">製品部門</td><td class="en">Product Division</td>
+            <td class="ja">約10分</td><td class="en">~10 min</td>
+          </tr>
+          <tr>
+            <td class="ja">R&D部門</td><td class="en">R&D Division</td>
+            <td class="ja">約12分</td><td class="en">~12 min</td>
+          </tr>
+          <tr>
+            <td class="ja">技術専門家 / アーキテクト</td><td class="en">Technical Fellows / Architect</td>
+            <td class="ja">約15分</td><td class="en">~15 min</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 知識ベース（RAG）について -->
+    <div class="card">
+      <h2><span class="icon">🧠</span><span class="ja">知識ベース（RAG）について</span><span class="en">About Knowledge Base (RAG)</span></h2>
+      
+      <h3 class="ja">RAGとは？</h3>
+      <h3 class="en">What is RAG?</h3>
+      <p class="ja">
+        RAG（Retrieval-Augmented Generation）は、大量のドキュメントから必要な情報だけを効率的に抽出する技術です。
+        アップロードしたファイルを「知識ベース」として構築し、レポート生成時にAIが関連する部分だけを参照します。
+      </p>
+      <p class="en">
+        RAG (Retrieval-Augmented Generation) is a technology that efficiently extracts only the necessary information from large documents.
+        It builds uploaded files into a "knowledge base," and during report generation, the AI references only the relevant parts.
+      </p>
+
+      <h3 class="ja">メリット</h3>
+      <h3 class="en">Benefits</h3>
+      <div class="feature-grid">
+        <div class="feature-item">
+          <div class="icon">📚</div>
+          <h4 class="ja">大量文書に対応</h4>
+          <h4 class="en">Handle Large Documents</h4>
+          <p class="ja">数百ページの文書でも効率的に処理できます。</p>
+          <p class="en">Efficiently process documents with hundreds of pages.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">🎯</div>
+          <h4 class="ja">関連情報を抽出</h4>
+          <h4 class="en">Extract Relevant Info</h4>
+          <p class="ja">質問やセクションに関連する部分だけを自動抽出します。</p>
+          <p class="en">Automatically extract only parts relevant to questions or sections.</p>
+        </div>
+        <div class="feature-item">
+          <div class="icon">💰</div>
+          <h4 class="ja">コスト効率</h4>
+          <h4 class="en">Cost Efficient</h4>
+          <p class="ja">必要な情報のみをAIに渡すため、APIコストを抑えられます。</p>
+          <p class="en">Only necessary information is passed to AI, reducing API costs.</p>
+        </div>
+      </div>
+
+      <div class="tip-box warning" style="margin-top: 1.5rem;">
+        <span class="icon">⚠️</span>
+        <div>
+          <p class="ja"><strong>重要:</strong> 「知識ベースを構築」ボタンは、<strong>ファイルの追加アップロード時のみ</strong>使用してください。レポート生成時には自動的に知識ベースが構築されるため、事前に手動で構築すると<strong>2重に処理</strong>されてしまいます。</p>
+          <p class="en"><strong>Important:</strong> Use the "Build Knowledge Base" button <strong>only when adding new files</strong>. The knowledge base is automatically built during report generation, so building it manually beforehand will result in <strong>duplicate processing</strong>.</p>
+        </div>
+      </div>
+
+      <h3 class="ja">「知識ベースを構築」ボタンの使いどころ</h3>
+      <h3 class="en">When to Use "Build Knowledge Base" Button</h3>
+      <table>
+        <thead>
+          <tr>
+            <th class="ja">シナリオ</th><th class="en">Scenario</th>
+            <th class="ja">推奨</th><th class="en">Recommended</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="ja">新規にファイルをアップロードしてレポート生成</td>
+            <td class="en">Upload files and generate report</td>
+            <td class="ja">❌ 不要（自動構築される）</td>
+            <td class="en">❌ Not needed (auto-built)</td>
+          </tr>
+          <tr>
+            <td class="ja">既存の知識ベースにファイルを追加したい</td>
+            <td class="en">Add files to existing knowledge base</td>
+            <td class="ja">✅ 使用する</td>
+            <td class="en">✅ Use it</td>
+          </tr>
+          <tr>
+            <td class="ja">知識ベースの内容を確認・更新したい</td>
+            <td class="en">Check or update knowledge base</td>
+            <td class="ja">✅ 使用する</td>
+            <td class="en">✅ Use it</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 注意事項 -->
+    <div class="card">
+      <h2><span class="icon">⚠️</span><span class="ja">注意事項</span><span class="en">Notes</span></h2>
+      
+      <div class="tip-box warning">
+        <span class="icon">📊</span>
+        <div>
+          <p class="ja"><strong>全文使用の制限:</strong> 1ファイル最大5万文字、全体で10万文字まで。大きなファイル（5万文字以上）は最大2個まで全文使用可能です。</p>
+          <p class="en"><strong>Full Text Limits:</strong> Max 50,000 chars per file, 100,000 total. Large files (50,000+ chars) are limited to 2 files for full text usage.</p>
+        </div>
+      </div>
+
+      <div class="tip-box info">
+        <span class="icon">🔄</span>
+        <div>
+          <p class="ja"><strong>知識ベース:</strong> レポート生成時に自動構築されます。大量の文書から関連情報のみを効率的に抽出します。</p>
+          <p class="en"><strong>Knowledge Base:</strong> Automatically built during report generation. Efficiently extracts relevant information from large document sets.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- フッター -->
+    <footer>
+      <a href="/" class="back-button" style="margin-bottom: 1.5rem;">
+        <span class="ja">← アプリに戻る</span>
+        <span class="en">← Back to App</span>
+      </a>
+      <p style="margin-top: 1.5rem;">Safety Status Report Generator</p>
+    </footer>
+  </div>
+
+  <script>
+    function setLang(lang) {
+      document.body.className = lang === 'en' ? 'lang-en' : '';
+      document.getElementById('btn-ja').className = lang === 'ja' ? 'active' : '';
+      document.getElementById('btn-en').className = lang === 'en' ? 'active' : '';
+      localStorage.setItem('help-lang', lang);
+    }
+
+    // 初期言語設定
+    const savedLang = localStorage.getItem('help-lang') || 
+                      (localStorage.getItem('language') === 'en' ? 'en' : 'ja');
+    setLang(savedLang);
+  </script>
+</body>
+</html>

@@ -210,20 +210,27 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
           break;
         }
       }
+    } catch {
+      setError(language === 'en' ? 'An error occurred' : 'エラーが発生しました');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
-    setError('');
     setIsLoading(true);
-    const result = await resendConfirmationCode(email);
-    setIsLoading(false);
-    if (result.success) {
-      setMessage(t.codeSent);
-    } else {
-      setError(result.error || '');
+    setError('');
+    try {
+      const result = await resendConfirmationCode(email);
+      if (result.success) {
+        setMessage(t.codeSent);
+      } else {
+        setError(result.error || '');
+      }
+    } catch {
+      setError(language === 'en' ? 'Failed to resend code' : 'コードの再送信に失敗しました');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -232,16 +239,16 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
     setShowLangMenu(false);
   };
 
-  // 共通のinputスタイル
-  const inputClassName = "w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors";
+  // 入力フィールドの共通スタイル（2倍サイズ）
+  const inputClassName = "w-full px-5 py-4 text-xl border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors";
 
   const renderForm = () => {
     switch (mode) {
       case 'signIn':
         return (
           <>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.email}
               </label>
               <input
@@ -253,12 +260,12 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 autoComplete="email"
                 required
               />
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              <p className="mt-2 text-base text-gray-400 dark:text-gray-500">
                 {t.inputHint}
               </p>
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.password}
               </label>
               <div className="relative">
@@ -266,37 +273,37 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`${inputClassName} pr-12`}
+                  className={`${inputClassName} pr-16`}
                   autoComplete="current-password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
-                  {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                  {showPassword ? <FiEyeOff size={28} /> : <FiEye size={28} />}
                 </button>
               </div>
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
+              {isLoading ? <FiLoader className="animate-spin mr-3" size={28} /> : null}
               {t.signInButton}
             </button>
-            <div className="mt-4 text-center text-sm">
+            <div className="mt-6 text-center">
               <button
                 type="button"
                 onClick={() => { setMode('forgotPassword'); setError(''); setMessage(''); }}
-                className="text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-lg text-blue-600 dark:text-blue-400 hover:underline"
               >
                 {t.forgotPassword}
               </button>
             </div>
-            <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            <div className="mt-6 text-center text-lg text-gray-600 dark:text-gray-400">
               {t.noAccount}{' '}
               <button
                 type="button"
@@ -312,8 +319,8 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
       case 'signUp':
         return (
           <>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.email}
               </label>
               <input
@@ -325,12 +332,12 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 autoComplete="email"
                 required
               />
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              <p className="mt-2 text-base text-gray-400 dark:text-gray-500">
                 {t.inputHint}
               </p>
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.password}
               </label>
               <div className="relative">
@@ -338,7 +345,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`${inputClassName} pr-12`}
+                  className={`${inputClassName} pr-16`}
                   autoComplete="new-password"
                   required
                   minLength={8}
@@ -346,39 +353,37 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
-                  {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                  {showPassword ? <FiEyeOff size={28} /> : <FiEye size={28} />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
                 {t.passwordHint}
               </p>
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.confirmPassword}
               </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={handleConfirmPasswordChange}
-                  className={`${inputClassName} pr-12`}
-                  autoComplete="new-password"
-                  required
-                />
-              </div>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={handleConfirmPasswordChange}
+                className={inputClassName}
+                autoComplete="new-password"
+                required
+              />
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
+              {isLoading ? <FiLoader className="animate-spin mr-3" size={28} /> : null}
               {t.signUpButton}
             </button>
-            <div className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
+            <div className="mt-6 text-center text-lg text-gray-600 dark:text-gray-400">
               {t.haveAccount}{' '}
               <button
                 type="button"
@@ -394,18 +399,18 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
       case 'confirmSignUp':
         return (
           <>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
               {email}
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.confirmationCode}
               </label>
               <input
                 type="text"
                 value={confirmationCode}
                 onChange={(e) => setConfirmationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                className={`${inputClassName} text-center text-2xl tracking-widest`}
+                className={`${inputClassName} text-center text-3xl tracking-widest`}
                 placeholder="123456"
                 maxLength={6}
                 inputMode="numeric"
@@ -416,17 +421,17 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
             <button
               type="submit"
               disabled={isLoading || confirmationCode.length < 6}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
+              {isLoading ? <FiLoader className="animate-spin mr-3" size={28} /> : null}
               {t.verifyCode}
             </button>
-            <div className="mt-4 text-center">
+            <div className="mt-6 text-center">
               <button
                 type="button"
                 onClick={handleResendCode}
                 disabled={isLoading}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-lg text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
               >
                 {t.resendCode}
               </button>
@@ -437,8 +442,8 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
       case 'forgotPassword':
         return (
           <>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.email}
               </label>
               <input
@@ -450,23 +455,23 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 autoComplete="email"
                 required
               />
-              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              <p className="mt-2 text-base text-gray-400 dark:text-gray-500">
                 {t.inputHint}
               </p>
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
+              {isLoading ? <FiLoader className="animate-spin mr-3" size={28} /> : null}
               {t.sendResetCode}
             </button>
-            <div className="mt-4 text-center">
+            <div className="mt-6 text-center">
               <button
                 type="button"
                 onClick={() => { setMode('signIn'); setError(''); setMessage(''); }}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                className="text-lg text-blue-600 dark:text-blue-400 hover:underline"
               >
                 {t.backToSignIn}
               </button>
@@ -477,18 +482,18 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
       case 'confirmResetPassword':
         return (
           <>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-lg text-gray-600 dark:text-gray-400 mb-6">
               {email}
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.confirmationCode}
               </label>
               <input
                 type="text"
                 value={confirmationCode}
                 onChange={(e) => setConfirmationCode(e.target.value.replace(/[^0-9]/g, ''))}
-                className={`${inputClassName} text-center text-2xl tracking-widest`}
+                className={`${inputClassName} text-center text-3xl tracking-widest`}
                 placeholder="123456"
                 maxLength={6}
                 inputMode="numeric"
@@ -496,8 +501,8 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 required
               />
             </div>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <div className="mb-6">
+              <label className="block text-xl font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {t.newPassword}
               </label>
               <div className="relative">
@@ -505,7 +510,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={handlePasswordChange}
-                  className={`${inputClassName} pr-12`}
+                  className={`${inputClassName} pr-16`}
                   autoComplete="new-password"
                   required
                   minLength={8}
@@ -513,21 +518,21 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
-                  {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
+                  {showPassword ? <FiEyeOff size={28} /> : <FiEye size={28} />}
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-2 text-base text-gray-500 dark:text-gray-400">
                 {t.passwordHint}
               </p>
             </div>
             <button
               type="submit"
               disabled={isLoading || confirmationCode.length < 6}
-              className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
+              className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
             >
-              {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
+              {isLoading ? <FiLoader className="animate-spin mr-3" size={28} /> : null}
               {t.resetPasswordButton}
             </button>
           </>
@@ -547,33 +552,33 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="relative w-full max-w-md mx-4 bg-white dark:bg-gray-800 rounded-xl shadow-xl">
+      <div className="relative w-full max-w-2xl mx-4 bg-white dark:bg-gray-800 rounded-2xl shadow-xl">
         {/* ヘッダー */}
-        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-between p-6 border-b dark:border-gray-700">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
             {getTitle()}
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {/* 言語切り替えボタン */}
             <div className="relative">
               <button
                 onClick={() => setShowLangMenu(!showLangMenu)}
-                className="flex items-center gap-1 px-2 py-1 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors"
               >
-                <FiGlobe size={16} />
+                <FiGlobe size={24} />
                 <span>{language === 'ja' ? '日本語' : 'EN'}</span>
               </button>
               {showLangMenu && (
-                <div className="absolute right-0 mt-1 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10">
+                <div className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10">
                   <button
                     onClick={() => toggleLanguage('en')}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg transition-colors ${language === 'en' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                    className={`w-full px-4 py-3 text-left text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-xl transition-colors ${language === 'en' ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-700 dark:text-gray-300'}`}
                   >
                     English
                   </button>
                   <button
                     onClick={() => toggleLanguage('ja')}
-                    className={`w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg transition-colors ${language === 'ja' ? 'text-blue-600 dark:text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}
+                    className={`w-full px-4 py-3 text-left text-lg hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-xl transition-colors ${language === 'ja' ? 'text-blue-600 dark:text-blue-400 font-semibold' : 'text-gray-700 dark:text-gray-300'}`}
                   >
                     日本語
                   </button>
@@ -583,25 +588,25 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
             {/* 閉じるボタン */}
             <button
               onClick={onClose}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              <FiX size={20} />
+              <FiX size={32} />
             </button>
           </div>
         </div>
 
         {/* フォーム */}
-        <form onSubmit={handleSubmit} className="p-6">
+        <form onSubmit={handleSubmit} className="p-8">
           {/* エラーメッセージ */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-300 text-sm">
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-lg">
               {error}
             </div>
           )}
 
           {/* 成功メッセージ */}
           {message && (
-            <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-300 text-sm">
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl text-green-700 dark:text-green-300 text-lg">
               {message}
             </div>
           )}
@@ -610,11 +615,11 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
 
           {/* ゲストとして続けるボタン（サインイン画面のみ） */}
           {mode === 'signIn' && (
-            <div className="mt-4 pt-4 border-t dark:border-gray-700">
+            <div className="mt-6 pt-6 border-t dark:border-gray-700">
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full py-2.5 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors"
+                className="w-full py-5 px-6 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-2xl rounded-xl font-semibold transition-colors"
               >
                 {t.continueAsGuest}
               </button>
