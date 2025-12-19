@@ -52,7 +52,7 @@ interface UseReportHistoryReturn {
   getReport: (reportId: string) => Promise<ReportDetail | null>;
   
   // 保存
-  saveReport: (report: Report, inputFiles?: UploadedFile[], userIdentifier?: string) => Promise<{ success: boolean; reportId?: string; error?: string }>;
+  saveReport: (report: Report, inputFiles?: UploadedFile[], userIdentifier?: string, structure?: { id: string; name: string }) => Promise<{ success: boolean; reportId?: string; error?: string }>;
   isSaving: boolean;
   
   // 削除
@@ -191,7 +191,8 @@ export function useReportHistory(): UseReportHistoryReturn {
   const saveReport = useCallback(async (
     report: Report,
     inputFiles?: UploadedFile[],
-    userIdentifier?: string
+    userIdentifier?: string,
+    structure?: { id: string; name: string }
   ): Promise<{ success: boolean; reportId?: string; error?: string }> => {
     if (!isAuthenticated) {
       return { success: false, error: 'ログインが必要です' };
@@ -279,6 +280,7 @@ export function useReportHistory(): UseReportHistoryReturn {
             content: report.content,
             stakeholder: report.stakeholder,
             rhetoricStrategy: report.rhetoricStrategy,
+            structure: structure || null,
           },
           fileMetadata: allFiles,
         }),

@@ -72,7 +72,8 @@ export default function Home() {
     if (!generatedReport) return;
 
     setSaveStatus('saving');
-    const result = await saveReport(generatedReport, files, userIdentifier);
+    const structureInfo = selectedStructure ? { id: selectedStructure.id, name: selectedStructure.name } : undefined;
+    const result = await saveReport(generatedReport, files, userIdentifier, structureInfo);
     
     if (result.success) {
       setSaveStatus('saved');
