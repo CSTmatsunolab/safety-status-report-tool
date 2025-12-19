@@ -169,10 +169,10 @@ export default function ReportStructureSelector({
     <>
       <div className="space-y-4">
         <div>
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+          <h3 className="text-base font-medium text-gray-700 dark:text-gray-300 mb-3">
             {language === 'en' ? 'Select report structure' : 'レポート構成を選択'}
             {recommendedStructureId && (
-              <span className="ml-2 text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
+              <span className="ml-2 text-base text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
                 {language === 'en' ? 'Recommended auto-selected' : '推奨構成を自動選択済み'}
               </span>
             )}
@@ -192,7 +192,7 @@ export default function ReportStructureSelector({
               >
                 {/* 推奨バッジは緑 */}
                 {structure.id === recommendedStructureId && (
-                  <span className="absolute top-2 right-2 text-xs bg-green-100 text-green-800 dark:bg-green-700 dark:text-white px-2 py-1 rounded">
+                  <span className="absolute top-2 right-2 text-base bg-green-100 text-green-800 dark:bg-green-700 dark:text-white px-2 py-1 rounded">
                     {language === 'en' ? 'Recommended' : '推奨'}
                   </span>
                 )}
@@ -221,14 +221,14 @@ export default function ReportStructureSelector({
                         </button>
                       )}
                     </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
+                    <p className="text-base text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
 
                     {/* クリックで展開される詳細情報 */}
                     {expandedGSNInfo === structure.id && (
                       <div className="mt-2 space-y-2">
                         {/* 推奨ステークホルダー（情報ボックスをグレー系に変更） */}
                         {structure.recommendedFor && structure.recommendedFor.length > 0 && (
-                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-xs">
+                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-base">
                             <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
                               {language === 'en' ? 'Recommended for:' : '推奨ステークホルダー：'}
                             </p>
@@ -247,7 +247,7 @@ export default function ReportStructureSelector({
                         
                         {/* GSNセクション（情報ボックスをグレー系に変更） */}
                         {structure.gsnSections && structure.gsnSections.length > 0 && (
-                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-xs">
+                          <div className="p-2 bg-gray-100 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-700 rounded text-base">
                             <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">
                               {language === 'en' 
                                 ? 'Additional sections when GSN file present:'
@@ -263,10 +263,10 @@ export default function ReportStructureSelector({
                       </div>
                     )}
                     <div className="mt-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                      <p className="text-base text-gray-500 dark:text-gray-400 mb-1">
                         {language === 'en' ? 'Base structure:' : '基本構成:'}
                       </p>
-                      <div className="text-xs text-gray-700 dark:text-gray-300">
+                      <div className="text-base text-gray-700 dark:text-gray-300">
                         {structure.sections.map((section, idx) => (
                           <span key={idx}>
                             {idx > 0 && ' → '}
@@ -288,7 +288,7 @@ export default function ReportStructureSelector({
             {customStructures.length > 0 && (
               <>
                 <div className="border-t dark:border-gray-700 pt-3 mt-3">
-                  <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  <h4 className="text-base font-medium text-gray-700 dark:text-gray-300 mb-3">
                     {language === 'en' ? 'Custom Structures' : 'カスタム構成'}
                   </h4>
                 </div>
@@ -306,18 +306,18 @@ export default function ReportStructureSelector({
                       <div className="flex-1">
                         <h4 className="font-medium text-gray-900 dark:text-white">
                           {structure.name}
-                          <span className="ml-2 text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
+                          <span className="ml-2 text-base bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">
                             {language === 'en' ? 'Custom' : 'カスタム'}
                           </span>
                         </h4>
                         {structure.description && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
+                          <p className="text-base text-gray-600 dark:text-gray-400 mt-1">{structure.description}</p>
                         )}
                         <div className="mt-2">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                          <p className="text-base text-gray-500 dark:text-gray-400 mb-1">
                             {language === 'en' ? 'Structure:' : '構成内容:'}
                           </p>
-                          <div className="text-xs text-gray-700 dark:text-gray-300">
+                          <div className="text-base text-gray-700 dark:text-gray-300">
                             {structure.sections.map((section, idx) => (
                               <span key={idx}>
                                 {idx > 0 && ' → '}
@@ -357,11 +357,11 @@ export default function ReportStructureSelector({
         {/* 最終的なレポート構成プレビュー */}
         {selectedStructure && (
           <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+            <h4 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-2">
               {language === 'en' ? 'Final Report Structure' : '最終的なレポート構成'}
             </h4>
             
-            <ol className="space-y-1 text-sm">
+            <ol className="space-y-1 text-base">
               {buildFinalReportStructure(selectedStructure, files).map((section, idx) => (
                 <li key={idx} className="flex items-center">
                   <span className="text-gray-500 dark:text-gray-400 mr-2">{idx + 1}.</span>
@@ -373,7 +373,7 @@ export default function ReportStructureSelector({
                     {section}
                   </span>
                   {selectedStructure.gsnSections?.includes(section) && (
-                    <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
+                    <span className="ml-2 text-base bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">
                       {language === 'en' ? 'GSN Analysis' : 'GSN分析'}
                     </span>
                   )}
@@ -381,7 +381,7 @@ export default function ReportStructureSelector({
               ))}
             </ol>
             
-            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-3 text-base text-gray-500 dark:text-gray-400">
               {language === 'en' ? 'Sections' : '章数'}: {buildFinalReportStructure(selectedStructure, files).length}
               {language === 'en' ? ' sections' : '章'}
               {hasGSNFile && selectedStructure.gsnSections && (
@@ -425,7 +425,7 @@ export default function ReportStructureSelector({
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {language === 'en' ? 'Structure Name' : '構成名'} <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
                 <input
@@ -438,7 +438,7 @@ export default function ReportStructureSelector({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {language === 'en' ? 'Description (optional)' : '説明（任意）'}
                 </label>
                 <input
@@ -453,10 +453,10 @@ export default function ReportStructureSelector({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-base font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {language === 'en' ? 'Section Structure' : 'セクション構成'} <span className="text-red-500 dark:text-red-400">*</span>
                 </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                <p className="text-base text-gray-500 dark:text-gray-400 mb-3">
                   {language === 'en'
                     ? 'Enter sections to include in the report in order'
                     : 'レポートに含めるセクションを順番に入力してください'}
@@ -523,14 +523,14 @@ export default function ReportStructureSelector({
                 
                 <button
                   onClick={addCustomSection}
-                  className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                  className="mt-3 text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
                 >
                   + {language === 'en' ? 'Add section' : 'セクションを追加'}
                 </button>
               </div>
 
               <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                <p className="text-xs text-yellow-800 dark:text-yellow-200">
+                <p className="text-base text-yellow-800 dark:text-yellow-200">
                   <strong>{language === 'en' ? 'Note:' : '注意:'}</strong> 
                   {language === 'en'
                     ? ' If GSN files are uploaded, GSN analysis sections may be automatically added even to custom structures.'
@@ -542,14 +542,14 @@ export default function ReportStructureSelector({
             <div className="flex justify-end mt-6 space-x-3">
               <button
                 onClick={() => setShowCustomModal(false)}
-                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
+                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-base transition-colors"
               >
                 {language === 'en' ? 'Cancel' : 'キャンセル'}
               </button>
               <button
                 onClick={handleCustomStructureSubmit}
                 disabled={!customStructure.name || customStructure.sections.filter(s => s.trim()).length === 0}
-                className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 disabled:text-white disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md text-sm transition-colors"
+                className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 disabled:text-white disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md text-base transition-colors"
               >
                 {language === 'en' ? 'Use this structure' : 'この構成を使用'}
               </button>

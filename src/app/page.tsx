@@ -554,7 +554,7 @@ export default function Home() {
                     <h4 className="text-red-800 dark:text-red-200 font-medium mb-2">
                       {language === 'en' ? 'An error occurred' : 'エラーが発生しました'}
                     </h4>
-                    <pre className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{errorMessage}</pre>
+                    <pre className="text-base text-red-700 dark:text-red-300 whitespace-pre-wrap">{errorMessage}</pre>
                   </div>
                   <button
                     onClick={() => setErrorMessage(null)}
@@ -574,7 +574,7 @@ export default function Home() {
                     <h4 className="text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                       {language === 'en' ? 'Warning' : '警告'}
                     </h4>
-                    <ul className="text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
+                    <ul className="text-base text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
                       {warningMessages.map((msg, index) => (
                         <li key={index}>{msg}</li>
                       ))}
@@ -649,8 +649,8 @@ export default function Home() {
                       height={32}
                       className="mx-auto mb-4 opacity-50 dark:opacity-90"
                     />
-                    <p className="text-sm sm:text-base">{t('report.previewEmpty')}</p>
-                    <p className="text-sm sm:text-base">{t('report.previewEmptyHint')}</p>
+                    <p className="text-base sm:text-base">{t('report.previewEmpty')}</p>
+                    <p className="text-base sm:text-base">{t('report.previewEmptyHint')}</p>
                   </div>
                 </div>
               )}

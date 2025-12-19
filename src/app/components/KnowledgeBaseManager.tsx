@@ -205,14 +205,14 @@ export function KnowledgeBaseManager({
     <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 transition-all">
       
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="text-base font-medium text-gray-700 dark:text-gray-300">
           {texts.title}
         </span>
         
         <div className="flex items-center gap-3">
           {/* ステータス表示と構築ボタン */}
           {!initialCheckDone && (
-            <span className="text-sm text-gray-400 flex items-center gap-1">
+            <span className="text-base text-gray-400 flex items-center gap-1">
               <FiLoader className="w-4 h-4 animate-spin" />
               {texts.checking}
             </span>
@@ -222,7 +222,7 @@ export function KnowledgeBaseManager({
             <button
               onClick={onBuild}
               disabled={isBuilding || isDeleting}
-              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+              className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
             >
               <FiDatabase className="w-4 h-4" />
               {texts.buildKnowledgeBase}
@@ -230,7 +230,7 @@ export function KnowledgeBaseManager({
           )}
           
           {status === 'building' && (
-            <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+            <span className="text-base text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
               <FiLoader className="w-4 h-4 animate-spin" />
               {texts.building}
             </span>
@@ -238,7 +238,7 @@ export function KnowledgeBaseManager({
           
           {status === 'ready' && (
             <>
-              <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+              <span className="text-base text-green-600 dark:text-green-400 flex items-center gap-1">
                 <FiCheckCircle className="w-4 h-4" />
                 {texts.ready}
               </span>
@@ -246,7 +246,7 @@ export function KnowledgeBaseManager({
                 <button
                   onClick={onBuild}
                   disabled={isBuilding || isDeleting}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                   title={texts.rebuildKnowledgeBase}
                 >
                   <FiDatabase className="w-4 h-4" />
@@ -258,14 +258,14 @@ export function KnowledgeBaseManager({
           
           {status === 'error' && (
             <>
-              <span className="text-sm text-red-600 dark:text-red-400">
+              <span className="text-base text-red-600 dark:text-red-400">
                 {texts.error}
               </span>
               {filesCount > 0 && (
                 <button
                   onClick={onBuild}
                   disabled={isBuilding || isDeleting}
-                  className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
+                  className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
                 >
                   <FiDatabase className="w-4 h-4" />
                   {texts.rebuildKnowledgeBase}
@@ -277,7 +277,7 @@ export function KnowledgeBaseManager({
           <button
             onClick={onDelete}
             disabled={isDeleting || isBuilding}
-            className="text-sm text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+            className="text-base text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
             title={`${texts.resetKnowledgeBase} - ${stakeholder.role}`}
           >
             {isDeleting ? (
@@ -292,7 +292,7 @@ export function KnowledgeBaseManager({
         </div>
       </div>
       
-      <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
+      <div className="text-base text-gray-500 dark:text-gray-400 mt-2 space-y-1">
         <p>
           <span className="font-medium text-gray-600 dark:text-gray-300">
             {texts.stakeholderLabel}: {stakeholder.role}
@@ -317,7 +317,7 @@ export function KnowledgeBaseManager({
           >
             <div className="flex items-center gap-2">
               <FiFile className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-              <span className="text-sm font-medium">
+              <span className="text-base font-medium">
                 {texts.registeredFiles}
                 {!loadingFiles && ` (${files.length} ${texts.filesCount})`}
               </span>
@@ -334,10 +334,10 @@ export function KnowledgeBaseManager({
               {loadingFiles ? (
                 <div className="flex items-center justify-center py-3 text-gray-500">
                   <FiLoader className="w-4 h-4 animate-spin mr-2" />
-                  <span className="text-sm">{texts.loadingFiles}</span>
+                  <span className="text-base">{texts.loadingFiles}</span>
                 </div>
               ) : files.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400 py-2 text-center">
+                <p className="text-base text-gray-500 dark:text-gray-400 py-2 text-center">
                   {texts.noFiles}
                 </p>
               ) : (
@@ -349,10 +349,10 @@ export function KnowledgeBaseManager({
                     >
                       <FiFile className="w-3.5 h-3.5 text-gray-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                        <p className="text-base font-medium text-gray-800 dark:text-gray-200 truncate">
                           {file.fileName}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-base text-gray-500 dark:text-gray-400">
                           {texts.uploadedAt}: {formatDate(file.uploadedAt)}
                         </p>
                       </div>
@@ -362,7 +362,7 @@ export function KnowledgeBaseManager({
               )}
               {/* 削除直後の注意メッセージ */}
               {recentlyDeleted && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 text-center">
+                <p className="text-base text-amber-600 dark:text-amber-400 mt-2 text-center">
                   {texts.syncDelayNotice}
                 </p>
               )}

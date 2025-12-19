@@ -21,7 +21,7 @@ export const StreamingPreview: FC<StreamingPreviewProps> = ({
         <span className="text-sm text-gray-600 dark:text-gray-400">
           {language === 'en' ? 'Generating...' : '生成中...'}
         </span>
-        <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+        <span className="text-sm text-gray-500 dark:text-gray-400 ml-auto">
           {content.length.toLocaleString()} {language === 'en' ? 'chars' : '文字'}
         </span>
       </div>

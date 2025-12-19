@@ -209,7 +209,7 @@ export default function StakeholderSettings() {
           
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              <label className="block text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
                 {t.id} <span className="text-red-500 dark:text-red-400">{t.required}</span>
               </label>
               <input
@@ -223,15 +223,15 @@ export default function StakeholderSettings() {
                 maxLength={30}
               />
               {idError && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{idError}</p>
+                <p className="mt-1 text-base text-red-600 dark:text-red-400">{idError}</p>
               )}
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-base text-gray-500 dark:text-gray-400">
                 {t.idHelp}
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              <label className="block text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
                 {t.roleName} <span className="text-red-500 dark:text-red-400">{t.required}</span>
               </label>
               <input
@@ -244,7 +244,7 @@ export default function StakeholderSettings() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
+              <label className="block text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
                 {t.concerns} <span className="text-red-500 dark:text-red-400">{t.required}</span>
               </label>
               {newStakeholder.concerns.map((concern, index) => (
@@ -272,15 +272,15 @@ export default function StakeholderSettings() {
                 </div>
               ))}
               {concernsError && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{concernsError}</p>
+                <p className="mt-1 text-base text-red-600 dark:text-red-400">{concernsError}</p>
               )}
               <button
                 onClick={addConcernField}
-                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500"
+                className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500"
               >
                 {t.addConcern}
               </button>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line">
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-line">
                 {t.concernsHelp}
               </p>
             </div>
@@ -308,7 +308,7 @@ export default function StakeholderSettings() {
           <div className="space-y-6">
             {/* デフォルトステークホルダー */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
+              <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
                 {t.defaultStakeholders}
               </h3>
               <div className="space-y-3">
@@ -317,14 +317,14 @@ export default function StakeholderSettings() {
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{stakeholder.role}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
-                        <ul className="mt-2 text-sm text-gray-600 dark:text-gray-300 list-disc list-inside">
+                        <p className="text-base text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
+                        <ul className="mt-2 text-base text-gray-600 dark:text-gray-300 list-disc list-inside">
                           {stakeholder.concerns.map((concern, index) => (
                             <li key={index}>{concern}</li>
                           ))}
                         </ul>
                       </div>
-                      <span className="text-xs text-gray-400 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">
+                      <span className="text-base text-gray-400 dark:text-gray-300 bg-gray-200 dark:bg-gray-600 px-2 py-1 rounded">
                         {t.systemDefined}
                       </span>
                     </div>
@@ -336,7 +336,7 @@ export default function StakeholderSettings() {
             {/* カスタムステークホルダー */}
             {customStakeholders.length > 0 && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
+                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
                   {t.customStakeholders}
                 </h3>
                 <div className="space-y-3">
@@ -345,8 +345,8 @@ export default function StakeholderSettings() {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{stakeholder.role}</h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
-                          <ul className="mt-2 text-sm text-gray-600 dark:text-gray-300 list-disc list-inside">
+                          <p className="text-base text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
+                          <ul className="mt-2 text-base text-gray-600 dark:text-gray-300 list-disc list-inside">
                             {stakeholder.concerns.map((concern, index) => (
                               <li key={index}>{concern}</li>
                             ))}

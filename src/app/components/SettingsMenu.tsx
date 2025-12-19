@@ -254,7 +254,7 @@ export function SettingsMenu() {
                 {/* 一般設定セクション */}
                 <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                   <div className="px-6 py-3">
-                    <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-base font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {sectionText.generalSettings}
                     </span>
                   </div>
@@ -315,7 +315,7 @@ export function SettingsMenu() {
                 {/* 外部リンクセクション */}
                 <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                   <div className="px-6 py-3">
-                    <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <span className="text-base font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                       {sectionText.externalLinks}
                     </span>
                   </div>
@@ -338,7 +338,7 @@ export function SettingsMenu() {
                       <FiExternalLink className="w-8 h-8 text-gray-500 dark:text-gray-400" />
                       <div className="flex flex-col items-start">
                         <span>D-Case Communicator</span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-base text-gray-500 dark:text-gray-400">
                           {sectionText.gsnCreate}
                         </span>
                       </div>
@@ -385,7 +385,7 @@ export function SettingsMenu() {
                       <FiMessageSquare className="w-8 h-8 text-gray-500 dark:text-gray-400" />
                       <div className="flex flex-col items-start">
                         <span>{sectionText.feedback}</span>
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                        <span className="text-base text-gray-500 dark:text-gray-400">
                           {sectionText.feedbackDesc}
                         </span>
                       </div>

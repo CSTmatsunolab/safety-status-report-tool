@@ -549,13 +549,13 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
     const method = metadata?.extractionMethod;
     
     if (method === 'ocr') {
-      return <span className="text-xs bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">OCR</span>;
+      return <span className="text-sm bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 px-2 py-1 rounded">OCR</span>;
     } else if (method === 'pdf') {
-      return <span className="text-xs bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">PDF</span>;
+      return <span className="text-sm bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">PDF</span>;
     } else if (method === 'excel') {
-      return <span className="text-xs bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded">Excel</span>;
+      return <span className="text-sm bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300 px-2 py-1 rounded">Excel</span>;
     } else if (method === 'docx') {
-      return <span className="text-xs bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded">Word</span>;
+      return <span className="text-sm bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded">Word</span>;
     }
     return null;
   };
@@ -587,9 +587,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               {language === 'en' ? 'Processing files...' : 'ファイルを処理中...'}
             </p>
             {processingStatus && (
-              <p className="text-sm text-blue-600 dark:text-blue-400">{processingStatus}</p>
+              <p className="text-base text-blue-600 dark:text-blue-400">{processingStatus}</p>
             )}
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            <p className="text-base text-gray-500 dark:text-gray-400 mt-2">
               {language === 'en' 
                 ? 'Large files (>4MB) or OCR processing for images/PDFs may take time'
                 : '4MB以上のファイルサイズまたは画像やPDFのOCR処理には時間がかかる場合があります'}
@@ -610,12 +610,12 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                 ? 'Supported: Text, CSV, PDF, Excel, Word (DOCX), Images (JPG, PNG, etc.)'
                 : '対応形式: テキスト、CSV、PDF、Excel、Word (DOCX)、画像 (JPG, PNGなど)'}
             </p>
-            <p className="text-xs text-red-400 dark:text-red-400 mt-1">
+            <p className="text-sm text-red-400 dark:text-red-400 mt-1">
               {language === 'en'
                 ? '※ We recommend enabling "Use Full Text" for GSN files'
                 : '※ GSNファイルは全文使用をONにすることを推奨します'}
             </p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
               {language === 'en'
                 ? '※ Image-based PDFs and image files use OCR for text extraction'
                 : '※ 画像ベースのPDFや画像ファイルはOCRで文字を抽出します'}
@@ -642,10 +642,10 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               <div className="flex items-center space-x-3">
                 {getFileIcon(file)}
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  <p className="text-base font-medium text-gray-900 dark:text-white">
                       {file.name}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
                     {language === 'en' ? 'Type: ' : 'タイプ: '}
                     {file.type === 'gsn' 
                       ? (language === 'en' ? 'GSN File' : 'GSNファイル')
@@ -653,7 +653,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
                         ? (language === 'en' ? 'Minutes' : '議事録')
                         : (language === 'en' ? 'Other' : 'その他')}
                     {file.metadata?.userDesignatedGSN && (
-                      <span className="ml-2 text-xs bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded">
+                      <span className="ml-2 text-sm bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-2 py-0.5 rounded">
                         {language === 'en' ? 'User specified' : 'ユーザー指定'}
                       </span>
                     )}
@@ -727,10 +727,10 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           {/* GSNファイル推奨案内 */}
           {files.some(f => f.type === 'gsn') && (
             <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
-              <p className="text-sm text-amber-800 dark:text-amber-200 font-medium mb-2">
+              <p className="text-lg text-amber-800 dark:text-amber-200 font-medium mb-2">
                 {language === 'en' ? 'Recommended settings for GSN documents' : 'GSNドキュメントの推奨設定'}
               </p>
-              <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+              <div className="text-base text-amber-700 dark:text-amber-300 space-y-1">
                 <p>
                   {language === 'en' 
                     ? '• Checking GSN adds a GSN section to the report structure.'
@@ -764,17 +764,17 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           {/* 画像ベースPDFの警告メッセージ */}
           {files.some(f => !f.metadata?.s3Key && f.content.length === 0) && (
             <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+              <p className="text-lg text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                 {language === 'en' 
                   ? 'Could not extract text from some files'
                   : '一部のファイルからテキストを抽出できませんでした'}
               </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-300 mb-2">
+              <p className="text-base text-yellow-700 dark:text-yellow-300 mb-2">
                 {language === 'en'
                   ? 'These may be image-based files. Try the following:'
                   : '画像ベースのファイルの可能性があります。以下の方法をお試しください：'}
               </p>
-              <ul className="text-xs text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
+              <ul className="text-base text-yellow-700 dark:text-yellow-300 list-disc list-inside space-y-1">
                 <li>{language === 'en' 
                   ? 'Save PDF as image (PNG/JPG) and re-upload'
                   : 'PDFを画像（PNG/JPG）として保存し、再アップロード'}</li>
@@ -789,16 +789,16 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               {/* GSNファイル専用の案内 */}
               {files.some(f => f.name.includes('GSN') && f.content.length === 0) && (
                 <div className="mt-3 pt-3 border-t border-yellow-300 dark:border-yellow-700">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium mb-2">
+                  <p className="text-base text-yellow-800 dark:text-yellow-200 font-medium mb-2">
                     {language === 'en' ? 'Recommended method for GSN diagrams:' : 'GSN図の場合の推奨方法：'}
                   </p>
-                  <ol className="text-xs text-yellow-700 dark:text-yellow-300 list-decimal list-inside space-y-1">
+                  <ol className="text-base text-yellow-700 dark:text-yellow-300 list-decimal list-inside space-y-1">
                     <li>{language === 'en'
                       ? 'Manually enter GSN elements (G1, S1, C1, etc.) into a text file'
                       : 'GSNの要素（G1, S1, C1など）をテキストファイルに手動で入力'}</li>
                     <li>
                       {language === 'en' ? 'Format example:' : 'フォーマット例：'}
-                      <pre className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs overflow-x-auto">
+                      <pre className="mt-1 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-base overflow-x-auto">
 {language === 'en' 
   ? `G1: System can operate safely during demonstration period
 → S1
@@ -841,7 +841,7 @@ S1: システム安全と運行時の残存リスク制御に分けた議論
                           'Sn: Solution（ソリューション）'
                       );
                     }}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+                    className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
                   >
                     {language === 'en' ? 'View detailed format guide' : '詳細なフォーマットガイドを見る'}
                   </a>

@@ -51,7 +51,7 @@ export const GenerationProgress: FC<GenerationProgressProps> = ({
       
       {/* リアルタイム進捗バー */}
       <div className="space-y-1">
-        <div className="flex justify-between text-xs text-blue-600 dark:text-blue-400">
+        <div className="flex justify-between text-sm text-blue-600 dark:text-blue-400">
           <span>
             {progress.lambdaProgress?.status === 'searching' && (language === 'en' ? 'Searching...' : '検索中...')}
             {progress.lambdaProgress?.status === 'preparing' && (language === 'en' ? 'Preparing...' : '準備中...')}
@@ -71,7 +71,7 @@ export const GenerationProgress: FC<GenerationProgressProps> = ({
       </div>
       
       {/* 処理ステップ */}
-      <div className="text-xs text-blue-600 dark:text-blue-400 space-y-1 pt-2">
+      <div className="text-sm text-blue-600 dark:text-blue-400 space-y-1 pt-2">
         <p className={progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? 'opacity-100' : 'opacity-40'}>
           {progress.lambdaProgress?.percent && progress.lambdaProgress.percent >= 10 ? '✓' : '○'} {language === 'en' ? 'Search knowledge base' : '知識ベースを検索'}
         </p>

@@ -151,7 +151,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
       <div className="items-center mb-4">
         <div>
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{report.title}</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">
+          <p className="text-base text-gray-700 dark:text-gray-300 mt-1">
             {language === 'en' ? 'Target' : '対象'}: {report.stakeholder.role} | 
             {language === 'en' ? 'Strategy' : '戦略'}: {report.rhetoricStrategy}
           </p><br/>
@@ -160,7 +160,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           {/* 編集ボタン (グレー系) */}
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-base transition-colors"
           >
             <FiEdit className="mr-1" />
             {isEditing 
@@ -171,7 +171,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           {/* Word出力ボタン (紫系) */}
           <button
             onClick={handleExportDOCX}
-            className="flex items-center px-3 py-2 bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-700 dark:text-white dark:hover:bg-purple-600 rounded-md text-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-purple-100 text-purple-800 hover:bg-purple-200 dark:bg-purple-700 dark:text-white dark:hover:bg-purple-600 rounded-md text-base transition-colors"
           >
             <FiFile className="mr-1" />
             {language === 'en' ? 'Word' : 'Word出力'}
@@ -180,7 +180,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           {/* HTML出力ボタン (オレンジ系) */}
           <button
             onClick={handleExportHTML}
-            className="flex items-center px-3 py-2 bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-700 dark:text-white dark:hover:bg-orange-600 rounded-md text-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-700 dark:text-white dark:hover:bg-orange-600 rounded-md text-base transition-colors"
           >
             <FiFileText className="mr-1" />
             {language === 'en' ? 'HTML' : 'HTML出力'}
@@ -189,7 +189,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           {/* PDF出力ボタン (青系) */}
           <button
             onClick={handleExportPDF}
-            className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-base transition-colors"
           >
             <FiDownload className="mr-1" />
             {language === 'en' ? 'PDF' : 'PDF出力'}
@@ -198,7 +198,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           {/* 印刷ボタン (緑系) */}
           <button
             onClick={handlePrint}
-            className="flex items-center px-3 py-2 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600 rounded-md text-sm transition-colors"
+            className="flex items-center px-3 py-2 bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-700 dark:text-white dark:hover:bg-green-600 rounded-md text-base transition-colors"
           >
             <FiPrinter className="mr-1" />
             {language === 'en' ? 'Print' : '印刷'}
@@ -212,7 +212,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full h-96 p-4 border rounded-md font-mono text-sm text-gray-800 bg-white dark:bg-gray-900 dark:text-gray-200 dark:border-gray-600"
+              className="w-full h-96 p-4 border rounded-md font-mono text-base text-gray-800 bg-white dark:bg-gray-900 dark:text-gray-200 dark:border-gray-600"
             />
             <div className="flex justify-end space-x-2">
               <button
@@ -220,7 +220,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
                   setEditedContent(report.content);
                   setIsEditing(false);
                 }}
-                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
+                className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-base transition-colors"
               >
                 {language === 'en' ? 'Cancel' : 'キャンセル'}
               </button>
