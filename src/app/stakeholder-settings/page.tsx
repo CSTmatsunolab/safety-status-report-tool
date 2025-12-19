@@ -4,17 +4,24 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Stakeholder } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
-import { FiPlus, FiTrash2, FiX } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiX, FiCloud, FiHardDrive, FiLoader } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { SettingsMenu } from '../components/SettingsMenu';
-import { useAuth } from '../components/AuthProvider';
-import { getUserStorageKey } from '@/lib/browser-id';
+import { useUserSettings } from '@/hooks/useUserSettings';
 
 export default function StakeholderSettings() {
   const { language } = useI18n();
-  const { getUserIdentifier, status: authStatus } = useAuth();
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
-  const [userIdentifier, setUserIdentifier] = useState<string>('');
+  const {
+    customStakeholders,
+    addCustomStakeholder,
+    deleteCustomStakeholder,
+    allStakeholders,
+    isLoading,
+    isSyncing,
+    error: settingsError,
+    isAuthenticated,
+  } = useUserSettings({ language });
+
   const [concernsError, setConcernsError] = useState('');
   const [newStakeholder, setNewStakeholder] = useState({
     id: '',
@@ -22,50 +29,17 @@ export default function StakeholderSettings() {
     concerns: ['']
   });
   const [idError, setIdError] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // 言語に応じたデフォルトステークホルダーを取得
   const predefinedStakeholders = getPredefinedStakeholders(language);
 
-  // 認証状態が変わったらユーザー識別子を更新
+  // settingsErrorをactionErrorに反映
   useEffect(() => {
-    if (authStatus !== 'loading') {
-      const id = getUserIdentifier();
-      setUserIdentifier(id);
+    if (settingsError) {
+      setActionError(settingsError);
     }
-  }, [authStatus, getUserIdentifier]);
-
-  // ローカルストレージから保存されたステークホルダーを読み込む
-  useEffect(() => {
-    if (!userIdentifier) return;
-    
-    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
-    const saved = localStorage.getItem(storageKey);
-    
-    if (saved) {
-      try {
-        const customStakeholders = JSON.parse(saved) as Stakeholder[];
-        const hasCustom = customStakeholders.some(s => s.id.startsWith('custom_'));
-        
-        if (hasCustom) {
-          // カスタムがある場合は、デフォルト部分だけ言語に応じて更新
-          const customOnly = customStakeholders.filter(s => s.id.startsWith('custom_'));
-          setStakeholders([...predefinedStakeholders, ...customOnly]);
-        } else {
-          setStakeholders(predefinedStakeholders);
-        }
-      } catch {
-        setStakeholders(predefinedStakeholders);
-      }
-    } else {
-      setStakeholders(predefinedStakeholders);
-    }
-  }, [language, userIdentifier, predefinedStakeholders]);
-
-  const saveToLocalStorage = (data: Stakeholder[]) => {
-    if (!userIdentifier) return;
-    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
-    localStorage.setItem(storageKey, JSON.stringify(data));
-  };
+  }, [settingsError]);
 
   // ID検証関数（大文字小文字を区別）
   const validateId = (id: string): string => {
@@ -87,7 +61,7 @@ export default function StakeholderSettings() {
     // Pineconeは大文字小文字を区別するため、そのままチェック
     const fullId = `custom_${id}`;
     
-    if (stakeholders.some(s => s.id === fullId)) {
+    if (allStakeholders.some(s => s.id === fullId)) {
       return language === 'en' ? 'This ID is already in use' : 'このIDは既に使用されています';
     }
     
@@ -104,7 +78,7 @@ export default function StakeholderSettings() {
     setIdError(validateId(value));
   };
 
-  const addStakeholder = () => {
+  const addStakeholder = async () => {
     // IDの検証
     const idValidationError = validateId(newStakeholder.id);
     if (idValidationError) {
@@ -124,26 +98,41 @@ export default function StakeholderSettings() {
       const stakeholder: Stakeholder = {
         id: `custom_${newStakeholder.id}`,
         role: newStakeholder.role,
-        concerns: validConcerns  // 空白のみの関心事を除外
+        concerns: validConcerns
       };
-      const updated = [...stakeholders, stakeholder];
-      setStakeholders(updated);
-      saveToLocalStorage(updated);
-      setNewStakeholder({ id: '', role: '', concerns: [''] });
-      setIdError('');
-      setConcernsError('');
+      
+      try {
+        setActionError(null);
+        await addCustomStakeholder(stakeholder);
+        setNewStakeholder({ id: '', role: '', concerns: [''] });
+        setIdError('');
+        setConcernsError('');
+      } catch {
+        setActionError(
+          language === 'en' 
+            ? 'Failed to add stakeholder' 
+            : 'ステークホルダーの追加に失敗しました'
+        );
+      }
     }
   };
 
-  const deleteStakeholder = (id: string) => {
+  const handleDeleteStakeholder = async (id: string) => {
     const confirmMsg = language === 'en' 
       ? 'Are you sure you want to delete this stakeholder?'
       : 'このステークホルダーを削除しますか？';
     
     if (confirm(confirmMsg)) {
-      const updated = stakeholders.filter(s => s.id !== id);
-      setStakeholders(updated);
-      saveToLocalStorage(updated);
+      try {
+        setActionError(null);
+        await deleteCustomStakeholder(id);
+      } catch {
+        setActionError(
+          language === 'en' 
+            ? 'Failed to delete stakeholder' 
+            : 'ステークホルダーの削除に失敗しました'
+        );
+      }
     }
   };
 
@@ -175,9 +164,6 @@ export default function StakeholderSettings() {
     return '';
   };
 
-  // カスタムステークホルダーのみを抽出
-  const customStakeholders = stakeholders.filter(s => s.id.startsWith('custom_'));
-
   // 言語に応じたテキスト
   const t = {
     pageTitle: language === 'en' ? 'Safety Status Report Generator' : 'Safety Status Report 自動生成ツール',
@@ -203,7 +189,26 @@ export default function StakeholderSettings() {
     systemDefined: language === 'en' ? 'System Defined' : 'システム定義',
     backToReport: language === 'en' ? 'Back to Report Generation' : 'レポート生成画面に戻る',
     required: '*',
+    loading: language === 'en' ? 'Loading...' : '読み込み中...',
+    syncingCloud: language === 'en' ? 'Syncing to cloud...' : 'クラウドに同期中...',
+    storedInCloud: language === 'en' ? 'Stored in cloud (synced across devices)' : 'クラウドに保存（デバイス間で同期）',
+    storedLocally: language === 'en' ? 'Stored locally (this browser only)' : 'ローカルに保存（このブラウザのみ）',
+    noCustomStakeholders: language === 'en' ? 'No custom stakeholders registered' : 'カスタムステークホルダーは登録されていません',
   };
+
+  // ローディング中の表示
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+        <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
+          <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+            <FiLoader className="animate-spin" size={24} />
+            <span>{t.loading}</span>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -217,9 +222,51 @@ export default function StakeholderSettings() {
             <SettingsMenu />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
-          {t.settingsTitle}
-        </h1>
+        
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {t.settingsTitle}
+          </h1>
+          
+          {/* ストレージ状態インジケーター */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+            isAuthenticated 
+              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+          }`}>
+            {isSyncing ? (
+              <>
+                <FiLoader className="animate-spin" size={14} />
+                <span>{t.syncingCloud}</span>
+              </>
+            ) : isAuthenticated ? (
+              <>
+                <FiCloud size={14} />
+                <span>{t.storedInCloud}</span>
+              </>
+            ) : (
+              <>
+                <FiHardDrive size={14} />
+                <span>{t.storedLocally}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* エラーメッセージ */}
+        {actionError && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <p className="text-red-700 dark:text-red-300">{actionError}</p>
+              <button
+                onClick={() => setActionError(null)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <FiX />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* 新規追加フォーム */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 mb-8">
@@ -239,6 +286,7 @@ export default function StakeholderSettings() {
                 }`}
                 placeholder={t.idPlaceholder}
                 maxLength={30}
+                disabled={isSyncing}
               />
               {idError && (
                 <p className="mt-1 text-base text-red-600 dark:text-red-400">{idError}</p>
@@ -258,6 +306,7 @@ export default function StakeholderSettings() {
                 onChange={(e) => setNewStakeholder({ ...newStakeholder, role: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500"
                 placeholder={t.rolePlaceholder}
+                disabled={isSyncing}
               />
             </div>
 
@@ -278,11 +327,13 @@ export default function StakeholderSettings() {
                       concernsError && !concern.trim() ? 'border-red-500 dark:border-red-400' : 'border-gray-300 dark:border-gray-600'
                     }`}
                     placeholder={t.concernPlaceholder}
+                    disabled={isSyncing}
                   />
                   {newStakeholder.concerns.length > 1 && (
                     <button
                       onClick={() => removeConcernField(index)}
                       className="ml-2 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 rounded"
+                      disabled={isSyncing}
                     >
                       <FiX />
                     </button>
@@ -295,6 +346,7 @@ export default function StakeholderSettings() {
               <button
                 onClick={addConcernField}
                 className="text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-500"
+                disabled={isSyncing}
               >
                 {t.addConcern}
               </button>
@@ -309,11 +361,16 @@ export default function StakeholderSettings() {
                 !newStakeholder.id || 
                 !newStakeholder.role.trim() || 
                 !!idError ||
-                newStakeholder.concerns.filter(c => c.trim()).length === 0
+                newStakeholder.concerns.filter(c => c.trim()).length === 0 ||
+                isSyncing
               }
               className="flex items-center px-4 py-2 rounded-md bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 disabled:text-white disabled:bg-gray-400 disabled:cursor-not-allowed dark:disabled:bg-gray-600"
             >
-              <FiPlus className="mr-2" />
+              {isSyncing ? (
+                <FiLoader className="animate-spin mr-2" />
+              ) : (
+                <FiPlus className="mr-2" />
+              )}
               {t.add}
             </button>
           </div>
@@ -352,11 +409,11 @@ export default function StakeholderSettings() {
             </div>
 
             {/* カスタムステークホルダー */}
-            {customStakeholders.length > 0 && (
-              <div>
-                <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
-                  {t.customStakeholders}
-                </h3>
+            <div>
+              <h3 className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">
+                {t.customStakeholders}
+              </h3>
+              {customStakeholders.length > 0 ? (
                 <div className="space-y-3">
                   {customStakeholders.map((stakeholder) => (
                     <div key={stakeholder.id} className="border dark:border-gray-700 rounded-lg p-4">
@@ -371,8 +428,9 @@ export default function StakeholderSettings() {
                           </ul>
                         </div>
                         <button
-                          onClick={() => deleteStakeholder(stakeholder.id)}
-                          className="ml-4 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 rounded"
+                          onClick={() => handleDeleteStakeholder(stakeholder.id)}
+                          className="ml-4 p-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 rounded disabled:opacity-50"
+                          disabled={isSyncing}
                         >
                           <FiTrash2 />
                         </button>
@@ -380,8 +438,12 @@ export default function StakeholderSettings() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-gray-500 dark:text-gray-400 text-center py-4">
+                  {t.noCustomStakeholders}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

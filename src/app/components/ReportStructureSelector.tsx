@@ -471,8 +471,8 @@ export default function ReportStructureSelector({
                       >
                         {customStructure.sections.map((section, index) => (
                           <Draggable
-                            key={`${index}-${section}`}
-                            draggableId={`${index}-${section}`}
+                            key={`section-${index}`}
+                            draggableId={`section-${index}`}
                             index={index}
                           >
                             {(dragProvided, snapshot) => (

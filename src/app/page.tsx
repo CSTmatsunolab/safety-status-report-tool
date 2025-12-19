@@ -12,14 +12,12 @@ import { useAuth } from './components/AuthProvider';
 import { GenerationProgress } from './components/GenerationProgress';
 import { StreamingPreview } from './components/StreamingPreview';
 import { UploadedFile, Stakeholder, Report } from '@/types';
-import { getPredefinedStakeholders } from '@/lib/stakeholders';
-import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2 } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
 import { KnowledgeBaseManager } from './components/KnowledgeBaseManager';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
-import { getUserStorageKey } from '@/lib/browser-id';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
+import { useUserSettings } from '@/hooks/useUserSettings';
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -28,16 +26,24 @@ export default function Home() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
   const [generatedReport, setGeneratedReport] = useState<Report | null>(null);
-  const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
   const [isKnowledgeBaseBuilding, setIsKnowledgeBaseBuilding] = useState(false);
   const [knowledgeBaseStatus, setKnowledgeBaseStatus] = useState<'idle' | 'building' | 'ready' | 'error'>('idle');
   const [selectedStructure, setSelectedStructure] = useState<ReportStructureTemplate | null>(null);
   const [recommendedStructureId, setRecommendedStructureId] = useState<string>('');
-  const [customStructures, setCustomStructures] = useState<ReportStructureTemplate[]>([]);
   const [userIdentifier, setUserIdentifier] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
+
+  // ユーザー設定フック（カスタムステークホルダー & カスタム構成）
+  const {
+    allStakeholders: stakeholders,
+    customStructures,
+    addCustomStructure,
+    deleteCustomStructure,
+    isLoading: isSettingsLoading,
+    error: settingsError,
+  } = useUserSettings({ language });
 
   // セクション生成フック
   const {
@@ -58,61 +64,19 @@ export default function Home() {
     }
   }, [authStatus, getUserIdentifier]);
 
-  // 言語またはユーザー識別子が変わったらステークホルダーを更新
-  useEffect(() => {
-    if (!userIdentifier) return;
-    
-    const storageKey = getUserStorageKey('customStakeholders', userIdentifier);
-    const saved = localStorage.getItem(storageKey);
-    
-    if (saved) {
-      try {
-        const customStakeholders = JSON.parse(saved) as Stakeholder[];
-        const hasCustom = customStakeholders.some(s => s.id.startsWith('custom_'));
-        
-        if (hasCustom) {
-          const predefined = getPredefinedStakeholders(language);
-          const customOnly = customStakeholders.filter(s => s.id.startsWith('custom_'));
-          setStakeholders([...predefined, ...customOnly]);
-        } else {
-          setStakeholders(getPredefinedStakeholders(language));
-        }
-      } catch {
-        setStakeholders(getPredefinedStakeholders(language));
-      }
-    } else {
-      setStakeholders(getPredefinedStakeholders(language));
-    }
-  }, [language, userIdentifier]);
-
-  // 言語が変わったら選択中のステークホルダーも更新
-  useEffect(() => {
-    if (selectedStakeholder && !selectedStakeholder.id.startsWith('custom_')) {
-      const predefined = getPredefinedStakeholders(language);
-      const updated = predefined.find(s => s.id === selectedStakeholder.id);
-      if (updated && updated.role !== selectedStakeholder.role) {
-        setSelectedStakeholder(updated);
-      }
-    }
-  }, [language, selectedStakeholder]);
-
-  // カスタム構成を読み込む
-  useEffect(() => {
-    if (!userIdentifier) return;
-    
-    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
-    const savedStructures = localStorage.getItem(storageKey);
-    if (savedStructures) {
-      setCustomStructures(JSON.parse(savedStructures));
-    }
-  }, [userIdentifier]);
-
   // セクション生成エラーを監視
   useEffect(() => {
     if (sectionError) {
       setErrorMessage(sectionError);
     }
   }, [sectionError]);
+
+  // 設定エラーを監視
+  useEffect(() => {
+    if (settingsError) {
+      setErrorMessage(settingsError);
+    }
+  }, [settingsError]);
 
   const handleFileUpload = (newFiles: UploadedFile[]) => {
     setFiles(prevFiles => {
@@ -165,23 +129,33 @@ export default function Home() {
   };
 
   // カスタム構成を追加する関数
-  const handleAddCustomStructure = (structure: ReportStructureTemplate) => {
-    const updatedStructures = [...customStructures, structure];
-    setCustomStructures(updatedStructures);
-    
-    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
-    localStorage.setItem(storageKey, JSON.stringify(updatedStructures));
+  const handleAddCustomStructure = async (structure: ReportStructureTemplate) => {
+    try {
+      await addCustomStructure(structure);
+    } catch (error) {
+      console.error('Failed to add custom structure:', error);
+      setErrorMessage(
+        language === 'en'
+          ? 'Failed to save custom structure'
+          : 'カスタム構成の保存に失敗しました'
+      );
+    }
   };
 
-  const handleDeleteCustomStructure = (structureId: string) => {
-    const updatedStructures = customStructures.filter(s => s.id !== structureId);
-    setCustomStructures(updatedStructures);
-    
-    const storageKey = getUserStorageKey('customReportStructures', userIdentifier);
-    localStorage.setItem(storageKey, JSON.stringify(updatedStructures));
-    
-    if (selectedStructure?.id === structureId) {
-      setSelectedStructure(null);
+  const handleDeleteCustomStructure = async (structureId: string) => {
+    try {
+      await deleteCustomStructure(structureId);
+      
+      if (selectedStructure?.id === structureId) {
+        setSelectedStructure(null);
+      }
+    } catch (error) {
+      console.error('Failed to delete custom structure:', error);
+      setErrorMessage(
+        language === 'en'
+          ? 'Failed to delete custom structure'
+          : 'カスタム構成の削除に失敗しました'
+      );
     }
   };
 
@@ -459,6 +433,21 @@ export default function Home() {
     setRecommendedStructureId(recommended.id);
     setSelectedStructure(recommended);
   };
+
+  // ローディング中の表示
+  if (isSettingsLoading) {
+    return (
+      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+        <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-gray-500 dark:text-gray-400">
+              {language === 'en' ? 'Loading...' : '読み込み中...'}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
