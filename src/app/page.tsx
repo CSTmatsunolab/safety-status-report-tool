@@ -18,6 +18,8 @@ import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
+import { useReportHistory } from '@/hooks/useReportHistory';
+import { FiSave, FiCheck } from 'react-icons/fi';
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -54,6 +56,63 @@ export default function Home() {
     reset: resetSectionGeneration,
     streamingContent,
   } = useSectionGeneration();
+
+  // レポート履歴フック
+  const { saveReport, isSaving, isAuthenticated } = useReportHistory();
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // 履歴に保存
+  const handleSaveToHistory = async () => {
+    if (!isAuthenticated) {
+      alert(language === 'en' 
+        ? 'Please login to save reports to history' 
+        : '履歴に保存するにはログインが必要です');
+      return;
+    }
+    if (!generatedReport) return;
+
+    setSaveStatus('saving');
+    const result = await saveReport(generatedReport, files, userIdentifier);
+    
+    if (result.success) {
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    } else {
+      setSaveStatus('error');
+      alert(result.error || (language === 'en' ? 'Failed to save' : '保存に失敗しました'));
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  };
+
+  // 保存ボタンの表示内容
+  const getSaveButtonContent = () => {
+    switch (saveStatus) {
+      case 'saving':
+        return {
+          text: language === 'en' ? 'Saving...' : '保存中...',
+          icon: <FiSave className="mr-1 animate-pulse" />,
+          className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-white',
+        };
+      case 'saved':
+        return {
+          text: language === 'en' ? 'Saved!' : '保存完了',
+          icon: <FiCheck className="mr-1" />,
+          className: 'bg-green-100 text-green-800 dark:bg-green-700 dark:text-white',
+        };
+      case 'error':
+        return {
+          text: language === 'en' ? 'Error' : 'エラー',
+          icon: <FiSave className="mr-1" />,
+          className: 'bg-red-100 text-red-800 dark:bg-red-700 dark:text-white',
+        };
+      default:
+        return {
+          text: language === 'en' ? 'Save to History' : '履歴に保存',
+          icon: <FiSave className="mr-1" />,
+          className: 'bg-indigo-100 text-indigo-800 hover:bg-indigo-200 dark:bg-indigo-700 dark:text-white dark:hover:bg-indigo-600',
+        };
+    }
+  };
 
   // 認証状態が変わったらユーザー識別子を更新
   useEffect(() => {
@@ -612,13 +671,27 @@ export default function Home() {
           {/* 右側：プレビューセクション */}
           <div className="lg:sticky lg:top-8 h-fit">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
-              <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
-                generatedReport 
-                  ? 'text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-500'
-              }`}>
-                {t('report.preview')}
-              </h2>
+              {/* カードヘッダー: タイトル + 保存ボタン */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-lg sm:text-xl font-semibold transition-colors ${
+                  generatedReport 
+                    ? 'text-gray-900 dark:text-white' 
+                    : 'text-gray-400 dark:text-gray-500'
+                }`}>
+                  {t('report.preview')}
+                </h2>
+                {/* 履歴に保存ボタン - レポート生成済みの時のみ表示 */}
+                {generatedReport && (
+                  <button
+                    onClick={handleSaveToHistory}
+                    disabled={isSaving || saveStatus === 'saving'}
+                    className={`flex items-center px-3 py-2 rounded-md text-sm transition-colors disabled:opacity-50 ${getSaveButtonContent().className}`}
+                  >
+                    {getSaveButtonContent().icon}
+                    {getSaveButtonContent().text}
+                  </button>
+                )}
+              </div>
 
               {/* ストリーミング中のプレビュー */}
               {isSectionGenerating && streamingContent ? (

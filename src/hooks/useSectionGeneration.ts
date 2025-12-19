@@ -163,7 +163,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         const { done, value } = await reader.read();
         
         if (done) {
-          console.log('🚀 [generateReportWithLambda] Stream ended');
           break;
         }
 
@@ -256,8 +255,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * メインのレポート生成関数
    */
   const generateReport = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    console.log('=== [generateReport] called ===');
-    console.log('isLambdaGenerationAvailable():', isLambdaGenerationAvailable());
 
     setIsGenerating(true);
     setError(null);

@@ -19,7 +19,8 @@ import {
   FiLoader,
   FiExternalLink,
   FiHelpCircle,
-  FiMessageSquare
+  FiMessageSquare,
+  FiClock
 } from 'react-icons/fi';
 import { useI18n, Language, languageNames } from './I18nProvider';
 import { useAuth } from './AuthProvider';
@@ -121,6 +122,7 @@ export function SettingsMenu() {
     feedback: language === 'en' ? 'Feedback' : 'フィードバック',
     feedbackDesc: language === 'en' ? 'Send feedback or suggestions' : 'ご意見・ご要望はこちら',
     gsnCreate: language === 'en' ? 'Create GSN here' : 'GSN作成はこちら',
+    history: language === 'en' ? 'Report History' : 'レポート履歴',
   };
 
   if (!mounted) {
@@ -249,6 +251,22 @@ export function SettingsMenu() {
                 >
                   <FiSettings className="w-8 h-8 text-gray-500 dark:text-gray-400" />
                   <span>{t('menu.stakeholderSettings')}</span>
+                </Link>
+
+                {/* Report History */}
+                <Link
+                  href="/history"
+                  className="
+                    flex items-center gap-5 px-6 py-5
+                    text-gray-700 dark:text-gray-200
+                    hover:bg-gray-100 dark:hover:bg-gray-700
+                    transition-colors
+                    text-xl
+                  "
+                  onClick={() => setIsOpen(false)}
+                >
+                  <FiClock className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                  <span>{sectionText.history}</span>
                 </Link>
 
                 {/* 一般設定セクション */}
