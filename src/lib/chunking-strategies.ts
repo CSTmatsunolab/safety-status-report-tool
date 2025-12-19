@@ -34,6 +34,13 @@ export async function chunkDocument(
   console.log(`Advanced Chunking: ${USE_ADVANCED_CHUNKING ? 'ENABLED' : 'DISABLED'}`);
   console.log(`Extraction Method: ${metadata.extractionMethod || 'N/A'}`);
   
+  // アップロード日時を追加
+  const uploadedAt = new Date().toISOString();
+  const metadataWithTimestamp = {
+    ...metadata,
+    uploadedAt,
+  };
+  
   // 環境変数がfalseの場合は従来の固定長チャンキングを使用
   if (!USE_ADVANCED_CHUNKING) {
     console.log(`Strategy: Traditional Fixed-Size Chunking`);
@@ -42,7 +49,7 @@ export async function chunkDocument(
     return await traditionalFixedSizeChunking(
       contentOrBuffer,
       fileName,
-      metadata
+      metadataWithTimestamp
     );
   }
   
@@ -59,7 +66,7 @@ export async function chunkDocument(
       text,
       fileName,
       embeddings,
-      metadata
+      metadataWithTimestamp
     );
   }
   
@@ -75,7 +82,7 @@ export async function chunkDocument(
     text,
     fileName,
     embeddings,
-    metadata
+    metadataWithTimestamp
   );
 }
 

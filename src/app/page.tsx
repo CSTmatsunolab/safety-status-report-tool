@@ -15,6 +15,7 @@ import { UploadedFile, Stakeholder, Report } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2 } from 'react-icons/fi';
 import ReportStructureSelector from './components/ReportStructureSelector';
+import { KnowledgeBaseManager } from './components/KnowledgeBaseManager';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { getUserStorageKey } from '@/lib/browser-id';
@@ -488,113 +489,16 @@ export default function Home() {
               />
 
               {selectedStakeholder && (
-                <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-700 transition-all">
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {t('knowledgeBase.title')}
-                    </span>
-                    
-                    <div className="flex items-center gap-3">
-                      {/* ステータス表示と構築ボタン */}
-                      {knowledgeBaseStatus === 'idle' && files.length > 0 && (
-                        <button
-                          onClick={() => buildKnowledgeBase()}
-                          disabled={isKnowledgeBaseBuilding || isDeleting}
-                          className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
-                        >
-                          <FiDatabase />
-                          {t('knowledgeBase.build')}
-                        </button>
-                      )}
-                      
-                      {knowledgeBaseStatus === 'idle' && files.length === 0 && (
-                        <span className="text-sm text-gray-500 dark:text-gray-400">
-                          {t('knowledgeBase.needsFiles')}
-                        </span>
-                      )}
-                      
-                      {knowledgeBaseStatus === 'building' && (
-                        <span className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
-                          <FiLoader className="animate-spin" />
-                          {t('knowledgeBase.building')}
-                        </span>
-                      )}
-                      
-                      {knowledgeBaseStatus === 'ready' && (
-                        <>
-                          <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                            <FiCheckCircle />
-                            {t('knowledgeBase.ready')}
-                          </span>
-                          {files.length > 0 && (
-                            <button
-                              onClick={() => buildKnowledgeBase()}
-                              disabled={isKnowledgeBaseBuilding || isDeleting}
-                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
-                              title={t('knowledgeBase.rebuild')}
-                            >
-                              <FiDatabase />
-                              {t('knowledgeBase.rebuild')}
-                            </button>
-                          )}
-                        </>
-                      )}
-                      
-                      {knowledgeBaseStatus === 'error' && (
-                        <>
-                          <span className="text-sm text-red-600 dark:text-red-400">
-                            {t('knowledgeBase.error')}
-                          </span>
-                          {files.length > 0 && (
-                            <button
-                              onClick={() => buildKnowledgeBase()}
-                              disabled={isKnowledgeBaseBuilding || isDeleting}
-                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 flex items-center gap-1 transition-colors disabled:opacity-50"
-                              title={t('knowledgeBase.retry')}
-                            >
-                              <FiDatabase />
-                              {t('knowledgeBase.retry')}
-                            </button>
-                          )}
-                        </>
-                      )}
-
-                      <button
-                        onClick={deleteKnowledgeBase}
-                        disabled={isDeleting || isKnowledgeBaseBuilding}
-                        className="p-1 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={`${t('knowledgeBase.dataReset')} - ${selectedStakeholder.role}`}
-                      >
-                        {isDeleting ? (
-                          <FiLoader className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <FiTrash2 className="w-4 h-4" />
-                            {t('knowledgeBase.dataReset')}
-                          </span>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2 space-y-1">
-                    <p>
-                      <span className="font-medium text-gray-600 dark:text-gray-300">
-                        {t('knowledgeBase.stakeholder')}: {selectedStakeholder.role}
-                      </span> 
-                    </p>
-                    <p>
-                      {t('knowledgeBase.description')}
-                    </p>
-                    {knowledgeBaseStatus === 'idle' && files.length === 0 && (
-                      <p className="text-amber-600 dark:text-amber-400">
-                        {t('knowledgeBase.needsUpload')}
-                      </p>
-                    )}
-                  </div>
-
-                </div>
+                <KnowledgeBaseManager
+                  stakeholder={selectedStakeholder}
+                  userIdentifier={userIdentifier}
+                  filesCount={files.length}
+                  status={knowledgeBaseStatus}
+                  isBuilding={isKnowledgeBaseBuilding}
+                  isDeleting={isDeleting}
+                  onBuild={() => buildKnowledgeBase()}
+                  onDelete={deleteKnowledgeBase}
+                />
               )}
             </div>
 
