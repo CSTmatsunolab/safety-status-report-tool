@@ -176,7 +176,8 @@ export function SettingsMenu() {
         {/* Dropdown Menu */}
         {isOpen && (
           <div className="
-            absolute right-0 top-full mt-3 w-[420px]
+            absolute right-0 top-full mt-3
+            w-[420px] max-w-[calc(100vw-1.5rem)]
             bg-white dark:bg-gray-800
             rounded-2xl shadow-xl dark:shadow-2xl
             border border-gray-200 dark:border-gray-700
@@ -192,7 +193,7 @@ export function SettingsMenu() {
                   {status === 'authenticated' && user ? (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3 text-xl text-gray-700 dark:text-gray-300">
-                        <FiUser className="text-green-500" size={28} />
+                        <FiUser className="text-green-500 flex-shrink-0" size={28} />
                         <span className="font-semibold truncate max-w-[280px]">{user.email}</span>
                       </div>
                       <button
@@ -207,9 +208,9 @@ export function SettingsMenu() {
                         "
                       >
                         {isSigningOut ? (
-                          <FiLoader className="animate-spin" size={24} />
+                          <FiLoader className="animate-spin flex-shrink-0" size={24} />
                         ) : (
-                          <FiLogOut size={24} />
+                          <FiLogOut size={24} className="flex-shrink-0" />
                         )}
                         <span className="font-medium">{authText.signOut}</span>
                       </button>
@@ -217,7 +218,7 @@ export function SettingsMenu() {
                   ) : (
                     <div className="space-y-4">
                       <div className="flex items-center gap-3 text-xl text-gray-500 dark:text-gray-400">
-                        <FiUser size={28} />
+                        <FiUser size={28} className="flex-shrink-0" />
                         <span className="font-medium">{authText.guest}</span>
                       </div>
                       <button
@@ -230,7 +231,7 @@ export function SettingsMenu() {
                           rounded-xl transition-colors font-semibold
                         "
                       >
-                        <FiLogIn size={24} />
+                        <FiLogIn size={24} className="flex-shrink-0" />
                         <span>{authText.signIn}</span>
                       </button>
                     </div>
@@ -249,7 +250,7 @@ export function SettingsMenu() {
                   "
                   onClick={() => setIsOpen(false)}
                 >
-                  <FiSettings className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                  <FiSettings className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   <span>{t('menu.stakeholderSettings')}</span>
                 </Link>
 
@@ -265,7 +266,7 @@ export function SettingsMenu() {
                   "
                   onClick={() => setIsOpen(false)}
                 >
-                  <FiClock className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                  <FiClock className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   <span>{sectionText.history}</span>
                 </Link>
 
@@ -289,7 +290,7 @@ export function SettingsMenu() {
                     "
                   >
                     <div className="flex items-center gap-5">
-                      <FiGlobe className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                      <FiGlobe className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       <span>{t('menu.language')}</span>
                     </div>
                     <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
@@ -311,11 +312,11 @@ export function SettingsMenu() {
                   >
                     <div className="flex items-center gap-5">
                       {theme === 'dark' ? (
-                        <FiMoon className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                        <FiMoon className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       ) : theme === 'light' ? (
-                        <FiSun className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                        <FiSun className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       ) : (
-                        <FiMonitor className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                        <FiMonitor className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       )}
                       <span>{t('menu.theme')}</span>
                     </div>
@@ -353,7 +354,7 @@ export function SettingsMenu() {
                     onClick={() => setIsOpen(false)}
                   >
                     <div className="flex items-center gap-5">
-                      <FiExternalLink className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                      <FiExternalLink className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       <div className="flex flex-col items-start">
                         <span>D-Case Communicator</span>
                         <span className="text-base text-gray-500 dark:text-gray-400">
@@ -361,7 +362,7 @@ export function SettingsMenu() {
                         </span>
                       </div>
                     </div>
-                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   </a>
 
                   {/* Help Link */}
@@ -379,10 +380,10 @@ export function SettingsMenu() {
                     onClick={() => setIsOpen(false)}
                   >
                     <div className="flex items-center gap-5">
-                      <FiHelpCircle className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                      <FiHelpCircle className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       <span>{sectionText.help}</span>
                     </div>
-                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   </a>
 
                   {/* Feedback Link */}
@@ -400,7 +401,7 @@ export function SettingsMenu() {
                     onClick={() => setIsOpen(false)}
                   >
                     <div className="flex items-center gap-5">
-                      <FiMessageSquare className="w-8 h-8 text-gray-500 dark:text-gray-400" />
+                      <FiMessageSquare className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                       <div className="flex flex-col items-start">
                         <span>{sectionText.feedback}</span>
                         <span className="text-base text-gray-500 dark:text-gray-400">
@@ -408,7 +409,7 @@ export function SettingsMenu() {
                         </span>
                       </div>
                     </div>
-                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   </a>
                 </div>
               </>

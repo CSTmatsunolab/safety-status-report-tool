@@ -315,7 +315,7 @@ async function streamHandler(
     let fullReportContent = '';
     
     const stream = anthropic.messages.stream({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-sonnet-4-5-20250929',
       max_tokens: 8000,
       temperature: 0.7,
       messages: [

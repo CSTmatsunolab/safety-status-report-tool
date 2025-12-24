@@ -317,7 +317,6 @@ export default function Home() {
         
         if (filesResponse.ok) {
           const filesData = await filesResponse.json();
-          console.log('Files data:', filesData);
           fileCount = filesData.totalFiles || 0;
           hasData = fileCount > 0;
         } else {

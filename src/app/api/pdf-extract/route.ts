@@ -73,7 +73,6 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing PDF: ${file.name}, Size: ${file.size} bytes`);
 
-    // 4MB以上のファイルはクライアント側でチャンク分割されるため、ここでは4MB未満のみ処理
     const buffer = Buffer.from(await file.arrayBuffer());
     
     // まず埋め込みテキストの抽出を試みる
@@ -209,15 +208,38 @@ export async function POST(request: NextRequest) {
       });
     }
     
-  } catch (error) {
-    console.error('PDF extraction error:', error);
-    
+ } catch (pdfError: unknown) {
+  const errorMessage = pdfError instanceof Error ? pdfError.message : String(pdfError);
+  console.error('PDF Parse Error:', errorMessage);
+
+  // パスワード保護PDFの検出
+  if (
+    errorMessage.toLowerCase().includes('encrypted') ||
+    errorMessage.toLowerCase().includes('password')
+  ) {
     return NextResponse.json(
-      { 
-        error: 'PDFの処理に失敗しました',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      },
-      { status: 500 }
+      { error: 'パスワードで保護されたPDFです。パスワードを解除してから再度アップロードしてください。' },
+      { status: 400 }
     );
   }
+
+  // 破損PDFの検出
+  if (
+    errorMessage.includes('Invalid PDF') ||
+    errorMessage.includes('PDF header not found') ||
+    errorMessage.includes('Bad') ||
+    errorMessage.includes('Missing')
+  ) {
+    return NextResponse.json(
+      { error: 'PDFファイルが破損しているか、無効な形式です。ファイルを確認してください。' },
+      { status: 400 }
+    );
+  }
+
+  // その他のエラー
+  return NextResponse.json(
+    { error: 'PDFの解析に失敗しました。ファイルが正しいPDF形式か確認してください。' },
+    { status: 400 }
+  );
+}
 }

@@ -58,6 +58,141 @@ function getTimeoutErrorMessage(fileType: 'excel' | 'word' | 'pdf' | 'image' | '
     : `${baseMessage}\n${splitRecommendation}`;
 }
 
+// ファイル破損チェック用の共通関数（マジックバイトで検証）
+async function validateFile(file: File, language: string): Promise<{ valid: boolean; error?: string }> {
+  // 0バイトファイルのチェック
+  if (file.size === 0) {
+    return { 
+      valid: false, 
+      error: language === 'en' 
+        ? 'File is empty (0 bytes).'
+        : 'ファイルが空です（0バイト）。'
+    };
+  }
+
+  const buffer = await file.slice(0, 8).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  
+  const fileName = file.name.toLowerCase();
+  const fileType = file.type;
+
+  // マジックバイトの定義
+  const signatures = {
+    pdf: [0x25, 0x50, 0x44, 0x46],        // %PDF
+    zip: [0x50, 0x4B],                     // PK (xlsx, docx, pptx)
+    xls: [0xD0, 0xCF, 0x11, 0xE0],        // OLE2 (xls, doc)
+    png: [0x89, 0x50, 0x4E, 0x47],        // PNG
+    jpg: [0xFF, 0xD8, 0xFF],              // JPEG
+    gif: [0x47, 0x49, 0x46],              // GIF
+    webp: [0x52, 0x49, 0x46, 0x46],       // RIFF (WebP)
+  };
+
+  const matchSignature = (expected: number[]) => 
+    expected.every((byte, i) => bytes[i] === byte);
+
+  // PDF
+  if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+    if (!matchSignature(signatures.pdf)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'PDF file is corrupted or invalid. Please check the file.'
+          : 'PDFファイルが破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // Excel xlsx
+  else if (fileName.endsWith('.xlsx') || fileType.includes('spreadsheetml')) {
+    if (!matchSignature(signatures.zip)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'Excel file (.xlsx) is corrupted or invalid. Please check the file.'
+          : 'Excelファイル（.xlsx）が破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // Excel xls (OLE2形式)
+  else if (fileName.endsWith('.xls') || fileType === 'application/vnd.ms-excel') {
+    if (!matchSignature(signatures.xls) && !matchSignature(signatures.zip)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'Excel file (.xls) is corrupted or invalid. Please check the file.'
+          : 'Excelファイル（.xls）が破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // Word docx
+  else if (fileName.endsWith('.docx') || fileType.includes('wordprocessingml')) {
+    if (!matchSignature(signatures.zip)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'Word file (.docx) is corrupted or invalid. Please check the file.'
+          : 'Wordファイル（.docx）が破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // Word doc (OLE2形式)
+  else if (fileName.endsWith('.doc')) {
+    if (!matchSignature(signatures.xls)) {  // doc も OLE2形式
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'Word file (.doc) is corrupted or invalid. Please check the file.'
+          : 'Wordファイル（.doc）が破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // PNG
+  else if (fileName.endsWith('.png') || fileType === 'image/png') {
+    if (!matchSignature(signatures.png)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'PNG file is corrupted or invalid. Please check the file.'
+          : 'PNGファイルが破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // JPEG
+  else if (fileName.match(/\.(jpg|jpeg)$/) || fileType === 'image/jpeg') {
+    if (!matchSignature(signatures.jpg)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'JPEG file is corrupted or invalid. Please check the file.'
+          : 'JPEGファイルが破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // GIF
+  else if (fileName.endsWith('.gif') || fileType === 'image/gif') {
+    if (!matchSignature(signatures.gif)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'GIF file is corrupted or invalid. Please check the file.'
+          : 'GIFファイルが破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+  // WebP
+  else if (fileName.endsWith('.webp') || fileType === 'image/webp') {
+    if (!matchSignature(signatures.webp)) {
+      return { 
+        valid: false, 
+        error: language === 'en' 
+          ? 'WebP file is corrupted or invalid. Please check the file.'
+          : 'WebPファイルが破損しているか、無効な形式です。ファイルを確認してください。'
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 interface FileUploadProps {
   files: UploadedFile[];
   onUpload: (files: UploadedFile[]) => void;
@@ -149,22 +284,67 @@ async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<
         body: formData,
       });
       
+      const result = await response.json();
+      
       if (!response.ok) {
-        throw new Error(`Image OCR failed: ${response.status}`);
+        // APIからの詳細なエラーメッセージを使用
+        let errorMessage: string;
+        
+        if (result.error?.includes('quota') || result.error?.includes('RESOURCE_EXHAUSTED')) {
+          errorMessage = language === 'en'
+            ? 'OCR quota limit reached. Please try again later or convert the image to text manually.'
+            : 'OCRのクォータ制限に達しました。時間をおいて再試行するか、手動でテキストに変換してください。';
+        } else if (result.error?.includes('auth') || result.error?.includes('UNAUTHENTICATED')) {
+          errorMessage = language === 'en'
+            ? 'OCR service authentication failed. Please contact support.'
+            : 'OCRサービスの認証に失敗しました。サポートにお問い合わせください。';
+        } else if (result.error?.includes('INVALID_ARGUMENT')) {
+          errorMessage = language === 'en'
+            ? 'Image format is not supported. Please use PNG, JPEG, or GIF.'
+            : '画像形式がサポートされていません。PNG、JPEG、GIFを使用してください。';
+        } else {
+          errorMessage = result.error || (language === 'en'
+            ? `Image OCR failed: ${response.status}`
+            : `画像のOCR処理に失敗しました: ${response.status}`);
+        }
+        
+        return { text: '', confidence: 0, error: errorMessage };
       }
       
-      const result = await response.json();
+      // OCR結果が空の場合（テキストが読み取れない）
+      if (!result.text || result.text.trim() === '') {
+        return { 
+          text: '', 
+          confidence: 0, 
+          error: language === 'en'
+            ? 'No text could be detected in the image. The image may not contain readable text, or the text may be too small/blurry.'
+            : '画像からテキストを検出できませんでした。画像にテキストが含まれていないか、文字が小さすぎる/不鮮明な可能性があります。'
+        };
+      }
+      
       return {
-        text: result.text || '',
+        text: result.text,
         confidence: result.confidence
       };
     } 
-    // 4MB以上はS3経由
+    // S3_THRESHOLD以上はS3経由
     else {
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type);
+      
+      // OCR結果が空の場合
+      if (!result.text || result.text.trim() === '') {
+        return { 
+          text: '', 
+          confidence: 0, 
+          error: language === 'en'
+            ? 'No text could be detected in the image. The image may not contain readable text, or the text may be too small/blurry.'
+            : '画像からテキストを検出できませんでした。画像にテキストが含まれていないか、文字が小さすぎる/不鮮明な可能性があります。'
+        };
+      }
+      
       return {
-        text: result.text || '',
+        text: result.text,
         confidence: result.confidence
       };
     }
@@ -176,13 +356,17 @@ async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<
       return { text: '', confidence: 0, error: getTimeoutErrorMessage('image', language) };
     }
     
-    if (error instanceof Error && error.name === 'AbortError') {
-      alert(language === 'en' ? 'Image OCR processing timed out.' : '画像のOCR処理がタイムアウトしました。');
-    } else if (error instanceof Error) {
-      alert(language === 'en' 
-        ? `Image OCR processing failed: ${error.message}` 
-        : `画像のOCR処理に失敗しました: ${error.message}`);
+    // その他のエラー
+    if (error instanceof Error) {
+      return { 
+        text: '', 
+        confidence: 0, 
+        error: language === 'en' 
+          ? `Image processing failed: ${error.message}`
+          : `画像処理に失敗しました: ${error.message}`
+      };
     }
+    
     return { text: '', confidence: 0 };
   }
 }
@@ -199,21 +383,27 @@ async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ 
         method: 'POST',
         body: formData,
       });
-      
+
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error(language === 'en' 
+        // APIからの詳細なエラーメッセージを使用
+        const errorMessage = result.error || (language === 'en' 
           ? `PDF processing failed: ${response.status}`
           : `PDF処理に失敗しました: ${response.status}`);
+        
+        return { 
+          text: '', 
+          method: 'failed', 
+          error: errorMessage 
+        };
       }
-      
-      const result = await response.json();
       return {
         text: result.text || '',
         method: result.method || 'embedded-text',
         confidence: result.confidence
       };
     } 
-    // 4MB以上はS3経由
     else {
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
@@ -350,6 +540,13 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
         }
 
         try {
+          // ファイル破損チェック（マジックバイト検証）
+          const validation = await validateFile(file, language);
+          if (!validation.valid) {
+            alert(`${file.name}:\n${validation.error}`);
+            continue;
+          }
+
           let content = '';
           let extractionMethod: 'text' | 'pdf' | 'ocr' | 'excel' | 'docx' | 'failed' = 'text';
           let ocrConfidence: number | undefined;
@@ -427,10 +624,23 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             }
             extractionMethod = 'docx';
         } else if (
+            // テキスト系ファイル（CSV, TSV, TXT, JSON, Markdown, XML, HTML）
             file.type === 'text/csv' || 
+            file.type === 'text/tab-separated-values' ||
             file.type === 'text/plain' || 
+            file.type === 'text/markdown' ||
+            file.type === 'text/xml' ||
+            file.type === 'text/html' ||
+            file.type === 'application/json' ||
+            file.type === 'application/xml' ||
             file.name.endsWith('.csv') || 
-            file.name.endsWith('.txt')
+            file.name.endsWith('.tsv') ||
+            file.name.endsWith('.txt') ||
+            file.name.endsWith('.json') ||
+            file.name.endsWith('.md') ||
+            file.name.endsWith('.xml') ||
+            file.name.endsWith('.html') ||
+            file.name.endsWith('.htm')
           ) {
             if (file.size < S3_THRESHOLD) {
               content = await file.text();
@@ -466,13 +676,19 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           const isDirectlyReadable = (file: File): boolean => {
             const readableTypes = [
               'text/plain',
-              'text/csv', 
+              'text/csv',
+              'text/tab-separated-values',
+              'text/markdown',
+              'text/xml',
+              'text/html',
+              'application/json',
+              'application/xml',
               'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
               'application/vnd.ms-excel',
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             ];
             
-            const readableExtensions = ['.txt', '.csv', '.xlsx', '.xls', '.docx'];
+            const readableExtensions = ['.txt', '.csv', '.tsv', '.json', '.md', '.xml', '.html', '.htm', '.xlsx', '.xls', '.docx'];
             
             return readableTypes.includes(file.type) || 
                    readableExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
@@ -526,7 +742,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'text/*': ['.txt', '.csv'],
+      'text/*': ['.txt', '.csv', '.tsv', '.md', '.xml', '.html', '.htm'],
+      'application/json': ['.json'],
+      'application/xml': ['.xml'],
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls'],
