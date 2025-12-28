@@ -30,28 +30,49 @@ export function ZoomControl() {
     return null;
   }
 
+  // ズームレベルに応じてサイズを調整（100%を基準にスケール）
+  const scale = zoomLevel / 100;
+  
+  // 各サイズをズームレベルに応じて計算
+  const buttonSize = Math.round(28 * scale);
+  const largeButtonSize = Math.round(32 * scale);
+  const iconSize = Math.round(16 * scale);
+  const fontSize = Math.round(12 * scale);
+  const smallFontSize = Math.round(11 * scale);
+  const minWidth = Math.round(44 * scale);
+  const padding = isCollapsed ? Math.round(4 * scale) : `${Math.round(4 * scale)}px ${Math.round(6 * scale)}px`;
+  const bottomPosition = Math.round(16 * scale);
+  const rightPosition = Math.round(16 * scale);
+
   return (
     <div 
-      className="fixed bottom-4 right-4 z-50 flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-all duration-200"
+      className="fixed z-50 flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 transition-all duration-200"
       style={{
-        // ズームの影響を受けないように固定サイズ
-        fontSize: '12px',
+        bottom: `${bottomPosition}px`,
+        right: `${rightPosition}px`,
+        fontSize: `${fontSize}px`,
         lineHeight: '1.4',
-        padding: isCollapsed ? '4px' : '4px 6px',
+        padding: typeof padding === 'string' ? padding : `${padding}px`,
       }}
     >
       {/* 折りたたみ/展開ボタン */}
       <button
         onClick={toggleCollapse}
         className="rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-500 dark:text-gray-400"
-        style={{ width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ 
+          width: `${buttonSize}px`, 
+          height: `${buttonSize}px`, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center' 
+        }}
         title={isCollapsed ? '展開' : '折りたたむ'}
         aria-label={isCollapsed ? 'Expand zoom control' : 'Collapse zoom control'}
       >
         {isCollapsed ? (
-          <FiChevronLeft style={{ width: '16px', height: '16px' }} />
+          <FiChevronLeft style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
         ) : (
-          <FiChevronRight style={{ width: '16px', height: '16px' }} />
+          <FiChevronRight style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
         )}
       </button>
 
@@ -62,16 +83,22 @@ export function ZoomControl() {
             onClick={zoomOut}
             disabled={!canZoomOut}
             className="rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-            style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ 
+              width: `${largeButtonSize}px`, 
+              height: `${largeButtonSize}px`, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}
             title="縮小"
             aria-label="Zoom out"
           >
-            <FiZoomOut style={{ width: '16px', height: '16px' }} />
+            <FiZoomOut style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
           </button>
           
           <span 
             className="font-medium text-center text-gray-700 dark:text-gray-300"
-            style={{ minWidth: '44px', fontSize: '12px' }}
+            style={{ minWidth: `${minWidth}px`, fontSize: `${fontSize}px` }}
           >
             {zoomLevel}%
           </span>
@@ -80,11 +107,17 @@ export function ZoomControl() {
             onClick={zoomIn}
             disabled={!canZoomIn}
             className="rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-600 dark:text-gray-300"
-            style={{ width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ 
+              width: `${largeButtonSize}px`, 
+              height: `${largeButtonSize}px`, 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}
             title="拡大"
             aria-label="Zoom in"
           >
-            <FiZoomIn style={{ width: '16px', height: '16px' }} />
+            <FiZoomIn style={{ width: `${iconSize}px`, height: `${iconSize}px` }} />
           </button>
         </>
       )}
@@ -93,7 +126,7 @@ export function ZoomControl() {
       {isCollapsed && (
         <span 
           className="font-medium text-center text-gray-600 dark:text-gray-400"
-          style={{ fontSize: '11px', marginRight: '4px' }}
+          style={{ fontSize: `${smallFontSize}px`, marginRight: `${Math.round(4 * scale)}px` }}
         >
           {zoomLevel}%
         </span>
