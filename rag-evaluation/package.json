@@ -1,0 +1,24 @@
+{
+  "name": "rag-evaluation",
+  "version": "1.0.0",
+  "description": "SSRツールのRAG検索精度評価スクリプト",
+  "main": "rag-evaluator.ts",
+  "scripts": {
+    "export-tsv": "ts-node rag-evaluator.ts export-tsv",
+    "convert-tsv": "ts-node rag-evaluator.ts convert-tsv",
+    "evaluate": "ts-node rag-evaluator.ts evaluate",
+    "evaluate-rrf": "ts-node rag-evaluator.ts evaluate-rrf",
+    "show-queries": "ts-node rag-evaluator.ts show-queries",
+    "help": "ts-node rag-evaluator.ts help"
+  },
+  "dependencies": {
+    "@pinecone-database/pinecone": "^2.0.0",
+    "openai": "^4.0.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0"
+  }
+}

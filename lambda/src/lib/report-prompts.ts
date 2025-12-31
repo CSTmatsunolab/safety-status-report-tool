@@ -94,6 +94,45 @@ export function generateFormatRestrictions(): string {
 }
 
 /**
+ * 出力量の制約を生成（ステークホルダー別）
+ */
+export function generateOutputConstraints(stakeholder?: Stakeholder): string {
+  const role = stakeholder?.role || 'Safety Engineer';
+  
+  if (isExecutiveRole(role)) {
+    return `
+## 出力量の制約（必ず守ること）
+- 総ページ数: 8〜12ページ以内（厳守）
+- 総文字数: 10,000〜15,000文字以内
+- 各セクションの目安:
+  ・エグゼクティブサマリー: 1〜2ページ
+  ・技術概要: 1ページ
+  ・リスクと対策: 2〜3ページ
+  ・テスト結果: 1〜2ページ
+  ・改善提案: 1〜2ページ
+- 冗長な説明や同じ情報の繰り返しを避けること
+- データと結論に集中し、簡潔に記述すること
+- レポートが途中で切れないよう、必ず「7. 今後の改善提案」まで完結させること`;
+  }
+  
+  return `
+## 出力量の制約（必ず守ること）
+- 総ページ数: 12〜15ページ以内（厳守）
+- 総文字数: 15,000〜18,000文字以内
+- 各セクションの目安:
+  ・エグゼクティブサマリー: 1〜2ページ
+  ・技術概要: 1〜2ページ
+  ・システムアーキテクチャ: 1〜2ページ
+  ・実装詳細: 1〜2ページ
+  ・テスト結果と品質指標: 2〜3ページ
+  ・技術的リスクと対策: 2〜3ページ
+  ・今後の改善提案: 1〜2ページ
+- 冗長な説明や同じ情報の繰り返しを避けること
+- データと結論に集中し、簡潔に記述すること
+- レポートが途中で切れないよう、必ず最終セクションまで完結させること`;
+}
+
+/**
  * 不適切なファイル時の対応ガイドラインを生成
  */
 export function generateInvalidFileGuidelines(): string {
@@ -505,7 +544,7 @@ export function generateStructurePrompt(
   if (isExecutiveRole(role)) {
     prompt += `\n
 経営層向けレポートの注意事項:
-- 全体で5-10ページを目安とする
+- 全体で8-12ページを目安とする
 - エグゼクティブサマリーは1-2ページ
 - GSN分析は1ページ以内
 - 技術的詳細より経営判断に必要な情報を優先
@@ -515,7 +554,8 @@ export function generateStructurePrompt(
   prompt += `\n
 注意事項:
 - 文体は「である調」で統一
-- Markdown記法は使用しない（##、**、*、-等は禁止）`;
+- Markdown記法は使用しない（##、**、*、-等は禁止）
+- 必ずレポートを最終セクションまで完結させること`;
 
   return prompt;
 }
@@ -535,6 +575,7 @@ export function buildCompleteUserPrompt(params: {
 
   const parts = [
     generateSystemPrompt(),
+    generateOutputConstraints(stakeholder),  // 出力量の制約を追加
     generateFormatRestrictions(),
     generateInvalidFileGuidelines(),
     generateStakeholderSection(stakeholder, strategy),

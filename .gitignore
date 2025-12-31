@@ -67,4 +67,9 @@ amplify-gradle-config.json
 amplifytools.xcconfig
 .secret-*
 **.sample
-#amplify-do-not-edit-end
+
+# rag-evaluation 生成物
+rag-evaluation/chunks-*.csv
+rag-evaluation/chunks-*.json
+rag-evaluation/ground-truth.json
+rag-evaluation/evaluation-results/

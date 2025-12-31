@@ -339,10 +339,23 @@ export class VectorStoreFactory {
         });
       }
 
-      // 5. Pineconeに一括Upsert
-      // (本番環境では、100件ずつのバッチ処理に分けることを推奨)
-      console.log(`Upserting ${vectors.length} hybrid vectors to namespace "${namespace}"...`);
-      await pineconeIndex.namespace(namespace).upsert(vectors);
+      // 5. Pineconeにバッチでupsert（100件ずつ）
+      const BATCH_SIZE = 100;
+      console.log(`Upserting ${vectors.length} hybrid vectors to namespace "${namespace}" in batches of ${BATCH_SIZE}...`);
+      
+      for (let i = 0; i < vectors.length; i += BATCH_SIZE) {
+        const batch = vectors.slice(i, Math.min(i + BATCH_SIZE, vectors.length));
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(vectors.length / BATCH_SIZE);
+        
+        console.log(`  Upserting batch ${batchNum}/${totalBatches} (${batch.length} vectors)...`);
+        await pineconeIndex.namespace(namespace).upsert(batch);
+        
+        // バッチ間に少し待機（レート制限対策）
+        if (i + BATCH_SIZE < vectors.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
 
       console.log(`Pinecone store (Hybrid) created successfully with namespace: ${namespace}`);
 

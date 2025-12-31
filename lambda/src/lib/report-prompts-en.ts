@@ -94,6 +94,45 @@ export function generateFormatRestrictionsEN(): string {
 }
 
 /**
+ * Generate output volume constraints (English) - Stakeholder-specific
+ */
+export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
+  const role = stakeholder?.role || 'Safety Engineer';
+  
+  if (isExecutiveRole(role)) {
+    return `
+## Output Volume Constraints (Must Follow)
+- Total pages: 8-12 pages maximum (strictly enforced)
+- Total word count: 4,000-6,000 words
+- Section guidelines:
+  • Executive Summary: 1-2 pages
+  • Technical Overview: 1 page
+  • Risks and Countermeasures: 2-3 pages
+  • Test Results: 1-2 pages
+  • Improvement Proposals: 1-2 pages
+- Avoid redundant explanations and repetition of same information
+- Focus on data and conclusions, write concisely
+- MUST complete the report through the final section "7. Improvement Proposals"`;
+  }
+  
+  return `
+## Output Volume Constraints (Must Follow)
+- Total pages: 12-15 pages maximum (strictly enforced)
+- Total word count: 6,000-8,000 words
+- Section guidelines:
+  • Executive Summary: 1-2 pages
+  • Technical Overview: 1-2 pages
+  • System Architecture: 1-2 pages
+  • Implementation Details: 1-2 pages
+  • Test Results and Quality Metrics: 2-3 pages
+  • Technical Risks and Countermeasures: 2-3 pages
+  • Improvement Proposals: 1-2 pages
+- Avoid redundant explanations and repetition of same information
+- Focus on data and conclusions, write concisely
+- MUST complete the report through the final section`;
+}
+
+/**
  * Generate guidelines for inappropriate files (English)
  */
 export function generateInvalidFileGuidelinesEN(): string {
@@ -245,8 +284,8 @@ For each goal node, document:
 ### 3. Strategy Node (S) Evaluation
 For each strategy:
 1. Validity: Can this strategy demonstrate the goal?
-2. Completeness: Are all necessary perspectives covered?
-3. Effectiveness: Is it supported by actual evidence?
+2. Completeness: Are necessary perspectives covered?
+3. Effectiveness: Is it backed by actual evidence?
 
 ### 4. Evidence Node (E/Sn) Evaluation
 For each evidence:
@@ -258,10 +297,10 @@ For each evidence:
 1. Argumentation completeness
 2. Logical consistency
 3. Unresolved nodes
-4. Information-insufficient nodes
+4. Information-deficient nodes
 
 ### 6. Argumentation Gap Analysis
-[Table: Argumentation Gap Summary]`;
+[Table: Argumentation Gap List]`;
 }
 
 /**
@@ -274,40 +313,40 @@ export function generateFigureRequirementsPromptEN(hasGSNFile: boolean, stakehol
   let prompt = `
 ## Figure and Table Requirements (for ${role})
 
-Include figures and tables effectively. Indicate positions using [Figure/Table: Description] format.
+Include figures and tables effectively in the SSR. Indicate insertion positions using [Figure/Table: Description] format.
 
-### Core Required (2 items)
+### Core Required (2)
 1. Safety Assessment Summary Table
-   [Table: Safety Assessment Results Summary]
+   [Table: Safety Assessment Results Overview]
 
-2. Risk Correspondence Table
-   [Table: Hazard-Countermeasure Correspondence Table]`;
+2. Risk-Countermeasure Correspondence Table
+   [Table: Hazard-Countermeasure Correspondence]`;
 
-  // Stakeholder-specific figures
+  // Stakeholder-specific recommended figures
   if (isExecutiveRole(role)) {
     prompt += `
 
-### Recommended for Executive
+### Executive Recommended
 3. Safety Dashboard (achievement rate, traffic light status)
-4. Risk Heatmap (business impact perspective)`;
+4. Risk Heat Map (business impact perspective)`;
   } else if (isArchitectRole(role)) {
     prompt += `
 
-### Recommended for Technical Review
+### Technical Recommended
 3. System Architecture Diagram
 4. Component Risk Mapping
 5. Technical Specification Compliance Table`;
   } else if (isRegulatorRole(role)) {
     prompt += `
 
-### Recommended for Regulatory Review
+### Regulatory Recommended
 3. Standards Compliance Matrix
 4. Certification Status Table
 5. Audit Trail Summary`;
   } else {
     prompt += `
 
-### Recommended for Safety Engineer
+### Safety Engineer Recommended
 3. Detailed Risk Assessment Matrix
 4. FMEA/Hazard Analysis Table
 5. Safety Function Allocation Table
@@ -505,7 +544,7 @@ Structure:${sectionsFormatted}`;
   if (isExecutiveRole(role)) {
     prompt += `\n
 Executive Report Guidelines:
-- Target 5-10 pages total
+- Target 8-12 pages total
 - Executive Summary: 1-2 pages
 - GSN Analysis: within 1 page
 - Prioritize information needed for executive decisions over technical details
@@ -515,7 +554,8 @@ Executive Report Guidelines:
   prompt += `\n
 Notes:
 - Use formal writing style consistently
-- Do not use Markdown notation (##, **, *, -, etc. are prohibited)`;
+- Do not use Markdown notation (##, **, *, -, etc. are prohibited)
+- MUST complete the report through the final section`;
 
   return prompt;
 }
@@ -535,6 +575,7 @@ export function buildCompleteUserPromptEN(params: {
 
   const parts = [
     generateSystemPromptEN(),
+    generateOutputConstraintsEN(stakeholder),  // Output constraints added
     generateFormatRestrictionsEN(),
     generateInvalidFileGuidelinesEN(),
     generateStakeholderSectionEN(stakeholder, strategy),

@@ -688,3 +688,115 @@ safety-status-report-tool/
 - **ユーザー分離**: 認証済みユーザーと未認証ユーザーで完全に分離
 - **データアクセス**: 各ユーザーは自身のネームスペースのデータにのみアクセス可能
 - **APIキー管理**: 環境変数で管理し、フロントエンドには露出させない
+
+---
+
+## RAG 評価スクリプト
+
+`rag-evaluation/` ディレクトリには、RAG（Retrieval-Augmented Generation）システムの検索品質を評価するためのスクリプトが含まれています。
+
+### 概要
+
+SSRツールと同じRRF検索方式・動的K値計算を使用して、ステークホルダー別の検索精度を評価します。
+
+### ディレクトリ構成
+
+```
+rag-evaluation/
+├── README.md                    # 詳細なドキュメント
+├── rag-evaluator.ts             # メイン評価スクリプト
+├── csv-exporter.ts              # CSV出力・変換ユーティリティ
+├── metrics.ts                   # 評価指標（Precision, Recall, nDCG等）
+├── query-enhancer-copy.ts       # クエリ生成（本体からコピー）
+├── rag-utils-copy.ts            # RAGユーティリティ（本体からコピー）
+├── types.ts                     # 型定義
+├── stakeholders-all.json        # 評価対象全ステークホルダー設定
+├── stakeholders.json            # 2ステークホルダー版（CxO + Technical Fellows）
+├── package.json                 # 依存関係
+├── tsconfig.json                # TypeScript設定
+├── .env.local                       # 環境変数（Gitには含めない）
+└── evaluation-results/          # 評価結果出力（.gitignore対象）
+```
+
+### 評価フロー
+
+```
+1. ナレッジベース構築
+   SSRツール側で各ステークホルダーにPDFをアップロード
+       ↓
+2. CSV出力（ラベリング用）
+   npx ts-node rag-evaluator.ts export-csv \
+     --uuid <your-uuid> \
+     --stakeholders ./stakeholders.json
+       ↓
+3. 手動ラベリング
+   Excelで relevance_score 列に 0-3 を入力
+   （0: 無関係, 1: やや関連, 2: 関連, 3: 非常に関連）
+       ↓
+4. Ground Truth JSON 変換
+   npx ts-node rag-evaluator.ts convert-csv \
+     --input ./labeled.csv \
+     --output ./ground-truth.json
+       ↓
+5. 評価実行
+   npx ts-node rag-evaluator.ts evaluate-rrf \
+     --uuid <your-uuid> \
+     --stakeholders ./stakeholders.json \
+     --ground-truth ./ground-truth.json
+```
+
+### 主要コマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `export-csv` | 検索結果をCSV形式で出力（ラベリング用） |
+| `convert-csv` | ラベリング済みCSVをGround Truth JSONに変換 |
+| `evaluate-rrf` | RRF方式での評価（推奨・本番と同じ動作） |
+| `show-queries` | ステークホルダーから生成されるクエリを確認 |
+
+### 評価指標
+
+| 指標 | 説明 |
+|------|------|
+| Precision@K | 取得したK件中の正解率 |
+| Recall@K | 全正解中の取得率 |
+| F1@K | PrecisionとRecallの調和平均 |
+| MRR | 最初の正解が出現する順位の逆数 |
+| nDCG@K | 順位を考慮した正解品質スコア |
+
+### セットアップ
+
+```bash
+cd rag-evaluation
+npm install
+
+# PINECONEの環境変数を設定（rag-evaluation/.env.local）
+# PINECONE_API_KEY=...
+# OPENAI_API_KEY=...
+# PINECONE_INDEX_NAME=...
+```
+
+### 使用例
+
+```bash
+# クエリ確認
+npx ts-node rag-evaluator.ts show-queries \
+  --stakeholders ./stakeholders.json
+
+# CSV出力
+npx ts-node rag-evaluator.ts export-csv \
+  --uuid "57949af8-d021-703d-e9bd-6f9307a757d4" \
+  --stakeholders ./stakeholders.json \
+  --output ./chunks-for-labeling.csv
+
+# 評価実行
+npx ts-node rag-evaluator.ts evaluate-rrf \
+  --uuid "57949af8-d021-703d-e9bd-6f9307a757d4" \
+  --stakeholders ./stakeholders.json \
+  --ground-truth ./ground-truth.json
+```
+
+### 注意事項
+
+- `chunks-*.csv`, `chunks-*.json`, `ground-truth.json`, `evaluation-results/` は `.gitignore` で除外
+- 評価結果は毎回生成可能なため、Gitにコミットする必要はありません
