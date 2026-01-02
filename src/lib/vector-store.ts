@@ -331,14 +331,22 @@ export class VectorStoreFactory {
         const sanitizedFileName = originalFileName.replace(/[^a-zA-Z0-9_.-]/g, '_'); 
         const vectorId = `${namespace}_${sanitizedFileName}_${doc.metadata.chunkIndex || i}`;
 
+
+        // sparseVectorが空の場合は含めない（Pineconeは空のsparse vectorを許可しない）
+        const sparseVector = sparseVectors[i];
+        const hasSparseVector = sparseVector && 
+                               sparseVector.indices && 
+                               sparseVector.indices.length > 0 &&
+                               sparseVector.values && 
+                               sparseVector.values.length > 0;
+
         vectors.push({
           id: vectorId,
           values: denseVectors[i],
-          sparseValues: sparseVectors[i],
+          ...(hasSparseVector ? { sparseValues: sparseVector } : {}),
           metadata: cleanMetadata,
         });
       }
-
       // 5. Pineconeにバッチでupsert（100件ずつ）
       const BATCH_SIZE = 100;
       console.log(`Upserting ${vectors.length} hybrid vectors to namespace "${namespace}" in batches of ${BATCH_SIZE}...`);

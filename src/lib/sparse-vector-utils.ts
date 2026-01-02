@@ -11,7 +11,7 @@ export interface SparseValues {
 // 英語のトークナイザー
 const englishTokenizer = new WinkTokenizer();
 
-// 英語の重要キーワード
+// 英語の重要キーワード（GSN関連を追加）
 const IMPORTANT_KEYWORDS = new Map<string, number>([
   ['api', 2.0],
   ['ml', 2.0],
@@ -25,17 +25,32 @@ const IMPORTANT_KEYWORDS = new Map<string, number>([
   ['revenue', 1.5],
   ['cost', 1.5],
   ['profit', 1.5],
+  // GSN関連キーワード
+  ['gsn', 3.0],
+  ['goal', 2.0],
+  ['strategy', 2.0],
+  ['evidence', 2.0],
+  ['safety', 2.5],
+  ['risk', 2.5],
+  ['hazard', 2.0],
 ]);
 
-// 日本語の重要用語
+// 日本語の重要用語（GSN関連を追加）
 const JAPANESE_KEYWORDS = new Map<string, number>([
   ['セキュリティ', 2.0],
   ['パフォーマンス', 1.8],
   ['スケーラビリティ', 1.8],
   ['コスト', 1.5],
-  ['安全', 2.0],
+  ['安全', 2.5],
   ['品質', 1.8],
   ['効率', 1.5],
+  // GSN関連キーワード
+  ['リスク', 2.5],
+  ['ゴール', 2.0],
+  ['戦略', 2.0],
+  ['証拠', 2.0],
+  ['アシュアランス', 2.0],
+  ['ハザード', 2.0],
 ]);
 
 /**
@@ -82,12 +97,14 @@ async function getKuromojiTokenizer(): Promise<kuromoji.Tokenizer<kuromoji.Ipadi
   return initPromise;
 }
 
-//英語 (WordTokenizer) と日本語 (Kuromoji) の両方を処理
+/**
+ * スパースベクトルを生成（英語 + 日本語 + GSN要素）
+ */
 export async function createSparseVector(text: string): Promise<SparseValues> {
   const tf = new Map<number, number>();
   const textLower = text.toLowerCase();
 
-  // --- 1. GSN要素の処理 ---
+  // --- 1. GSN要素の処理（最優先）---
   const gsnPattern = /\b([GgSsCcJj]\d+)\b/g;
   const gsnMatches = text.match(gsnPattern);
   if (gsnMatches) {
@@ -104,7 +121,7 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
       if (token.length < 2) return;
       
       const index = simpleHash(token);
-      let weight = (tf.get(index) || 0) + 1.0; // 基本カウント
+      let weight = (tf.get(index) || 0) + 1.0;
       
       // 英語の重要キーワード重み付け
       if (IMPORTANT_KEYWORDS.has(token)) {
@@ -131,7 +148,7 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
       if (word.length < 2 || word === '*') return;
 
       const index = simpleHash(word.toLowerCase());
-      let weight = (tf.get(index) || 0) + 1.0; // 基本カウント
+      let weight = (tf.get(index) || 0) + 1.0;
       
       // 日本語の重要キーワード重み付け
       if (JAPANESE_KEYWORDS.has(word)) {
@@ -141,18 +158,33 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
       tf.set(index, weight);
     });
   } catch (error) {
-    console.warn('Kuromoji processing failed:', error);
-    // Kuromojiが失敗しても、英語とGSNの処理は続行される
+    console.warn('Kuromoji processing failed, using fallback:', error);
+    // フォールバック: 日本語の重要キーワードを直接検索
+    JAPANESE_KEYWORDS.forEach((weight, keyword) => {
+      if (text.includes(keyword)) {
+        const index = simpleHash(keyword);
+        tf.set(index, (tf.get(index) || 0) + weight);
+      }
+    });
   }
 
   // --- 4. 正規化 ---
   const indices: number[] = [];
   const values: number[] = [];
-  const maxValue = Math.max(...Array.from(tf.values()));
+  
+  // 空のベクトルの場合はフォールバック値を追加（Pineconeは空のsparse vectorを許可しない）
+  if (tf.size === 0) {
+    const fallbackIndex = simpleHash(text.slice(0, 100) || 'fallback');
+    indices.push(fallbackIndex);
+    values.push(1.0);
+    return { indices, values };
+  }
+  
+  const maxValue = Math.max(...Array.from(tf.values()), 1);
 
   tf.forEach((count, index) => {
     indices.push(index);
-    values.push(count / (maxValue || 1));
+    values.push(count / maxValue);
   });
 
   return { indices, values };

@@ -1,4 +1,4 @@
-// src/lib/rag/sparse-vector-utils.ts
+// lambda/src/lib/rag/sparse-vector-utils.ts
 import WinkTokenizer from 'wink-tokenizer';
 import * as kuromoji from 'kuromoji';
 import path from 'path';
@@ -190,6 +190,15 @@ export async function createSparseVector(text: string): Promise<SparseValues> {
   // --- 4. 正規化 ---
   const indices: number[] = [];
   const values: number[] = [];
+  
+  // 空のベクトルの場合はフォールバック値を追加（Pineconeは空のsparse vectorを許可しない）
+  if (tf.size === 0) {
+    const fallbackIndex = simpleHash(text.slice(0, 100) || 'fallback');
+    indices.push(fallbackIndex);
+    values.push(1.0);
+    return { indices, values };
+  }
+  
   const maxValue = Math.max(...Array.from(tf.values()), 1);
 
   tf.forEach((count, index) => {
@@ -249,6 +258,15 @@ export async function createSparseVectorLite(text: string): Promise<SparseValues
   // --- 4. 正規化 ---
   const indices: number[] = [];
   const values: number[] = [];
+  
+  // 空のベクトルの場合はフォールバック値を追加（Pineconeは空のsparse vectorを許可しない）
+  if (tf.size === 0) {
+    const fallbackIndex = simpleHash(text.slice(0, 100) || 'fallback');
+    indices.push(fallbackIndex);
+    values.push(1.0);
+    return { indices, values };
+  }
+  
   const maxValue = Math.max(...Array.from(tf.values()), 1);
 
   tf.forEach((count, index) => {
