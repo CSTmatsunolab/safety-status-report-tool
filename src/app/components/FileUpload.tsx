@@ -13,6 +13,9 @@ import { useI18n } from './I18nProvider';
 // ファイルサイズの閾値
 const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - これ以上はS3経由
 
+// ファイル数制限（Gateway Timeout対策）
+const MAX_FILES = 10;
+
 // タイムアウトエラーメッセージを生成する関数
 function getTimeoutErrorMessage(fileType: 'excel' | 'word' | 'pdf' | 'image' | 'text' | 'other', language: string): string {
   const baseMessage = language === 'en'
@@ -519,6 +522,20 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
   const [processingStatus, setProcessingStatus] = useState('');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const totalFiles = files.length + acceptedFiles.length;
+    if (totalFiles > MAX_FILES) {
+      const remainingSlots = MAX_FILES - files.length;
+      if (remainingSlots <= 0) {
+        alert(language === 'en'
+          ? `Maximum ${MAX_FILES} files allowed. Please remove some files before uploading new ones.`
+          : `ファイル数は最大${MAX_FILES}個までです。新しいファイルをアップロードする前に、既存のファイルを削除してください。`);
+        return;
+      }
+      alert(language === 'en'
+        ? `You can only upload ${remainingSlots} more file(s). The first ${remainingSlots} file(s) will be uploaded.`
+        : `あと${remainingSlots}個のファイルのみアップロードできます。最初の${remainingSlots}個のファイルがアップロードされます。`);
+      acceptedFiles = acceptedFiles.slice(0, remainingSlots);
+    }
     try {
       setIsProcessing(true);
       const newFiles: UploadedFile[] = [];
@@ -737,7 +754,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       setIsProcessing(false);
       setProcessingStatus('');
     }
-  }, [onUpload, language]);
+  }, [onUpload, language, files.length]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -849,9 +866,14 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
       {/* アップロード済みファイルリスト */}
       {files.length > 0 && (
         <div className="space-y-2">
-          <h3 className="font-medium text-gray-700 dark:text-gray-300">
-            {language === 'en' ? 'Uploaded files:' : 'アップロード済みファイル:'}
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-gray-700 dark:text-gray-300">
+              {language === 'en' ? 'Uploaded files:' : 'アップロード済みファイル:'}
+            </h3>
+            <span className={`text-sm ${files.length >= MAX_FILES ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+              {files.length}/{MAX_FILES} {language === 'en' ? 'files' : 'ファイル'}
+            </span>
+          </div>
           {files.map((file) => (
             <div
               key={file.id}

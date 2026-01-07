@@ -252,7 +252,25 @@ export default function Home() {
         }),
       });
       
-      const result = await response.json();
+      if (response.status === 504) {
+        const errorMsg = language === 'en'
+          ? 'Knowledge base building timed out (504 Gateway Timeout).\n\n[Solution]\n• Reduce file size\n• Reduce number of files\n• Upload fewer files at a time'
+          : '知識ベースの構築がタイムアウトしました（504 Gateway Timeout）。\n\n【対処法】\n・ファイルサイズを小さくしてください\n・ファイル数を減らしてください\n・一度にアップロードするファイル数を少なくしてください';
+        setErrorMessage(errorMsg);
+        throw new Error('Gateway Timeout');
+      }
+      
+      // JSONパースを試みる
+      let result;
+      try {
+        result = await response.json();
+      } catch (jsonError) {
+        const errorMsg = language === 'en'
+          ? 'Failed to build knowledge base. Server returned an invalid response.\n\n[Solution]\n• Reduce file size\n• Reduce number of files'
+          : '知識ベースの構築に失敗しました。サーバーから無効なレスポンスが返されました。\n\n【対処法】\n・ファイルサイズを小さくしてください\n・ファイル数を減らしてください';
+        setErrorMessage(errorMsg);
+        throw new Error('Invalid response');
+      }
       
       if (!response.ok) {
         let errorMsg = language === 'en' 

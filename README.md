@@ -785,13 +785,13 @@ npx ts-node rag-evaluator.ts show-queries \
 
 # CSV出力
 npx ts-node rag-evaluator.ts export-csv \
-  --uuid "57949af8-d021-703d-e9bd-6f9307a757d4" \
+  --uuid "ユーザーID" \
   --stakeholders ./stakeholders.json \
   --output ./chunks-for-labeling.csv
 
 # 評価実行
 npx ts-node rag-evaluator.ts evaluate-rrf \
-  --uuid "57949af8-d021-703d-e9bd-6f9307a757d4" \
+  --uuid "ユーザーID" \
   --stakeholders ./stakeholders.json \
   --ground-truth ./ground-truth.json
 ```
