@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "Safety Status Report 自動生成ツール"
+    "title": "Safety Generator"
   },
   "menu": {
     "stakeholderSettings": "ステークホルダー設定",

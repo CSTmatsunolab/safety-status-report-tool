@@ -314,7 +314,7 @@ export default function ReportDetailPage() {
 
   // テキスト
   const texts = {
-    appTitle: language === 'en' ? 'Safety Status Report Generator' : 'Safety Status Report 自動生成ツール',
+    appTitle: 'Safety Generator',
     backToHistory: language === 'en' ? 'Back to History' : '履歴に戻る',
     loading: language === 'en' ? 'Loading...' : '読み込み中...',
     notFound: language === 'en' ? 'Report not found' : 'レポートが見つかりません',

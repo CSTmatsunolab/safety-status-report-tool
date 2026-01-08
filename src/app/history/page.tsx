@@ -125,7 +125,7 @@ export default function HistoryPage() {
   // テキスト
   const texts = {
     pageTitle: language === 'en' ? 'Report History' : 'レポート履歴',
-    appTitle: language === 'en' ? 'Safety Status Report Generator' : 'Safety Status Report 自動生成ツール',
+    appTitle: 'Safety Generator',
     backToHome: language === 'en' ? 'Back to Home' : 'ホームに戻る',
     noReports: language === 'en' ? 'No reports saved yet' : '保存されたレポートはありません',
     noReportsHint: language === 'en' 
