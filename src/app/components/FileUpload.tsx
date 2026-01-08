@@ -3,7 +3,7 @@
 
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { FiUpload, FiFile, FiX, FiImage } from 'react-icons/fi';
+import { FiUpload, FiFile, FiX, FiImage, FiAlertCircle } from 'react-icons/fi';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import { UploadedFile } from '@/types';
@@ -194,6 +194,65 @@ async function validateFile(file: File, language: string): Promise<{ valid: bool
   }
 
   return { valid: true };
+}
+
+// PDFファイルかどうかを判定
+function isPdfFile(fileName: string): boolean {
+  return fileName.toLowerCase().endsWith('.pdf');
+}
+
+// PDF警告ツールチップコンポーネント
+function PdfWarningTooltip({ language }: { language: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <span className="relative inline-flex items-center ml-2">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300 focus:outline-none"
+        aria-label={language === 'en' ? 'PDF format warning' : 'PDF形式の警告'}
+      >
+        <FiAlertCircle size={18} />
+      </button>
+      
+      {isOpen && (
+        <>
+          {/* 背景オーバーレイ（クリックで閉じる） */}
+          <span 
+            className="fixed inset-0 z-40" 
+            onClick={() => setIsOpen(false)}
+          />
+          <span className="absolute left-0 top-full mt-2 z-50 w-72 p-4 bg-amber-50 dark:bg-amber-900/95 border border-amber-300 dark:border-amber-700 rounded-lg shadow-lg block">
+            <span className="text-sm text-amber-800 dark:text-amber-100 block">
+              <span className="font-bold mb-2 flex items-center">
+                <FiAlertCircle className="mr-1" />
+                {language === 'en' ? 'PDF Format Notice' : 'PDF形式について'}
+              </span>
+              <span className="block mb-3 text-amber-700 dark:text-amber-200">
+                {language === 'en' 
+                  ? 'PDF format may lose structural information (tables, headings, lists), which can reduce report accuracy.'
+                  : 'PDF形式は構造情報（表・見出し・リスト）が失われやすく、レポート精度が低下する可能性があります。'}
+              </span>
+              <span className="block font-semibold mb-2 text-amber-800 dark:text-amber-100">
+                {language === 'en' ? '📌 Recommended: Convert to DOCX or MD' : '📌 推奨: DOCX または MD に変換'}
+              </span>
+              <a
+                href={language === 'en' ? '/upload-guide.html#pdf-conversion-en' : '/upload-guide.html#pdf-conversion-ja'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+              >
+                {language === 'en' ? 'View details →' : '詳細はこちら →'}
+              </a>
+            </span>
+            {/* 矢印 */}
+            <span className="absolute -top-2 left-4 w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-amber-300 dark:border-b-amber-700 block"></span>
+          </span>
+        </>
+      )}
+    </span>
+  );
 }
 
 interface FileUploadProps {
@@ -440,34 +499,64 @@ async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<{ 
   }
 }
 
-async function extractTextFromExcel(file: File, language: string = 'ja'): Promise<{ text: string; s3Key?: string; originalContentLength?: number; error?: string }> {
+// ★ 修正: Base64で保存し、プレビュー用テキストも抽出
+async function extractTextFromExcel(file: File, language: string = 'ja'): Promise<{ 
+  text: string; 
+  preview?: string;
+  s3Key?: string; 
+  originalContentLength?: number; 
+  isBase64?: boolean;
+  error?: string 
+}> {
   try {
-    console.log(`Processing Excel: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`Processing Excel (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
       
-      let allText = '';
+      // Base64エンコード
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = btoa(binary);
+      
+      // プレビュー用テキスト抽出
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      let previewText = '';
       workbook.SheetNames.forEach(sheetName => {
         const worksheet = workbook.Sheets[sheetName];
         const csv = XLSX.utils.sheet_to_csv(worksheet);
-        allText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
+        previewText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
       });
       
-      return { text: allText, originalContentLength: allText.length };
+      return { 
+        text: base64,
+        preview: previewText.substring(0, PREVIEW_LENGTH),
+        originalContentLength: previewText.length,
+        isBase64: true
+      };
     } else {
-      console.log('Large Excel file, using S3...');
+      console.log('Large Excel file, uploading to S3 as binary...');
       const s3Key = await uploadToS3(file);
       
-      // プレビュー用に最初の部分だけ取得
-      const result = await processFileFromS3(s3Key, file.name, file.type);
-      const fullText = result.text || '';
+      // プレビュー用にテキスト抽出
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      let previewText = '';
+      workbook.SheetNames.forEach(sheetName => {
+        const worksheet = workbook.Sheets[sheetName];
+        const csv = XLSX.utils.sheet_to_csv(worksheet);
+        previewText += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
+      });
       
       return {
-        text: fullText.substring(0, PREVIEW_LENGTH),
+        text: '',
+        preview: previewText.substring(0, PREVIEW_LENGTH),
         s3Key: s3Key,
-        originalContentLength: fullText.length
+        originalContentLength: previewText.length,
+        isBase64: false
       };
     }
   } catch (error) {
@@ -482,26 +571,51 @@ async function extractTextFromExcel(file: File, language: string = 'ja'): Promis
   }
 }
 
-async function extractTextFromDocx(file: File, language: string = 'ja'): Promise<{ text: string; s3Key?: string; originalContentLength?: number; error?: string }> {
+async function extractTextFromDocx(file: File, language: string = 'ja'): Promise<{ 
+  text: string; 
+  preview?: string;
+  s3Key?: string; 
+  originalContentLength?: number;
+  isBase64?: boolean;
+  error?: string 
+}> {
   try {
-    console.log(`Processing Word: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    console.log(`Processing Word (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
+      
+      // Base64エンコード
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binary += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = btoa(binary);
+      
+      // プレビュー用テキスト抽出（extractRawTextはプレビュー専用）
       const result = await mammoth.extractRawText({ arrayBuffer });
-      return { text: result.value, originalContentLength: result.value.length };
+      
+      return { 
+        text: base64,
+        preview: result.value.substring(0, PREVIEW_LENGTH),
+        originalContentLength: result.value.length,
+        isBase64: true
+      };
     } else {
-      console.log('Large Word file, using S3...');
+      console.log('Large Word file, uploading to S3 as binary...');
       const s3Key = await uploadToS3(file);
       
-      // プレビュー用に最初の部分だけ取得
-      const result = await processFileFromS3(s3Key, file.name, file.type);
-      const fullText = result.text || '';
+      // プレビュー用にテキスト抽出
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
       
       return {
-        text: fullText.substring(0, PREVIEW_LENGTH),
+        text: '',
+        preview: result.value.substring(0, PREVIEW_LENGTH),
         s3Key: s3Key,
-        originalContentLength: fullText.length
+        originalContentLength: result.value.length,
+        isBase64: false
       };
     }
   } catch (error) {
@@ -569,6 +683,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           let ocrConfidence: number | undefined;
           let s3Key: string | undefined;
           let originalContentLength: number | undefined;
+          let isBase64 = false;  // バイナリ保存フラグ
 
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
@@ -602,7 +717,7 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
             file.name.endsWith('.xls') ||
             file.name.endsWith('.xlsx')
           ) {
-            console.log(`Extracting text from Excel: ${file.name}`);
+            console.log(`Extracting binary from Excel: ${file.name}`);
             const excelResult = await extractTextFromExcel(file, language);
             
             // タイムアウトエラーの場合はアラートを表示してスキップ
@@ -611,19 +726,22 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               continue;
             }
             
-            content = excelResult.text;
+            content = excelResult.text;  // Base64 または 空文字
             if (excelResult.s3Key) {
               s3Key = excelResult.s3Key;
             }
             if (excelResult.originalContentLength) {
               originalContentLength = excelResult.originalContentLength;
             }
+            if (excelResult.isBase64) {
+              isBase64 = true;  // フラグを設定
+            }
             extractionMethod = 'excel';
         } else if (
             file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
             file.name.endsWith('.docx')
           ) {
-            console.log(`Extracting text from DOCX: ${file.name}`);
+            console.log(`Extracting binary from DOCX: ${file.name}`);
             const docxResult = await extractTextFromDocx(file, language);
             
             // タイムアウトエラーの場合はアラートを表示してスキップ
@@ -632,12 +750,15 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               continue;
             }
             
-            content = docxResult.text;
+            content = docxResult.text;  // Base64 または 空文字
             if (docxResult.s3Key) {
               s3Key = docxResult.s3Key;
             }
             if (docxResult.originalContentLength) {
               originalContentLength = docxResult.originalContentLength;
+            }
+            if (docxResult.isBase64) {
+              isBase64 = true;  // フラグを設定
             }
             extractionMethod = 'docx';
         } else if (
@@ -728,7 +849,8 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               userDesignatedGSN: false,
               s3Key: s3Key,
               contentPreview: s3Key ? content : undefined,
-              originalContentLength: originalContentLength
+              originalContentLength: originalContentLength,
+              isBase64: isBase64  // ★ 追加: バイナリ保存フラグ
             }
           });
 
@@ -882,8 +1004,9 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
               <div className="flex items-center space-x-3">
                 {getFileIcon(file)}
                 <div className="flex-1">
-                  <p className="text-base font-medium text-gray-900 dark:text-white">
+                  <p className="text-base font-medium text-gray-900 dark:text-white flex items-center">
                       {file.name}
+                      {isPdfFile(file.name) && <PdfWarningTooltip language={language} />}
                   </p>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {language === 'en' ? 'Type: ' : 'タイプ: '}

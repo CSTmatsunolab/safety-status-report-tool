@@ -124,24 +124,32 @@ async function getContentFromS3(
     }
 
     const nodeBuffer = Buffer.from(buffer);
+    const lowerFileName = fileName.toLowerCase();
+
+    // ★ DOCX/XLSXはBufferのまま返す（md-converterで構造保持変換するため）
+    if (lowerFileName.endsWith('.docx') || fileType.includes('wordprocessingml')) {
+      console.log(`[S3] Returning DOCX as Buffer for structure-preserving conversion`);
+      return {
+        content: nodeBuffer,
+        truncated: false,
+        originalLength: nodeBuffer.length,
+        isBuffer: true
+      };
+    }
+    
+    if (lowerFileName.endsWith('.xlsx') || lowerFileName.endsWith('.xls') || 
+        fileType.includes('excel') || fileType.includes('spreadsheet')) {
+      console.log(`[S3] Returning Excel as Buffer for structure-preserving conversion`);
+      return {
+        content: nodeBuffer,
+        truncated: false,
+        originalLength: nodeBuffer.length,
+        isBuffer: true
+      };
+    }
 
     // テキストベースファイルの場合はテキストに変換
-    let text = '';
-
-    if (fileType.includes('excel') || fileType.includes('spreadsheet') || 
-        key.endsWith('.xlsx') || key.endsWith('.xls')) {
-      const workbook = XLSX.read(nodeBuffer, { type: 'buffer' });
-      workbook.SheetNames.forEach(sheetName => {
-        const worksheet = workbook.Sheets[sheetName];
-        const csv = XLSX.utils.sheet_to_csv(worksheet);
-        text += `--- Sheet: ${sheetName} ---\n${csv}\n\n`;
-      });
-    } else if (fileType.includes('word') || key.endsWith('.docx')) {
-      const result = await mammoth.extractRawText({ buffer: nodeBuffer });
-      text = result.value;
-    } else {
-      text = new TextDecoder().decode(nodeBuffer);
-    }
+    let text = new TextDecoder().decode(nodeBuffer);
 
     const truncated = truncateContent(text, fileType, fileName);
     return {
@@ -243,16 +251,29 @@ export async function POST(request: NextRequest) {
           fileContent = file.metadata.contentPreview || '';
         }
       } else if (file.content && file.content !== '') {  // contentが空でない場合のみ処理
-        // テキストベースの処理
-        fileContent = file.content;
-        
-        if (typeof fileContent === 'string') {
-          const result = truncateContent(fileContent, file.type, file.name);
-          if (result.truncated) {
-            fileContent = result.content;
-            const warning = `${file.name}: ${result.originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
-            warnings.push(warning);
-            console.warn(warning);
+        // ★ isBase64フラグを確認してデコード
+        if (file.metadata?.isBase64) {
+          console.log(`[Base64] Decoding binary content for ${file.name}`);
+          try {
+            fileContent = Buffer.from(file.content, 'base64');
+            console.log(`[Base64] Decoded to Buffer: ${fileContent.length} bytes`);
+          } catch (error) {
+            console.error(`[Base64] Failed to decode ${file.name}:`, error);
+            warnings.push(`${file.name}: Base64デコードに失敗しました`);
+            continue;
+          }
+        } else {
+          // テキストベースの処理
+          fileContent = file.content;
+          
+          if (typeof fileContent === 'string') {
+            const result = truncateContent(fileContent, file.type, file.name);
+            if (result.truncated) {
+              fileContent = result.content;
+              const warning = `${file.name}: ${result.originalLength.toLocaleString()} 文字から ${MAX_CONTENT_CHARS.toLocaleString()} 文字に切り詰めました`;
+              warnings.push(warning);
+              console.warn(warning);
+            }
           }
         }
       }

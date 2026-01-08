@@ -33,9 +33,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -73,3 +70,7 @@ rag-evaluation/chunks-*.csv
 rag-evaluation/chunks-*.json
 rag-evaluation/ground-truth.json
 rag-evaluation/evaluation-results/
+
+#testfile
+test-chunks.ts
+docs/

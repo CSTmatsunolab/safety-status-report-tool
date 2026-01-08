@@ -32,12 +32,14 @@ export async function convertToMarkdown(
 ): Promise<ConversionResult> {
   const lowerFileName = fileName.toLowerCase();
 
-  // ===== MDファイルはスキップ =====
+  // ===== MDファイルはスキップ（ただし正規化は行う） =====
   if (lowerFileName.endsWith('.md')) {
     console.log(`[MD Converter] Skip: ${fileName} (already Markdown)`);
     const text = bufferToString(content);
+    // 表の保護マーカーを追加（MDファイルでも必要）
+    const normalized = normalizeSafetyDocument(text);
     return {
-      markdown: text,
+      markdown: normalized,
       confidence: 1.0,
       method: 'md-passthrough',
       warnings: [],
@@ -528,6 +530,34 @@ function convertHtmlToMarkdown(html: string): string {
   md = md.replace(/<ol[^>]*>([\s\S]*?)<\/ol>/gi, '\n$1\n');
   md = md.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
 
+  // figure + figcaption（図表番号付き）
+  md = md.replace(/<figure[^>]*>([\s\S]*?)<\/figure>/gi, (_, figureContent: string) => {
+    // figcaptionを抽出
+    const captionMatch = figureContent.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i);
+    const caption = captionMatch ? captionMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+    
+    // figcaptionを除いた内容
+    const contentWithoutCaption = figureContent.replace(/<figcaption[^>]*>[\s\S]*?<\/figcaption>/gi, '');
+    
+    // 表があるかチェック
+    const tableMatch = contentWithoutCaption.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+    if (tableMatch) {
+      const tableContent = convertHtmlTableToMarkdown(tableMatch[1]);
+      // キャプションを表の前に配置
+      return caption ? `\n${caption}\n\n${tableContent}\n` : `\n${tableContent}\n`;
+    }
+    
+    // 画像があるかチェック
+    const imgMatch = contentWithoutCaption.match(/<img[^>]*>/i);
+    if (imgMatch) {
+      // 画像はそのまま（または![caption]形式に）
+      return caption ? `\n${caption}\n\n[画像]\n` : '\n[画像]\n';
+    }
+    
+    // その他のfigure内容
+    return caption ? `\n${caption}\n` : '';
+  });
+
   // 表
   md = md.replace(/<table[^>]*>([\s\S]*?)<\/table>/gi, (_, tableContent: string) => {
     return '\n' + convertHtmlTableToMarkdown(tableContent) + '\n';
@@ -553,6 +583,10 @@ function convertHtmlToMarkdown(html: string): string {
 }
 
 function convertHtmlTableToMarkdown(tableHtml: string): string {
+  // captionを抽出
+  const captionMatch = tableHtml.match(/<caption[^>]*>([\s\S]*?)<\/caption>/i);
+  const caption = captionMatch ? captionMatch[1].replace(/<[^>]+>/g, '').trim() : '';
+  
   const rows: string[][] = [];
   const rowMatches = tableHtml.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
 
@@ -564,7 +598,10 @@ function convertHtmlTableToMarkdown(tableHtml: string): string {
     if (row.length > 0) rows.push(row);
   }
 
-  return arrayToMarkdownTable(rows);
+  const table = arrayToMarkdownTable(rows);
+  
+  // キャプションがあれば表の前に追加
+  return caption ? `${caption}\n\n${table}` : table;
 }
 
 function decodeHtmlEntities(text: string): string {
@@ -659,16 +696,277 @@ function normalizeText(text: string): string {
 function enhanceTextToMarkdown(text: string): string {
   let md = text;
 
-  // 見出しパターン検出
+  // ===== 前処理 =====
+  
+  // CRLF → LF 正規化（Windows形式の改行対応）
+  md = md.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // BOM除去
+  md = md.replace(/^\uFEFF/, '');
+  
+  // 区切り線を正規化（________________ → ---）
+  md = md.replace(/^[_]{3,}$/gm, '\n---\n');
+  md = md.replace(/^[-]{3,}$/gm, '\n---\n');
+  md = md.replace(/^[=]{3,}$/gm, '\n---\n');
+  
+  // ===== タブ区切り表の検出と変換 =====
+  md = convertTabSeparatedTables(md);
+  
+  // ===== 見出しパターン検出 =====
+  
+  // ADR-XXX：設計判断 のようなパターン → # 見出し
+  md = md.replace(/^(ADR-\d+[：:].+)$/gm, '\n# $1\n');
+  
+  // 「要約」「概要」「目的」「背景」などの単独行 → # 見出し
+  md = md.replace(/^(要約|概要|目的|背景|結論|まとめ|参考|付録|補足)$/gm, '\n# $1\n');
+  
+  // 「関連・参照」のようなパターン → ## 見出し
+  md = md.replace(/^(関連・参照[（(].+[)）]?)$/gm, '\n## $1\n');
+  md = md.replace(/^(関連・参照)$/gm, '\n## $1\n');
+  
+  // 番号付き見出し（1. 2. など）
   md = md.replace(/^(\d+\.)\s+([^\n]+)/gm, '## $1 $2');
   md = md.replace(/^(\d+\.\d+)\s+([^\n]+)/gm, '### $1 $2');
   md = md.replace(/^(\d+\.\d+\.\d+)\s+([^\n]+)/gm, '#### $1 $2');
 
-  // 箇条書き正規化
+  // ===== 箇条書き正規化 =====
   md = md.replace(/^[・●◆■◇□▪▫]\s*/gm, '- ');
   md = md.replace(/^\*\s+/gm, '- ');
 
+  // ===== 整理 =====
+  // 連続する空行を2つに制限
+  md = md.replace(/\n{3,}/g, '\n\n');
+  
+  return md.trim();
+}
+
+/**
+ * タブ区切りのテキストを Markdown 表に変換
+ * Google Docs などからエクスポートされた表形式に対応
+ * 
+ * 2つの形式に対応:
+ * 1. 標準形式: 1行にタブ区切りで複数セル
+ * 2. Google Docs形式: 各セルが別の行でタブインデント
+ */
+function convertTabSeparatedTables(text: string): string {
+  // まず Google Docs 形式を検出・変換
+  let md = convertGoogleDocsTableFormat(text);
+  
+  // 次に標準のタブ区切り形式を変換
+  md = convertStandardTabSeparatedTables(md);
+  
   return md;
+}
+
+/**
+ * Google Docs形式の表を変換
+ * パターン: 最初のセルがタブなし、続くセルがタブ付きで別行
+ */
+function convertGoogleDocsTableFormat(text: string): string {
+  // CRLF → LF 正規化（Windows形式の改行対応）
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let i = 0;
+  
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // タブで始まる行のブロックを探す
+    if (i + 1 < lines.length && lines[i + 1].startsWith('\t')) {
+      // 連続するタブ付き行を収集
+      const block: string[] = [trimmed];
+      let j = i + 1;
+      
+      while (j < lines.length && lines[j].startsWith('\t')) {
+        block.push(lines[j].replace(/^\t/, '').trim());
+        j++;
+      }
+      
+      // 空のセルを除去
+      const filteredBlock = block.filter(c => c !== '');
+      
+      // ブロックが表らしいかチェック（3個以上のセル）
+      if (filteredBlock.length >= 3) {
+        // 列数を推測（最初のいくつかのセルがヘッダー）
+        const numColumns = guessColumnCount(filteredBlock);
+        
+        if (numColumns >= 2 && filteredBlock.length >= numColumns * 2) {
+          // 表として変換
+          const table = convertBlockToTable(filteredBlock, numColumns);
+          result.push(table);
+          i = j;
+          continue;
+        }
+      }
+      
+      // 表ではない場合はそのまま出力
+      result.push(line);
+      i++;
+    } else {
+      result.push(line);
+      i++;
+    }
+  }
+  
+  return result.join('\n');
+}
+
+/**
+ * セルブロックから列数を推測
+ */
+function guessColumnCount(cells: string[]): number {
+  // 一般的な表ヘッダーパターンを検出
+  const commonHeaders = [
+    ['コンポーネント', '責務', '入出力'],  // 3列
+    ['項目', '内容', '備考'],               // 3列
+    ['名前', '説明', '値'],                 // 3列
+    ['ID', '名称', '状態'],                 // 3列
+  ];
+  
+  // 最初の数セルでパターンマッチ
+  for (const headers of commonHeaders) {
+    let matches = 0;
+    for (let i = 0; i < Math.min(headers.length, cells.length); i++) {
+      if (cells[i].includes(headers[i]) || headers[i].includes(cells[i])) {
+        matches++;
+      }
+    }
+    if (matches >= 2) {
+      return headers.length;
+    }
+  }
+  
+  // セル数が特定の倍数になるか確認
+  for (const cols of [3, 4, 2, 5]) {
+    if (cells.length % cols === 0 && cells.length / cols >= 2) {
+      return cols;
+    }
+  }
+  
+  return 3;  // デフォルト3列
+}
+
+/**
+ * セルブロックを Markdown 表に変換
+ */
+function convertBlockToTable(cells: string[], numColumns: number): string {
+  const rows: string[][] = [];
+  
+  for (let i = 0; i < cells.length; i += numColumns) {
+    const row: string[] = [];
+    for (let j = 0; j < numColumns; j++) {
+      const cell = cells[i + j] || '';
+      row.push(cell.replace(/\|/g, '\\|').trim());
+    }
+    rows.push(row);
+  }
+  
+  if (rows.length < 2) return cells.join(' ');
+  
+  const header = `| ${rows[0].join(' | ')} |`;
+  const separator = `| ${rows[0].map(() => '---').join(' | ')} |`;
+  const dataRows = rows.slice(1).map(row => `| ${row.join(' | ')} |`);
+  
+  return '\n' + [header, separator, ...dataRows].join('\n') + '\n';
+}
+
+/**
+ * 標準のタブ区切り形式を変換（1行に複数セル）
+ */
+function convertStandardTabSeparatedTables(text: string): string {
+  const lines = text.split('\n');
+  const result: string[] = [];
+  let tableBuffer: string[][] = [];
+  let inTable = false;
+  let expectedColumns = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // タブを含む行を検出（ただしタブで始まる行は除外 - Google Docs形式で処理済み）
+    if (trimmed.includes('\t') && !line.startsWith('\t')) {
+      const cells = trimmed.split('\t').map(c => c.trim());
+      
+      if (cells.length >= 2) {
+        if (!inTable) {
+          inTable = true;
+          expectedColumns = cells.length;
+          tableBuffer = [cells];
+        } else if (cells.length === expectedColumns || 
+                   (cells.length >= 2 && Math.abs(cells.length - expectedColumns) <= 1)) {
+          tableBuffer.push(cells);
+        } else {
+          if (tableBuffer.length >= 2) {
+            result.push(convertTableBufferToMarkdown(tableBuffer));
+          } else if (tableBuffer.length === 1) {
+            result.push(tableBuffer[0].join(' '));
+          }
+          tableBuffer = [cells];
+          expectedColumns = cells.length;
+        }
+        continue;
+      }
+    }
+    
+    if (inTable) {
+      if (trimmed === '' && i + 1 < lines.length && 
+          lines[i + 1].includes('\t') && !lines[i + 1].startsWith('\t')) {
+        continue;
+      }
+      
+      if (tableBuffer.length >= 2) {
+        result.push(convertTableBufferToMarkdown(tableBuffer));
+      } else if (tableBuffer.length === 1) {
+        result.push(tableBuffer[0].join(' '));
+      }
+      
+      tableBuffer = [];
+      inTable = false;
+      expectedColumns = 0;
+    }
+    
+    result.push(line);
+  }
+  
+  if (tableBuffer.length >= 2) {
+    result.push(convertTableBufferToMarkdown(tableBuffer));
+  } else if (tableBuffer.length === 1) {
+    result.push(tableBuffer[0].join(' '));
+  }
+  
+  return result.join('\n');
+}
+
+/**
+ * 表バッファを Markdown 表に変換
+ */
+function convertTableBufferToMarkdown(rows: string[][]): string {
+  if (rows.length === 0) return '';
+  
+  // 最大列数を取得
+  const maxCols = Math.max(...rows.map(row => row.length));
+  if (maxCols === 0) return '';
+  
+  // 各行を正規化（列数を揃える）
+  const normalizedRows = rows.map(row => {
+    const normalized: string[] = [];
+    for (let i = 0; i < maxCols; i++) {
+      const cell = row[i] || '';
+      normalized.push(cell.replace(/\|/g, '\\|').replace(/\n/g, ' ').trim());
+    }
+    return normalized;
+  });
+  
+  // Markdown 表を生成
+  const header = `| ${normalizedRows[0].join(' | ')} |`;
+  const separator = `| ${normalizedRows[0].map(() => '---').join(' | ')} |`;
+  const dataRows = normalizedRows.slice(1).map(row => `| ${row.join(' | ')} |`);
+  
+  return '\n' + [header, separator, ...dataRows].join('\n') + '\n';
 }
 
 function parseCsvLine(line: string): string[] {
@@ -788,30 +1086,210 @@ function normalizeSafetyDocument(text: string): string {
   return normalized;
 }
 
+// 図表番号パターン（様々なファイル形式に対応）
+const CAPTION_PATTERNS = [
+  // 日本語（数字あり）
+  /^表\s*[0-9０-９]+[.:：\s]/i,           // 表1: 表 1. 表１：
+  /^図\s*[0-9０-９]+[.:：\s]/i,           // 図1: 図 1. 図１：
+  /^リスト\s*[0-9０-９]+[.:：\s]/i,       // リスト1:
+  /^一覧\s*[0-9０-９]+[.:：\s]/i,         // 一覧1:
+  /^チャート\s*[0-9０-９]+[.:：\s]/i,     // チャート1:
+  /^グラフ\s*[0-9０-９]+[.:：\s]/i,       // グラフ1:
+  /^ダイアグラム\s*[0-9０-９]+[.:：\s]/i, // ダイアグラム1:
+  /^コード\s*[0-9０-９]+[.:：\s]/i,       // コード1:
+  /^ソースコード\s*[0-9０-９]+[.:：\s]/i, // ソースコード1:
+  /^スニペット\s*[0-9０-９]+[.:：\s]/i,   // スニペット1:
+  /^例\s*[0-9０-９]+[.:：\s]/i,           // 例1:
+  /^サンプル\s*[0-9０-９]+[.:：\s]/i,     // サンプル1:
+  
+  // 日本語（「について」パターン - Wordの自動番号対応）
+  /^表\s*.{0,30}について$/i,              // 表　ADR-101について
+  /^図\s*.{0,30}について$/i,              // 図　システム構成について
+  /^表\s*.{0,30}一覧$/i,                  // 表　コンポーネント一覧
+  /^図\s*.{0,30}概要$/i,                  // 図　アーキテクチャ概要
+  
+  // 英語
+  /^Table\s*[0-9]+[.:：\s]/i,             // Table 1: Table 1.
+  /^Figure\s*[0-9]+[.:：\s]/i,            // Figure 1:
+  /^Fig\.\s*[0-9]+[.:：\s]/i,             // Fig. 1:
+  /^List\s*[0-9]+[.:：\s]/i,              // List 1:
+  /^Listing\s*[0-9]+[.:：\s]/i,           // Listing 1:
+  /^Chart\s*[0-9]+[.:：\s]/i,             // Chart 1:
+  /^Diagram\s*[0-9]+[.:：\s]/i,           // Diagram 1:
+  /^Graph\s*[0-9]+[.:：\s]/i,             // Graph 1:
+  /^Code\s*[0-9]+[.:：\s]/i,              // Code 1:
+  /^Snippet\s*[0-9]+[.:：\s]/i,           // Snippet 1:
+  /^Example\s*[0-9]+[.:：\s]/i,           // Example 1:
+  /^Sample\s*[0-9]+[.:：\s]/i,            // Sample 1:
+  
+  // 略称・記号パターン
+  /^\[表\s*[0-9０-９]+\]/i,               // [表1]
+  /^\[図\s*[0-9０-９]+\]/i,               // [図1]
+  /^\[Table\s*[0-9]+\]/i,                 // [Table 1]
+  /^\[Figure\s*[0-9]+\]/i,                // [Figure 1]
+  /^\[Fig\.\s*[0-9]+\]/i,                 // [Fig. 1]
+  /^\[Code\s*[0-9]+\]/i,                  // [Code 1]
+  
+  // 括弧付きパターン
+  /^【表\s*[0-9０-９]+】/i,               // 【表1】
+  /^【図\s*[0-9０-９]+】/i,               // 【図1】
+  /^【コード\s*[0-9０-９]+】/i,           // 【コード1】
+  
+  // コロンなしパターン（番号の後に直接タイトル）
+  /^表[0-9０-９]+\s+\S/,                  // 表1 コンポーネント一覧
+  /^図[0-9０-９]+\s+\S/,                  // 図1 システム構成
+  /^Table\s*[0-9]+\s+\S/i,                // Table 1 Components
+  /^Figure\s*[0-9]+\s+\S/i,               // Figure 1 Architecture
+];
+
+/**
+ * 図表番号パターンに一致するかチェック
+ */
+function isCaptionLine(line: string): boolean {
+  let trimmed = line.trim();
+  if (!trimmed || trimmed.length < 3) return false;  // 最低3文字
+  
+  // 太字マーカーを除去して判定（**表1** のようなパターン対応）
+  trimmed = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '').trim();
+  
+  // 明確なパターンに一致
+  if (CAPTION_PATTERNS.some(pattern => pattern.test(trimmed))) {
+    return true;
+  }
+  
+  // 「表」「図」で始まり、短い行（5〜50文字）で、文末が「。」でない
+  // → 図表タイトルは通常「。」で終わらない
+  if (/^[表図]/.test(trimmed) && 
+      trimmed.length >= 5 && 
+      trimmed.length <= 50 &&
+      !trimmed.endsWith('。') &&
+      !trimmed.endsWith('．')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * 保護マーカーを追加（表と図表番号を一緒に保護）
+ * - 表の直前にある図表番号（キャプション）
+ * - 表の直後にある図表番号（キャプション）
+ * - 図表番号と表の間に空行があっても対応
+ */
 function addPreserveMarkers(text: string): string {
   const lines = text.split('\n');
   const result: string[] = [];
   let inTable = false;
+  let pendingCaption: string[] = [];  // 図表番号（複数行対応）
 
-  for (const line of lines) {
-    const isTableRow = /^\|/.test(line.trim());
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+    const isTableRow = /^\|/.test(trimmedLine);
+    const isCaption = isCaptionLine(trimmedLine);
+    const isEmpty = trimmedLine === '';
+    
+    // 先読み：この行から数行先に表があるか確認
+    const tableAhead = findTableAhead(lines, i + 1, 3);  // 最大3行先まで
 
     if (isTableRow && !inTable) {
+      // 表の開始
       inTable = true;
       result.push('<!-- PRESERVE_START -->');
+      
+      // 保留中の図表番号があれば先に追加
+      if (pendingCaption.length > 0) {
+        pendingCaption.forEach(cap => result.push(cap));
+        pendingCaption = [];
+      }
+      
       result.push(line);
     } else if (!isTableRow && inTable) {
+      // 表の終了の可能性
+      
+      // 空行の場合は次の行もチェック
+      if (isEmpty) {
+        const nextNonEmptyLine = findNextNonEmptyLine(lines, i + 1);
+        if (nextNonEmptyLine && isCaptionLine(nextNonEmptyLine)) {
+          // 表の直後に図表番号がある → 図表番号も含めて保護を継続
+          result.push(line);  // 空行を追加
+          continue;
+        }
+      }
+      
+      // 図表番号の場合は表と一緒に保護
+      if (isCaption) {
+        result.push(line);  // 図表番号を追加
+        result.push('<!-- PRESERVE_END -->');
+        inTable = false;
+        continue;
+      }
+      
+      // 通常の表終了
       result.push('<!-- PRESERVE_END -->');
       inTable = false;
-      result.push(line);
+      
+      // 現在の行が次の表の図表番号かチェック
+      if (isCaption && tableAhead) {
+        pendingCaption.push(line);
+      } else {
+        result.push(line);
+      }
+    } else if (isCaption && tableAhead && !inTable) {
+      // 表の直前にある図表番号 → 保留して次の表と一緒に保護
+      pendingCaption.push(line);
+    } else if (isEmpty && pendingCaption.length > 0 && tableAhead) {
+      // 図表番号の後の空行で、まだ表が来る → 保留に追加
+      pendingCaption.push(line);
     } else {
+      // 通常の行
+      if (pendingCaption.length > 0 && !isTableRow && !tableAhead) {
+        // 保留中の図表番号があるが、表が来なかった → 通常出力
+        pendingCaption.forEach(cap => result.push(cap));
+        pendingCaption = [];
+      }
       result.push(line);
     }
   }
 
-  if (inTable) result.push('<!-- PRESERVE_END -->');
+  // 最後の処理
+  if (pendingCaption.length > 0) {
+    pendingCaption.forEach(cap => result.push(cap));
+  }
+  if (inTable) {
+    result.push('<!-- PRESERVE_END -->');
+  }
 
   return result.join('\n');
+}
+
+/**
+ * 指定位置から次の非空行を探す
+ */
+function findNextNonEmptyLine(lines: string[], startIndex: number): string | null {
+  for (let i = startIndex; i < lines.length && i < startIndex + 3; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed !== '') {
+      return trimmed;
+    }
+  }
+  return null;
+}
+
+/**
+ * 指定位置から数行先に表があるかチェック
+ */
+function findTableAhead(lines: string[], startIndex: number, maxLines: number): boolean {
+  for (let i = startIndex; i < lines.length && i < startIndex + maxLines; i++) {
+    const trimmed = lines[i].trim();
+    if (/^\|/.test(trimmed)) {
+      return true;  // 表が見つかった
+    }
+    if (trimmed !== '' && !isCaptionLine(trimmed)) {
+      return false;  // 表以外の内容が見つかった
+    }
+  }
+  return false;
 }
 
 // ============================================

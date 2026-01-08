@@ -19,7 +19,7 @@ import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
-import { FiSave, FiCheck } from 'react-icons/fi';
+import { FiSave, FiCheck, FiHelpCircle} from 'react-icons/fi';
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -547,18 +547,30 @@ export default function Home() {
         </div>
         
         {/* メインコンテンツ - 2カラムグリッド */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
           {/* 左側：入力セクション */}
           <div className="space-y-6 mb-8 xl:mb-0">
             {/* 1. データアップロード */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
-              <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
-                files.length > 0 
-                  ? 'text-gray-900 dark:text-white' 
-                  : 'text-gray-400 dark:text-gray-500'
-              }`}>
-                {t('steps.dataUpload')}
-              </h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className={`text-lg sm:text-xl font-semibold transition-colors ${
+                  files.length > 0 
+                    ? 'text-gray-900 dark:text-white' 
+                    : 'text-gray-400 dark:text-gray-500'
+                }`}>
+                  {t('steps.dataUpload')}
+                </h2>
+                <a
+                  href="/upload-guide.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  title={language === 'en' ? 'Tips for better quality' : '品質向上のヒント'}
+                >
+                  <FiHelpCircle size={20} />
+                  {language === 'en' ? 'Tips for better quality' : '品質向上のヒント'}
+                </a>
+              </div>
               <FileUpload 
                 onUpload={handleFileUpload} 
                 onRemove={handleFileRemove}

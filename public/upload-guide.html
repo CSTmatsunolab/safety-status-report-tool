@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>アップロードガイド / Upload Guide</title>
+  <style>
+    :root {
+      --bg-color: #f5f5f5;
+      --card-bg: white;
+      --text-color: #333;
+      --text-muted: #666;
+      --border-color: #e0e0e0;
+      --accent-color: #0066cc;
+      --warning-bg: #fff8e6;
+      --warning-border: #ffc107;
+      --success-bg: #e8f5e9;
+      --success-border: #4caf50;
+      --info-bg: #e3f2fd;
+      --info-border: #2196f3;
+      --code-bg: #f8f9fa;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-color: #1a1a2e;
+        --card-bg: #16213e;
+        --text-color: #e0e0e0;
+        --text-muted: #a0a0a0;
+        --border-color: #2a2a4a;
+        --accent-color: #4da6ff;
+        --warning-bg: #3d3000;
+        --warning-border: #ffc107;
+        --success-bg: #1b3d1b;
+        --success-border: #4caf50;
+        --info-bg: #0d2137;
+        --info-border: #2196f3;
+        --code-bg: #2a2a4a;
+      }
+    }
+    
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+      line-height: 1.8;
+      color: var(--text-color);
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background-color: var(--bg-color);
+    }
+    
+    .container {
+      background-color: var(--card-bg);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      font-size: 28px;
+      color: var(--text-color);
+      margin-bottom: 10px;
+      padding-bottom: 15px;
+      border-bottom: 3px solid var(--accent-color);
+    }
+    
+    h2 {
+      font-size: 22px;
+      color: var(--text-color);
+      margin-top: 50px;
+      margin-bottom: 20px;
+      padding-left: 15px;
+      border-left: 4px solid var(--accent-color);
+    }
+    
+    h3 {
+      font-size: 18px;
+      color: var(--text-color);
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+    
+    p {
+      margin-bottom: 15px;
+      color: var(--text-muted);
+    }
+    
+    .intro {
+      font-size: 16px;
+      color: var(--text-muted);
+      margin-bottom: 30px;
+    }
+    
+    .toc {
+      background-color: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 20px 30px;
+      margin: 30px 0;
+    }
+    
+    .toc h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 16px;
+    }
+    
+    .toc ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    
+    .toc li {
+      margin-bottom: 8px;
+    }
+    
+    .toc a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+    
+    .toc a:hover {
+      text-decoration: underline;
+    }
+    
+    .warning-box {
+      background-color: var(--warning-bg);
+      border-left: 4px solid var(--warning-border);
+      padding: 20px;
+      margin: 25px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    
+    .warning-box p {
+      margin: 0;
+      color: var(--text-color);
+    }
+    
+    .success-box {
+      background-color: var(--success-bg);
+      border-left: 4px solid var(--success-border);
+      padding: 20px;
+      margin: 25px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    
+    .success-box p {
+      margin: 0;
+      color: var(--text-color);
+    }
+    
+    .info-box {
+      background-color: var(--info-bg);
+      border-left: 4px solid var(--info-border);
+      padding: 20px;
+      margin: 25px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    
+    .info-box p {
+      margin: 0;
+      color: var(--text-color);
+    }
+    
+    .method-card {
+      background-color: var(--bg-color);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 25px;
+      margin: 20px 0;
+    }
+    
+    .method-card h3 {
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .method-card .badge {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: normal;
+    }
+    
+    .badge-recommended {
+      background-color: var(--success-border);
+      color: white;
+    }
+    
+    .badge-free {
+      background-color: var(--accent-color);
+      color: white;
+    }
+    
+    ol, ul {
+      padding-left: 25px;
+    }
+    
+    ol li, ul li {
+      margin-bottom: 12px;
+      color: var(--text-muted);
+    }
+    
+    ol li strong, ul li strong {
+      color: var(--text-color);
+    }
+    
+    .lang-toggle {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 30px;
+    }
+    
+    .lang-toggle button {
+      padding: 8px 20px;
+      border: 2px solid var(--accent-color);
+      background: transparent;
+      color: var(--accent-color);
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    
+    .lang-toggle button.active {
+      background: var(--accent-color);
+      color: white;
+    }
+    
+    .lang-toggle button:hover {
+      opacity: 0.8;
+    }
+    
+    .lang-ja, .lang-en {
+      display: none;
+    }
+    
+    .lang-ja.active, .lang-en.active {
+      display: block;
+    }
+    
+    .back-link {
+      display: inline-block;
+      margin-top: 30px;
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+    
+    .back-link:hover {
+      text-decoration: underline;
+    }
+    
+    .format-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    .format-table th,
+    .format-table td {
+      padding: 12px 15px;
+      text-align: left;
+      border: 1px solid var(--border-color);
+    }
+    
+    .format-table th {
+      background-color: var(--bg-color);
+      font-weight: 600;
+    }
+    
+    .format-table td {
+      color: var(--text-muted);
+    }
+    
+    .emoji {
+      font-size: 24px;
+    }
+    
+    code {
+      background-color: var(--code-bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 14px;
+    }
+    
+    .code-block {
+      background-color: var(--code-bg);
+      padding: 15px 20px;
+      border-radius: 8px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 13px;
+      overflow-x: auto;
+      margin: 15px 0;
+      white-space: pre-wrap;
+    }
+    
+    .section-anchor {
+      scroll-margin-top: 20px;
+    }
+    
+    @media (max-width: 600px) {
+      .container {
+        padding: 20px;
+      }
+      
+      h1 {
+        font-size: 24px;
+      }
+      
+      h2 {
+        font-size: 20px;
+      }
+      
+      .method-card h3 {
+        font-size: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 言語切り替え -->
+    <div class="lang-toggle">
+      <button id="btn-ja" class="active" onclick="setLang('ja')">日本語</button>
+      <button id="btn-en" onclick="setLang('en')">English</button>
+    </div>
+    
+    <!-- ==================== 日本語コンテンツ ==================== -->
+    <div id="content-ja" class="lang-ja active">
+      <h1>📚 アップロードガイド</h1>
+      <p class="intro">レポート品質を最大化するためのファイルアップロードのコツと推奨設定をご紹介します。</p>
+      
+      <!-- 目次 -->
+      <nav class="toc">
+        <h3>📋 目次</h3>
+        <ul>
+          <li><a href="#format-ja">1. 推奨ファイル形式</a></li>
+          <li><a href="#pdf-conversion-ja">2. PDF変換ガイド</a></li>
+          <li><a href="#gsn-ja">3. GSNファイルの推奨設定</a></li>
+          <li><a href="#fulltext-ja">4. 全文使用の使いどころ</a></li>
+          <li><a href="#chunking-ja">5. チャンキングについて（専門家向け）</a></li>
+        </ul>
+      </nav>
+      
+      <!-- ===== 1. 推奨ファイル形式 ===== -->
+      <h2 id="format-ja" class="section-anchor">1. 推奨ファイル形式</h2>
+      
+      <p>ファイル形式によって、AIがドキュメントの構造（表・見出し・リスト）をどれだけ正確に理解できるかが変わります。</p>
+      
+      <table class="format-table">
+        <thead>
+          <tr>
+            <th>形式</th>
+            <th>構造保持</th>
+            <th>推奨度</th>
+            <th>備考</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Markdown (.md)</strong></td>
+            <td>◎ 完全</td>
+            <td>⭐⭐⭐</td>
+            <td>最も推奨。構造が明確</td>
+          </tr>
+          <tr>
+            <td><strong>Word (.docx)</strong></td>
+            <td>◎ 完全</td>
+            <td>⭐⭐⭐</td>
+            <td>表・見出しを正確に認識</td>
+          </tr>
+          <tr>
+            <td><strong>HTML (.html)</strong></td>
+            <td>○ 良好</td>
+            <td>⭐⭐</td>
+            <td>Webページからの変換に</td>
+          </tr>
+          <tr>
+            <td><strong>テキスト (.txt)</strong></td>
+            <td>△ 部分的</td>
+            <td>⭐</td>
+            <td>タブ区切り表は認識可能</td>
+          </tr>
+          <tr>
+            <td><strong>CSV / Excel</strong></td>
+            <td>◎ 完全</td>
+            <td>⭐⭐⭐</td>
+            <td>表データに最適</td>
+          </tr>
+          <tr>
+            <td><strong>PDF (.pdf)</strong></td>
+            <td>× 失われる</td>
+            <td>非推奨</td>
+            <td>変換を推奨</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div class="success-box">
+        <p><strong>💡 ヒント</strong></p>
+        <p>同じ内容であれば、PDFではなくDOCXやMarkdownをアップロードすると、表や見出しが正確に認識され、より高品質なレポートが生成されます。</p>
+      </div>
+      
+      <!-- ===== 2. PDF変換ガイド ===== -->
+      <h2 id="pdf-conversion-ja" class="section-anchor">2. PDF変換ガイド</h2>
+      
+      <div class="warning-box">
+        <p><strong>⚠️ なぜPDFの変換が必要なのか？</strong></p>
+        <p>PDF形式は構造情報（表・見出し・リスト）が失われやすく、AIがドキュメントを正確に理解できない場合があります。DOCXやMarkdown形式に変換することで、レポートの精度が大幅に向上します。</p>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📝</span> 方法1: Google Docs経由
+          <span class="badge badge-recommended">推奨</span>
+          <span class="badge badge-free">無料</span>
+        </h3>
+        <ol>
+          <li><strong>Google Drive</strong>（<a href="https://drive.google.com" target="_blank">drive.google.com</a>）にアクセス</li>
+          <li>PDFファイルをアップロード</li>
+          <li>PDFを右クリック → <strong>「アプリで開く」</strong> → <strong>「Googleドキュメント」</strong></li>
+          <li>ドキュメントが開いたら、<strong>「ファイル」</strong> → <strong>「ダウンロード」</strong></li>
+          <li><strong>「Markdown (.md)」</strong> または <strong>「Microsoft Word (.docx)」</strong> を選択</li>
+          <li>ダウンロードしたファイルをアップロード</li>
+        </ol>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📘</span> 方法2: Microsoft Word
+        </h3>
+        <ol>
+          <li>Microsoft Wordを開く</li>
+          <li><strong>「ファイル」</strong> → <strong>「開く」</strong> → PDFファイルを選択</li>
+          <li>「PDFから編集可能なWord文書に変換します」というメッセージが表示されたら <strong>「OK」</strong></li>
+          <li><strong>「ファイル」</strong> → <strong>「名前を付けて保存」</strong></li>
+          <li>形式を <strong>「Word文書 (.docx)」</strong> に設定して保存</li>
+          <li>保存した.docxファイルをアップロード</li>
+        </ol>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📁</span> 方法3: 元のDOCXを使用
+        </h3>
+        <p>PDFの元となったWord文書（.docx）やMarkdownファイル（.md）がある場合は、PDFではなくそちらをアップロードしてください。元のファイルには完全な構造情報が保持されています。</p>
+      </div>
+      
+      <!-- ===== 3. GSNファイルの推奨設定 ===== -->
+      <h2 id="gsn-ja" class="section-anchor">3. GSNファイルの推奨設定</h2>
+      
+      <p>GSN（Goal Structuring Notation）ファイルは、安全性論証の構造を表す重要なドキュメントです。適切に設定することで、レポートの品質が向上します。</p>
+      
+      <div class="info-box">
+        <p><strong>📌 GSNファイルの推奨設定</strong></p>
+        <p>• <strong>「GSN」チェックボックス</strong>をONにする → レポート構成にGSN分析セクションが追加されます</p>
+        <p>• <strong>「全文使用」</strong>をONにする → GSNは構造が重要なため、全文をAIに渡すことを推奨します</p>
+      </div>
+      
+      <h3>GSNファイルの作成方法</h3>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">🛠️</span> D-Case Communicatorを使用
+          <span class="badge badge-recommended">推奨</span>
+        </h3>
+        <ol>
+          <li><a href="https://www.matsulab.org/dcase/login.html" target="_blank">D-Case Communicator</a>でGSNを作成</li>
+          <li><strong>「Export LLM Input Text」</strong>機能でテキストファイルを出力</li>
+          <li>出力されたテキストファイルをアップロード</li>
+        </ol>
+      </div>
+      
+      <h3>手動でGSNテキストを作成する場合</h3>
+      
+      <p>以下のフォーマットで記述します：</p>
+      
+      <div class="code-block">G1: システムは安全に運用できる
+→ S1
+
+S1: システム安全と運用リスク制御に分けた議論
+→ G2, G3
+
+G2: システムは設計上安全である
+→ Sn1
+
+Sn1: 設計レビュー完了報告書</div>
+      
+      <p><strong>要素タイプ：</strong></p>
+      <ul>
+        <li><code>G</code>: Goal（ゴール）</li>
+        <li><code>S</code>: Strategy（戦略）</li>
+        <li><code>C</code>: Context（コンテキスト）</li>
+        <li><code>Sn</code>: Solution（ソリューション/エビデンス）</li>
+        <li><code>→</code>: 接続（親から子への関係）</li>
+      </ul>
+      
+      <!-- ===== 4. 全文使用の使いどころ ===== -->
+      <h2 id="fulltext-ja" class="section-anchor">4. 全文使用の使いどころ</h2>
+      
+      <p>「全文使用」オプションは、ファイルの全内容をそのままAIに渡す機能です。通常はRAG（関連部分の抽出）を使用しますが、以下のケースでは全文使用が効果的です。</p>
+      
+      <h3>✅ 全文使用が効果的なケース</h3>
+      <ul>
+        <li><strong>GSNファイル</strong> — 構造的な関係性が重要なため</li>
+        <li><strong>数値データ（CSV/Excel）</strong> — 表全体の文脈が必要な場合</li>
+        <li><strong>小容量ファイル（〜5,000文字）</strong> — 全文でもコスト影響が小さい</li>
+        <li><strong>重要な仕様書</strong> — 詳細を漏らさず含めたい場合</li>
+      </ul>
+      
+      <h3>❌ 全文使用を避けるべきケース</h3>
+      <ul>
+        <li><strong>大容量ファイル（5万文字以上）</strong> — コストが高くなる</li>
+        <li><strong>複数の大きなファイル</strong> — コンテキスト制限を超える可能性</li>
+        <li><strong>関連性の低い部分が多いファイル</strong> — RAGで必要部分のみ抽出した方が効率的</li>
+      </ul>
+      
+      <div class="warning-box">
+        <p><strong>⚠️ 制限事項</strong></p>
+        <p>• 1ファイルあたり最大 <strong>50,000文字</strong>（超過分は切り詰め）</p>
+        <p>• 大きいファイル（5万文字以上）の全文使用は <strong>最大2個</strong>まで</p>
+      </div>
+      
+      <!-- ===== 5. チャンキングについて ===== -->
+      <h2 id="chunking-ja" class="section-anchor">5. チャンキングについて（専門家向け）</h2>
+      
+      <p>本ツールでは、ドキュメントを効率的に処理するために高度なチャンキング（分割）戦略を採用しています。</p>
+      
+      <h3>構造認識型チャンキング</h3>
+      <p>ドキュメントの構造（見出し、セクション）を認識し、意味的なまとまりを保ったまま分割します。</p>
+      
+      <div class="method-card">
+        <h3>処理フロー</h3>
+        <ol>
+          <li><strong>Markdown変換</strong> — DOCX/HTML/TXT → Markdown形式に統一</li>
+          <li><strong>構造抽出</strong> — 見出し（#, ##, ###）でセクション分割</li>
+          <li><strong>表の保護</strong> — Markdownテーブルは分割せず1チャンクとして保持</li>
+          <li><strong>Max-Min チャンキング</strong> — 大きなセクションは意味的境界で分割</li>
+        </ol>
+      </div>
+      
+      <h3>チャンキング設定</h3>
+      <table class="format-table">
+        <thead>
+          <tr>
+            <th>パラメータ</th>
+            <th>値</th>
+            <th>説明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>MIN_SECTION_SIZE</td>
+            <td>300文字</td>
+            <td>これ以下のセクションは次と結合</td>
+          </tr>
+          <tr>
+            <td>MAX_SECTION_SIZE</td>
+            <td>1,200文字</td>
+            <td>これを超えたらMax-Minで分割</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3>保護される構造</h3>
+      <ul>
+        <li><strong>Markdownテーブル</strong> — <code>| ... | ... |</code> 形式</li>
+        <li><strong>図表番号</strong> — 「表1」「Figure 2」などのキャプション</li>
+        <li><strong>安全性ID</strong> — H-001, SR-101, R-001 などは <strong>太字</strong> で強調</li>
+      </ul>
+      
+      <div class="info-box">
+        <p><strong>💡 品質向上のポイント</strong></p>
+        <p>構造が明確なファイル形式（DOCX, Markdown）を使用すると、チャンキングの精度が向上し、検索時に適切なコンテキストが取得されやすくなります。</p>
+      </div>
+      
+      <a href="/" class="back-link">← アプリに戻る</a>
+    </div>
+    
+    <!-- ==================== English Content ==================== -->
+    <div id="content-en" class="lang-en">
+      <h1>📚 Upload Guide</h1>
+      <p class="intro">Tips and recommended settings for file uploads to maximize report quality.</p>
+      
+      <!-- Table of Contents -->
+      <nav class="toc">
+        <h3>📋 Table of Contents</h3>
+        <ul>
+          <li><a href="#format-en">1. Recommended File Formats</a></li>
+          <li><a href="#pdf-conversion-en">2. PDF Conversion Guide</a></li>
+          <li><a href="#gsn-en">3. Recommended GSN File Settings</a></li>
+          <li><a href="#fulltext-en">4. When to Use Full Text</a></li>
+          <li><a href="#chunking-en">5. About Chunking (Advanced)</a></li>
+        </ul>
+      </nav>
+      
+      <!-- ===== 1. Recommended File Formats ===== -->
+      <h2 id="format-en" class="section-anchor">1. Recommended File Formats</h2>
+      
+      <p>The file format affects how accurately AI can understand document structure (tables, headings, lists).</p>
+      
+      <table class="format-table">
+        <thead>
+          <tr>
+            <th>Format</th>
+            <th>Structure</th>
+            <th>Rating</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Markdown (.md)</strong></td>
+            <td>◎ Complete</td>
+            <td>⭐⭐⭐</td>
+            <td>Highly recommended. Clear structure</td>
+          </tr>
+          <tr>
+            <td><strong>Word (.docx)</strong></td>
+            <td>◎ Complete</td>
+            <td>⭐⭐⭐</td>
+            <td>Tables & headings accurately recognized</td>
+          </tr>
+          <tr>
+            <td><strong>HTML (.html)</strong></td>
+            <td>○ Good</td>
+            <td>⭐⭐</td>
+            <td>Good for web page conversions</td>
+          </tr>
+          <tr>
+            <td><strong>Text (.txt)</strong></td>
+            <td>△ Partial</td>
+            <td>⭐</td>
+            <td>Tab-separated tables are recognized</td>
+          </tr>
+          <tr>
+            <td><strong>CSV / Excel</strong></td>
+            <td>◎ Complete</td>
+            <td>⭐⭐⭐</td>
+            <td>Best for tabular data</td>
+          </tr>
+          <tr>
+            <td><strong>PDF (.pdf)</strong></td>
+            <td>× Lost</td>
+            <td>Not Recommended</td>
+            <td>Conversion recommended</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div class="success-box">
+        <p><strong>💡 Tip</strong></p>
+        <p>For the same content, uploading DOCX or Markdown instead of PDF will result in more accurate recognition of tables and headings, producing higher quality reports.</p>
+      </div>
+      
+      <!-- ===== 2. PDF Conversion Guide ===== -->
+      <h2 id="pdf-conversion-en" class="section-anchor">2. PDF Conversion Guide</h2>
+      
+      <div class="warning-box">
+        <p><strong>⚠️ Why is PDF conversion necessary?</strong></p>
+        <p>PDF format tends to lose structural information (tables, headings, lists), making it difficult for AI to accurately understand documents. Converting to DOCX or Markdown format significantly improves report accuracy.</p>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📝</span> Method 1: Via Google Docs
+          <span class="badge badge-recommended">Recommended</span>
+          <span class="badge badge-free">Free</span>
+        </h3>
+        <ol>
+          <li>Go to <strong>Google Drive</strong> (<a href="https://drive.google.com" target="_blank">drive.google.com</a>)</li>
+          <li>Upload your PDF file</li>
+          <li>Right-click the PDF → <strong>"Open with"</strong> → <strong>"Google Docs"</strong></li>
+          <li>Once opened, click <strong>"File"</strong> → <strong>"Download"</strong></li>
+          <li>Select <strong>"Markdown (.md)"</strong> or <strong>"Microsoft Word (.docx)"</strong></li>
+          <li>Upload the downloaded file</li>
+        </ol>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📘</span> Method 2: Microsoft Word
+        </h3>
+        <ol>
+          <li>Open Microsoft Word</li>
+          <li><strong>"File"</strong> → <strong>"Open"</strong> → Select the PDF file</li>
+          <li>Click <strong>"OK"</strong> when prompted to convert PDF to editable Word document</li>
+          <li><strong>"File"</strong> → <strong>"Save As"</strong></li>
+          <li>Set format to <strong>"Word Document (.docx)"</strong> and save</li>
+          <li>Upload the saved .docx file</li>
+        </ol>
+      </div>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">📁</span> Method 3: Use Original DOCX
+        </h3>
+        <p>If you have the original Word document (.docx) or Markdown file (.md) that was used to create the PDF, upload that instead of the PDF. The original file retains complete structural information.</p>
+      </div>
+      
+      <!-- ===== 3. GSN File Settings ===== -->
+      <h2 id="gsn-en" class="section-anchor">3. Recommended GSN File Settings</h2>
+      
+      <p>GSN (Goal Structuring Notation) files are important documents representing safety argument structures. Proper settings improve report quality.</p>
+      
+      <div class="info-box">
+        <p><strong>📌 Recommended GSN Settings</strong></p>
+        <p>• Enable <strong>"GSN" checkbox</strong> → Adds GSN analysis section to report structure</p>
+        <p>• Enable <strong>"Full Text"</strong> → Recommended because GSN structure is important</p>
+      </div>
+      
+      <h3>Creating GSN Files</h3>
+      
+      <div class="method-card">
+        <h3>
+          <span class="emoji">🛠️</span> Using D-Case Communicator
+          <span class="badge badge-recommended">Recommended</span>
+        </h3>
+        <ol>
+          <li>Create GSN in <a href="https://www.matsulab.org/dcase/login.html" target="_blank">D-Case Communicator</a></li>
+          <li>Export using <strong>"Export LLM Input Text"</strong> feature</li>
+          <li>Upload the exported text file</li>
+        </ol>
+      </div>
+      
+      <h3>Manual GSN Text Format</h3>
+      
+      <div class="code-block">G1: The system can operate safely
+→ S1
+
+S1: Discussion divided into system safety and operational risk control
+→ G2, G3
+
+G2: The system is safe by design
+→ Sn1
+
+Sn1: Design review completion report</div>
+      
+      <p><strong>Element Types:</strong></p>
+      <ul>
+        <li><code>G</code>: Goal</li>
+        <li><code>S</code>: Strategy</li>
+        <li><code>C</code>: Context</li>
+        <li><code>Sn</code>: Solution (Evidence)</li>
+        <li><code>→</code>: Connection (parent to child relationship)</li>
+      </ul>
+      
+      <!-- ===== 4. Full Text Usage ===== -->
+      <h2 id="fulltext-en" class="section-anchor">4. When to Use Full Text</h2>
+      
+      <p>The "Full Text" option passes the entire file content to AI. Normally RAG (extracting relevant parts) is used, but full text is effective in these cases:</p>
+      
+      <h3>✅ When Full Text is Effective</h3>
+      <ul>
+        <li><strong>GSN files</strong> — Structural relationships are important</li>
+        <li><strong>Numerical data (CSV/Excel)</strong> — When full table context is needed</li>
+        <li><strong>Small files (~5,000 characters)</strong> — Low cost impact</li>
+        <li><strong>Important specifications</strong> — When you need to include all details</li>
+      </ul>
+      
+      <h3>❌ When to Avoid Full Text</h3>
+      <ul>
+        <li><strong>Large files (50,000+ characters)</strong> — Higher cost</li>
+        <li><strong>Multiple large files</strong> — May exceed context limits</li>
+        <li><strong>Files with many irrelevant parts</strong> — RAG extraction is more efficient</li>
+      </ul>
+      
+      <div class="warning-box">
+        <p><strong>⚠️ Limitations</strong></p>
+        <p>• Maximum <strong>50,000 characters</strong> per file (excess is truncated)</p>
+        <p>• Full text for large files (50,000+ chars) limited to <strong>2 files max</strong></p>
+      </div>
+      
+      <!-- ===== 5. About Chunking ===== -->
+      <h2 id="chunking-en" class="section-anchor">5. About Chunking (Advanced)</h2>
+      
+      <p>This tool uses advanced chunking (splitting) strategies for efficient document processing.</p>
+      
+      <h3>Structure-Aware Chunking</h3>
+      <p>Recognizes document structure (headings, sections) and splits while maintaining semantic coherence.</p>
+      
+      <div class="method-card">
+        <h3>Processing Flow</h3>
+        <ol>
+          <li><strong>Markdown Conversion</strong> — DOCX/HTML/TXT → Unified Markdown format</li>
+          <li><strong>Structure Extraction</strong> — Section splitting by headings (#, ##, ###)</li>
+          <li><strong>Table Protection</strong> — Markdown tables kept as single chunks</li>
+          <li><strong>Max-Min Chunking</strong> — Large sections split at semantic boundaries</li>
+        </ol>
+      </div>
+      
+      <h3>Chunking Configuration</h3>
+      <table class="format-table">
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Value</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>MIN_SECTION_SIZE</td>
+            <td>300 chars</td>
+            <td>Sections smaller than this are merged</td>
+          </tr>
+          <tr>
+            <td>MAX_SECTION_SIZE</td>
+            <td>1,200 chars</td>
+            <td>Sections larger than this are split</td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <h3>Protected Structures</h3>
+      <ul>
+        <li><strong>Markdown Tables</strong> — <code>| ... | ... |</code> format</li>
+        <li><strong>Figure/Table Numbers</strong> — Captions like "Table 1", "Figure 2"</li>
+        <li><strong>Safety IDs</strong> — H-001, SR-101, R-001 etc. are <strong>bolded</strong></li>
+      </ul>
+      
+      <div class="info-box">
+        <p><strong>💡 Quality Improvement Tip</strong></p>
+        <p>Using file formats with clear structure (DOCX, Markdown) improves chunking accuracy and retrieves more appropriate context during search.</p>
+      </div>
+      
+      <a href="/" class="back-link">← Back to App</a>
+    </div>
+  </div>
+  
+  <script>
+    function setLang(lang) {
+      document.getElementById('content-ja').classList.toggle('active', lang === 'ja');
+      document.getElementById('content-en').classList.toggle('active', lang === 'en');
+      document.getElementById('btn-ja').classList.toggle('active', lang === 'ja');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      localStorage.setItem('upload-guide-lang', lang);
+    }
+    
+    // 保存された言語設定を復元
+    const savedLang = localStorage.getItem('upload-guide-lang');
+    if (savedLang) {
+      setLang(savedLang);
+    }
+    
+    // URLハッシュでセクションにジャンプ（言語別）
+    function handleHashNavigation() {
+      const hash = window.location.hash;
+      if (hash) {
+        // 言語サフィックスがない場合は現在の言語に合わせる
+        const currentLang = document.getElementById('content-ja').classList.contains('active') ? 'ja' : 'en';
+        let targetId = hash.substring(1);
+        
+        // 言語サフィックスがない場合は追加
+        if (!targetId.endsWith('-ja') && !targetId.endsWith('-en')) {
+          targetId = targetId + '-' + currentLang;
+        }
+        
+        const targetElement = document.getElementById(targetId);
+        if (targetElement) {
+          targetElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      }
+    }
+    
+    // ページ読み込み時とハッシュ変更時に実行
+    window.addEventListener('load', handleHashNavigation);
+    window.addEventListener('hashchange', handleHashNavigation);
+  </script>
+</body>
+</html>
