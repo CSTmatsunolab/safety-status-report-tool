@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDFをMarkdownに変換する方法</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+      line-height: 1.8;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f8fafc;
+      color: #1e293b;
+    }
+    h1 {
+      color: #0f172a;
+      border-bottom: 3px solid #3b82f6;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+    h2 {
+      color: #1e40af;
+      margin-top: 40px;
+      margin-bottom: 16px;
+    }
+    .warning-box {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 16px 20px;
+      margin: 24px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .warning-box h3 {
+      color: #b45309;
+      margin: 0 0 8px 0;
+    }
+    .info-box {
+      background: #dbeafe;
+      border-left: 4px solid #3b82f6;
+      padding: 16px 20px;
+      margin: 24px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .info-box h3 {
+      color: #1d4ed8;
+      margin: 0 0 8px 0;
+    }
+    .method-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 24px;
+      margin: 20px 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .method-card h3 {
+      color: #0f172a;
+      margin-top: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .method-card .badge {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    .badge-recommended {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .badge-alternative {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      padding: 0;
+    }
+    .steps li {
+      counter-increment: step;
+      padding: 12px 0 12px 48px;
+      position: relative;
+      border-left: 2px solid #e2e8f0;
+      margin-left: 16px;
+    }
+    .steps li:last-child {
+      border-left: 2px solid transparent;
+    }
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: -17px;
+      top: 10px;
+      width: 32px;
+      height: 32px;
+      background: #3b82f6;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .steps li strong {
+      color: #0f172a;
+    }
+    code {
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 14px;
+    }
+    .screenshot-placeholder {
+      background: #f1f5f9;
+      border: 2px dashed #cbd5e1;
+      border-radius: 8px;
+      padding: 40px;
+      text-align: center;
+      color: #64748b;
+      margin: 16px 0;
+    }
+    .tip {
+      background: #f0fdf4;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .tip::before {
+      content: "💡 ";
+    }
+    a {
+      color: #2563eb;
+    }
+    a:hover {
+      text-decoration: none;
+    }
+    .back-button {
+      display: inline-block;
+      margin-top: 40px;
+      padding: 12px 24px;
+      background: #3b82f6;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: 500;
+    }
+    .back-button:hover {
+      background: #2563eb;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      border: 1px solid #e2e8f0;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background: #f8fafc;
+      font-weight: 600;
+    }
+    .comparison-good {
+      color: #166534;
+    }
+    .comparison-bad {
+      color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <h1>📄 PDFをMarkdownに変換する方法</h1>
+
+  <div class="warning-box">
+    <h3>⚠️ なぜPDFの直接アップロードは推奨されないのか</h3>
+    <p>PDF形式は<strong>視覚的なレイアウト</strong>を保持するための形式であり、<strong>文書構造（見出し、表、リスト）</strong>の情報が失われています。そのため：</p>
+    <ul>
+      <li>表がバラバラのテキストになる</li>
+      <li>見出しと本文の区別がつかない</li>
+      <li>箇条書きが認識されない</li>
+      <li>ID（H-101, SR-103など）の対応関係が崩れる</li>
+    </ul>
+  </div>
+
+  <div class="info-box">
+    <h3>✅ 推奨フォーマット</h3>
+    <p><strong>DOCX形式</strong>または<strong>Markdown形式</strong>でアップロードしてください。同じ文書のDOCX版がある場合は、そちらを使用することで精度が大幅に向上します。</p>
+  </div>
+
+  <h2>変換方法の比較</h2>
+  
+  <table>
+    <thead>
+      <tr>
+        <th>方法</th>
+        <th>精度</th>
+        <th>表の保持</th>
+        <th>難易度</th>
+        <th>コスト</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Google Docs経由</strong></td>
+        <td class="comparison-good">◎ 高い</td>
+        <td class="comparison-good">◎ 保持</td>
+        <td>簡単</td>
+        <td>無料</td>
+      </tr>
+      <tr>
+        <td><strong>Microsoft Word</strong></td>
+        <td class="comparison-good">◎ 高い</td>
+        <td class="comparison-good">◎ 保持</td>
+        <td>簡単</td>
+        <td>有料</td>
+      </tr>
+      <tr>
+        <td><strong>Adobe Acrobat</strong></td>
+        <td class="comparison-good">◎ 高い</td>
+        <td class="comparison-good">◎ 保持</td>
+        <td>簡単</td>
+        <td>有料</td>
+      </tr>
+      <tr>
+        <td><strong>PDF直接アップロード</strong></td>
+        <td class="comparison-bad">△ 低い</td>
+        <td class="comparison-bad">✕ 崩れる</td>
+        <td>-</td>
+        <td>-</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>方法1: Google Docs経由（推奨）</h2>
+
+  <div class="method-card">
+    <h3>
+      <span>Google Docsで変換</span>
+      <span class="badge badge-recommended">推奨</span>
+    </h3>
+    <p>無料で高精度な変換が可能です。表やリストも正しく認識されます。</p>
+    
+    <ol class="steps">
+      <li>
+        <strong>Google Driveにアクセス</strong><br>
+        <a href="https://drive.google.com" target="_blank">https://drive.google.com</a> を開く
+      </li>
+      <li>
+        <strong>PDFをアップロード</strong><br>
+        PDFファイルをドラッグ＆ドロップ、または「新規」→「ファイルのアップロード」
+      </li>
+      <li>
+        <strong>Googleドキュメントで開く</strong><br>
+        アップロードしたPDFを右クリック →「アプリで開く」→「Googleドキュメント」
+      </li>
+      <li>
+        <strong>Markdownでダウンロード</strong><br>
+        「ファイル」→「ダウンロード」→「Markdown (.md)」を選択
+        <div class="tip">
+          Markdownオプションがない場合は「Microsoft Word (.docx)」でダウンロードしてください。DOCXも高精度で処理できます。
+        </div>
+      </li>
+      <li>
+        <strong>変換したファイルをアップロード</strong><br>
+        ダウンロードした <code>.md</code> または <code>.docx</code> ファイルをアップロード
+      </li>
+    </ol>
+  </div>
+
+  <h2>方法2: Microsoft Word</h2>
+
+  <div class="method-card">
+    <h3>
+      <span>Wordで変換</span>
+      <span class="badge badge-alternative">代替</span>
+    </h3>
+    <p>Microsoft 365またはWord 2013以降で可能です。</p>
+    
+    <ol class="steps">
+      <li>
+        <strong>WordでPDFを開く</strong><br>
+        Wordを起動 →「ファイル」→「開く」→ PDFファイルを選択
+      </li>
+      <li>
+        <strong>変換確認</strong><br>
+        「PDFからWordに変換します」というダイアログが表示されたら「OK」
+      </li>
+      <li>
+        <strong>DOCXで保存</strong><br>
+        「ファイル」→「名前を付けて保存」→「Word文書 (.docx)」形式で保存
+      </li>
+      <li>
+        <strong>DOCXファイルをアップロード</strong><br>
+        保存した <code>.docx</code> ファイルをアップロード
+      </li>
+    </ol>
+  </div>
+
+  <h2>方法3: Adobe Acrobat</h2>
+
+  <div class="method-card">
+    <h3>
+      <span>Acrobatで変換</span>
+      <span class="badge badge-alternative">代替</span>
+    </h3>
+    <p>Adobe Acrobat Pro（有料）で可能です。</p>
+    
+    <ol class="steps">
+      <li>
+        <strong>PDFを開く</strong><br>
+        Adobe AcrobatでPDFを開く
+      </li>
+      <li>
+        <strong>書き出し</strong><br>
+        「ファイル」→「書き出し」→「Microsoft Word」→「Word文書」
+      </li>
+      <li>
+        <strong>DOCXファイルをアップロード</strong><br>
+        書き出した <code>.docx</code> ファイルをアップロード
+      </li>
+    </ol>
+  </div>
+
+  <h2>よくある質問</h2>
+
+  <div class="method-card">
+    <h3>Q: 元のDOCXファイルがあります</h3>
+    <p><strong>A: そちらを使ってください！</strong> PDFを変換するよりも、元のDOCXをそのままアップロードする方が精度が高くなります。</p>
+  </div>
+
+  <div class="method-card">
+    <h3>Q: スキャンしたPDF（画像PDF）です</h3>
+    <p><strong>A: OCRが必要です。</strong> Google DocsまたはAdobe Acrobatで開くと、自動的にOCR（文字認識）が実行されます。ただし、表の構造は崩れる可能性があります。</p>
+  </div>
+
+  <div class="method-card">
+    <h3>Q: 変換が面倒です</h3>
+    <p><strong>A: 一度だけの作業です。</strong> 変換したDOCX/MDファイルを保存しておけば、次回以降はそのまま使えます。レポートの精度が大幅に向上するため、ぜひお試しください。</p>
+  </div>
+
+  <a href="javascript:history.back()" class="back-button">← 戻る</a>
+
+</body>
+</html>
