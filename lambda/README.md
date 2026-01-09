@@ -1,4 +1,4 @@
-# Lambda SSR Generator
+# Lambda SSR Reporter
 
 Safety Status Report を生成する AWS Lambda Function です。ストリーミングレスポンスに対応しています。
 

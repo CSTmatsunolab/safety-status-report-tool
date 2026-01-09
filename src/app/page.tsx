@@ -540,6 +540,13 @@ export default function Home() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
             <Link href="/" className="flex items-center gap-3">
+              <Image
+                src="/D-CaseMark.png"
+                alt="D-Case Mark"
+                width={64}
+                height={64}
+                className="w-14 h-14 sm:w-16 sm:h-16"
+              />
               <span>{t('app.title')}</span>
             </Link>
           </h1>
@@ -564,7 +571,7 @@ export default function Home() {
                   href="/upload-guide.html"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center text-sm text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                  className="inline-flex items-center text-sm text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors"
                   title={language === 'en' ? 'Tips for better quality' : '品質向上のヒント'}
                 >
                   <FiHelpCircle size={20} />

@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Safety Generator",
+  title: "Safety Reporter",
   description: "RAGを活用したSafety Reportの自動生成システム",
 };
 

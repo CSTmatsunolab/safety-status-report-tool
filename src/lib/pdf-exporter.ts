@@ -364,9 +364,9 @@ function createReportDocument(
     Document,
     {
       title: report.title,
-      author: 'Safety Status Report Generator',
+      author: 'Safety Reporter',
       subject: `Report for ${report.stakeholder.role}`,
-      creator: 'Safety Status Report Generator',
+      creator: 'Safety Reporter',
     } as DocumentProps,
     pageElement
   ) as React.ReactElement<DocumentProps>;

@@ -166,7 +166,7 @@ export default function StakeholderSettings() {
 
   // 言語に応じたテキスト
   const t = {
-    pageTitle: 'Safety Generator',
+    pageTitle: 'Safety Reporter',
     settingsTitle: language === 'en' ? 'Stakeholder Settings' : 'ステークホルダー設定',
     addNew: language === 'en' ? 'Add New Stakeholder' : '新しいステークホルダーを追加',
     id: 'ID',

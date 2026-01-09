@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "Safety Status Report Generator"
+    "title": "Safety Reporter"
   },
   "menu": {
     "stakeholderSettings": "Stakeholder Settings",
