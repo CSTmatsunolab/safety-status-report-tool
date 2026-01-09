@@ -6,6 +6,8 @@ import { I18nProvider } from "./components/I18nProvider";
 import { AuthProvider } from "./components/AuthProvider";
 import { ZoomProvider } from "./components/ZoomProvider";
 import { ZoomControl } from "./components/ZoomControl";
+import { Header } from "./components/Header";
+import { Footer } from "./components/Footer";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -41,8 +43,14 @@ export default function RootLayout({
         >
           <I18nProvider defaultLanguage="ja">
             <AuthProvider>
-              <ZoomProvider> 
-                {children}
+              <ZoomProvider>
+                <div className="min-h-screen flex flex-col">
+                  <Header />
+                  <main className="flex-grow">
+                    {children}
+                  </main>
+                  <Footer />
+                </div>
                 <ZoomControl /> 
               </ZoomProvider>
             </AuthProvider>

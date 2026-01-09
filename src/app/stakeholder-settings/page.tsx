@@ -6,7 +6,6 @@ import { Stakeholder } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
 import { FiPlus, FiTrash2, FiX, FiCloud, FiHardDrive, FiLoader } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
-import { SettingsMenu } from '../components/SettingsMenu';
 import { useUserSettings } from '@/hooks/useUserSettings';
 
 export default function StakeholderSettings() {
@@ -166,7 +165,6 @@ export default function StakeholderSettings() {
 
   // 言語に応じたテキスト
   const t = {
-    pageTitle: 'Safety Reporter',
     settingsTitle: language === 'en' ? 'Stakeholder Settings' : 'ステークホルダー設定',
     addNew: language === 'en' ? 'Add New Stakeholder' : '新しいステークホルダーを追加',
     id: 'ID',
@@ -199,30 +197,20 @@ export default function StakeholderSettings() {
   // ローディング中の表示
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+      <div className="bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
           <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
             <FiLoader className="animate-spin" size={24} />
             <span>{t.loading}</span>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+    <div className="bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* ヘッダー */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-            <Link href="/">{t.pageTitle}</Link>
-          </h1>
-          <div className="flex items-center gap-4">
-            <SettingsMenu />
-          </div>
-        </div>
-        
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             {t.settingsTitle}
@@ -457,6 +445,6 @@ export default function StakeholderSettings() {
           </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

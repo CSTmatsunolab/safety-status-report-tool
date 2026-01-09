@@ -1,12 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import Image from 'next/image';
 import { FileUpload } from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
 import ReportPreview from './components/ReportPreview';
-import { SettingsMenu } from './components/SettingsMenu';
 import { useI18n } from './components/I18nProvider';
 import { useAuth } from './components/AuthProvider';
 import { GenerationProgress } from './components/GenerationProgress';
@@ -19,7 +17,7 @@ import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
-import { FiSave, FiCheck, FiHelpCircle} from 'react-icons/fi';
+import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle } from 'react-icons/fi';
 
 export default function Home() {
   const { t, language } = useI18n();
@@ -488,6 +486,9 @@ export default function Home() {
     }
 
     // レポート生成を実行
+    setGeneratedReport(null); // 前回のレポートをクリア
+    setSaveStatus('idle'); // 保存状態もリセット
+    
     const report = await generateReportBySection({
       files,
       stakeholder: selectedStakeholder,
@@ -498,7 +499,6 @@ export default function Home() {
 
     if (report) {
       setGeneratedReport(report);
-      setSaveStatus('idle'); // 新しいレポートが生成されたらリセット
     }
   };
 
@@ -521,7 +521,7 @@ export default function Home() {
   // ローディング中の表示
   if (isSettingsLoading) {
     return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="bg-gray-50 dark:bg-gray-900 transition-colors">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex items-center justify-center h-64">
             <div className="text-gray-500 dark:text-gray-400">
@@ -529,34 +529,112 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* ヘッダー */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white transition-colors">
-            <Link href="/" className="flex items-center gap-3">
-              <Image
-                src="/D-CaseMark.png"
-                alt="D-Case Mark"
-                width={64}
-                height={64}
-                className="w-14 h-14 sm:w-16 sm:h-16"
-              />
-              <span>{t('app.title')}</span>
-            </Link>
-          </h1>
-          <SettingsMenu />
+    <div className="bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="w-full max-w-[1920px] mx-auto px-12 sm:px-16 lg:px-24 py-8">
+        {/* ステップインジケーター */}
+        <div className="mb-8">
+          <div className="flex items-center justify-center gap-2 sm:gap-4">
+            {/* Step 1 */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all ${
+              files.length > 0 
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' 
+                : 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                files.length > 0 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-blue-500 text-white'
+              }`}>
+                {files.length > 0 ? <FiCheck size={14} /> : '1'}
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">
+                {language === 'en' ? 'Upload' : 'アップロード'}
+              </span>
+            </div>
+
+            <div className={`w-8 h-0.5 ${selectedStakeholder ? 'bg-green-400 dark:bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+
+            {/* Step 2 */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all ${
+              selectedStakeholder 
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' 
+                : files.length > 0
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                selectedStakeholder 
+                  ? 'bg-green-500 text-white' 
+                  : files.length > 0
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-400 text-white'
+              }`}>
+                {selectedStakeholder ? <FiCheck size={14} /> : '2'}
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">
+                {language === 'en' ? 'Stakeholder' : '対象者'}
+              </span>
+            </div>
+
+            <div className={`w-8 h-0.5 ${selectedStructure ? 'bg-green-400 dark:bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+
+            {/* Step 3 */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all ${
+              selectedStructure 
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' 
+                : selectedStakeholder
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                selectedStructure 
+                  ? 'bg-green-500 text-white' 
+                  : selectedStakeholder
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-400 text-white'
+              }`}>
+                {selectedStructure ? <FiCheck size={14} /> : '3'}
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">
+                {language === 'en' ? 'Structure' : '構成'}
+              </span>
+            </div>
+
+            <div className={`w-8 h-0.5 ${generatedReport ? 'bg-green-400 dark:bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
+
+            {/* Step 4 */}
+            <div className={`flex items-center gap-2 px-3 py-2 rounded-full transition-all ${
+              generatedReport 
+                ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' 
+                : selectedStructure
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+            }`}>
+              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                generatedReport 
+                  ? 'bg-green-500 text-white' 
+                  : selectedStructure
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-400 text-white'
+              }`}>
+                {generatedReport ? <FiCheck size={14} /> : '4'}
+              </div>
+              <span className="hidden sm:inline text-sm font-medium">
+                {language === 'en' ? 'Generate' : '生成'}
+              </span>
+            </div>
+          </div>
         </div>
         
-        {/* メインコンテンツ - 2カラムグリッド */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 lg:gap-8">
+        {/* メインコンテンツ - レスポンシブグリッド（1列→2列→3列） */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] lg:grid-cols-3 gap-6">
           {/* 左側：入力セクション */}
-          <div className="space-y-6 mb-8 xl:mb-0">
+          <div className="space-y-6 min-w-0 overflow-hidden md:col-start-1 lg:col-start-1">
             {/* 1. データアップロード */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               <div className="flex items-center justify-between mb-4">
@@ -616,28 +694,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* 3. レポート構成選択 */}
-            {selectedStakeholder && (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
-                <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
-                  selectedStructure 
-                    ? 'text-gray-900 dark:text-white' 
-                    : 'text-gray-400 dark:text-gray-500'
-                }`}>
-                  {t('steps.reportStructure')}
-                </h2>
-                <ReportStructureSelector
-                  selectedStructure={selectedStructure}
-                  onSelect={setSelectedStructure}
-                  recommendedStructureId={recommendedStructureId}
-                  customStructures={customStructures}
-                  onAddCustomStructure={handleAddCustomStructure}
-                  onDeleteCustomStructure={handleDeleteCustomStructure}
-                  files={files}
-                />
-              </div>
-            )}
-
             {/* エラーメッセージ表示 */}
             {errorMessage && (
               <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -681,6 +737,30 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 中央：レポート構成選択 */}
+          <div className="space-y-6 min-w-0 overflow-hidden md:col-start-1 lg:col-start-2">
+            <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all ${
+              !selectedStakeholder ? 'opacity-50 pointer-events-none' : ''
+            }`}>
+              <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${
+                selectedStructure 
+                  ? 'text-gray-900 dark:text-white' 
+                  : 'text-gray-400 dark:text-gray-500'
+              }`}>
+                {t('steps.reportStructure')}
+              </h2>
+              <ReportStructureSelector
+                selectedStructure={selectedStructure}
+                onSelect={setSelectedStructure}
+                recommendedStructureId={recommendedStructureId}
+                customStructures={customStructures}
+                onAddCustomStructure={handleAddCustomStructure}
+                onDeleteCustomStructure={handleDeleteCustomStructure}
+                files={files}
+              />
+            </div>
 
             {/* 生成進捗表示 */}
             {isSectionGenerating && progress && (
@@ -691,7 +771,7 @@ export default function Home() {
                 <GenerationProgress progress={progress} language={language} />
               </div>
             )}
-            
+
             {/* レポート生成ボタン */}
             <button
               onClick={handleGenerateReport}
@@ -713,7 +793,7 @@ export default function Home() {
           </div>
           
           {/* 右側：プレビューセクション */}
-          <div className="lg:sticky lg:top-8 h-fit">
+          <div className="min-w-0 overflow-hidden md:col-start-2 md:row-start-1 md:row-span-2 lg:col-start-3 lg:row-span-1 md:sticky md:top-8 h-fit">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               {/* カードヘッダー: タイトル + 保存ボタン */}
               <div className="flex items-center justify-between mb-4">
@@ -740,11 +820,41 @@ export default function Home() {
               {/* ストリーミング中のプレビュー */}
               {isSectionGenerating && streamingContent ? (
                 <StreamingPreview content={streamingContent} language={language} />
+              ) : isSectionGenerating && !streamingContent ? (
+                /* 生成開始直後のローディング表示 */
+                <div className="text-center py-12 sm:py-16">
+                  <div className="space-y-4">
+                    <div className="w-16 h-16 mx-auto bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center animate-pulse">
+                      <FiFileText size={28} className="text-blue-500 dark:text-blue-400" />
+                    </div>
+                    <div className="text-gray-500 dark:text-gray-400 space-y-2">
+                      <p className="text-base font-medium">
+                        {language === 'en' ? 'Preparing report generation...' : 'レポート生成を準備中...'}
+                      </p>
+                      <p className="text-sm">
+                        {language === 'en' ? 'This may take a moment' : 'しばらくお待ちください'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ) : generatedReport ? (
-                <ReportPreview 
-                  report={generatedReport} 
-                  onUpdate={setGeneratedReport}
-                />
+                <>
+                  {/* AI生成コンテンツに関する注意書き */}
+                  <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <FiAlertTriangle className="text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0" size={16} />
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        {language === 'en' 
+                          ? 'This report was generated by AI. Please review the content carefully and verify all facts before use.'
+                          : '本レポートはAIによって生成されています。内容を必ず確認し、事実確認を行った上でご利用ください。'}
+                      </p>
+                    </div>
+                  </div>
+                  <ReportPreview 
+                    report={generatedReport} 
+                    onUpdate={setGeneratedReport}
+                  />
+                </>
               ) : (
                 <div className="text-center py-12 sm:py-16">
                   <div className="text-gray-400 dark:text-gray-500 space-y-2">
@@ -757,13 +867,13 @@ export default function Home() {
                     />
                     <p className="text-base sm:text-base">{t('report.previewEmpty')}</p>
                     <p className="text-base sm:text-base">{t('report.previewEmptyHint')}</p>
+                    </div>
+                    </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+    </div>
   );
 }

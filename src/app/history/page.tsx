@@ -21,7 +21,6 @@ import {
 } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useAuth } from '../components/AuthProvider';
-import { SettingsMenu } from '../components/SettingsMenu';
 import { useReportHistory, ReportMetadata } from '@/hooks/useReportHistory';
 
 type SortOrder = 'newest' | 'oldest';
@@ -125,7 +124,6 @@ export default function HistoryPage() {
   // テキスト
   const texts = {
     pageTitle: language === 'en' ? 'Report History' : 'レポート履歴',
-    appTitle: 'Safety Reporter',
     backToHome: language === 'en' ? 'Back to Home' : 'ホームに戻る',
     noReports: language === 'en' ? 'No reports saved yet' : '保存されたレポートはありません',
     noReportsHint: language === 'en' 
@@ -147,15 +145,8 @@ export default function HistoryPage() {
   // 未ログイン時
   if (authStatus === 'unauthenticated') {
     return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+      <div className="bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              <Link href="/">{texts.appTitle}</Link>
-            </h1>
-            <SettingsMenu />
-          </div>
-
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
             <FiAlertCircle className="mx-auto text-yellow-500 mb-4" size={48} />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -169,31 +160,24 @@ export default function HistoryPage() {
             </Link>
           </div>
         </div>
-      </main>
+      </div>
     );
   }
 
   // ローディング時
   if (authStatus === 'loading') {
     return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+      <div className="bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
           <FiLoader className="animate-spin text-gray-400" size={32} />
         </div>
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
+    <div className="bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* ヘッダー */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            <Link href="/">{texts.appTitle}</Link>
-          </h1>
-          <SettingsMenu />
-        </div>
 
         {/* サブヘッダー */}
         <div className="flex items-center justify-between mb-6">
@@ -444,6 +428,6 @@ export default function HistoryPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
