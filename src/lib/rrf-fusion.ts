@@ -7,6 +7,8 @@ import { createSparseVector } from './sparse-vector-utils';
 import { type ScoredPineconeRecord } from '@pinecone-database/pinecone';
 import { Stakeholder } from '@/types';
 
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
+
 /**
  * RRF設定インターフェース（シンプル化）
  * 
@@ -60,14 +62,14 @@ export async function performAdaptiveRRFSearch(
   
   // PineconeStoreかどうかを判定
   const isPinecone = vectorStore instanceof PineconeStore;
-  
-  console.log(`🎯 Adaptive RRF Search ${isPinecone ? '(Hybrid)' : '(Dense only)'}:`);
-  console.log(`  - Stakeholder: ${stakeholder.id}`);
-  console.log(`  - Queries: ${queries.length}`);
-  console.log(`  - Dynamic K (topK): ${dynamicK}`);
-  console.log(`  - Search K: ${searchK}`);
-  console.log(`  - Weights: [${weights.map(w => w.toFixed(1)).join(', ')}]`);
-  
+  if (DEBUG_LOGGING) {
+    console.log(`🎯 Adaptive RRF Search ${isPinecone ? '(Hybrid)' : '(Dense only)'}:`);
+    console.log(`  - Stakeholder: ${stakeholder.id}`);
+    console.log(`  - Queries: ${queries.length}`);
+    console.log(`  - Dynamic K (topK): ${dynamicK}`);
+    console.log(`  - Search K: ${searchK}`);
+    console.log(`  - Weights: [${weights.map(w => w.toFixed(1)).join(', ')}]`);
+  }
   // RRF検索の実行
   return executeRRFSearch(
     vectorStore,
@@ -180,9 +182,9 @@ async function executeRRFSearch(
   for (let queryIndex = 0; queryIndex < queries.length; queryIndex++) {
     const query = queries[queryIndex];
     const weight = weights[queryIndex] || 1.0;
-    
-    console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
-    
+    if (DEBUG_LOGGING) {
+      console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
+    }
     try {
       let results: Array<[Document, number]> = [];
       

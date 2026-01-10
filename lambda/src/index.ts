@@ -54,6 +54,7 @@ const s3Client = new S3Client({
 // 定数
 const MAX_CONTENT_CHARS_PER_FILE = 50000;
 const MAX_TOTAL_CONTEXT_CHARS = 100000;
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
 // 進捗メッセージの型
 interface StreamMessage {
@@ -156,14 +157,16 @@ async function streamHandler(
       httpResponseStream.end();
       return;
     }
-
-    console.log('Starting streaming report generation:', {
-      stakeholder: stakeholder.id,
-      sections: reportStructure.sections.length,
-      gsnSections: reportStructure.gsnSections?.length || 0,
-      files: files.length,
-      language
-    });
+    
+    if (DEBUG_LOGGING) {
+        console.log('Starting streaming report generation:', {
+          stakeholder: stakeholder.id,
+          sections: reportStructure.sections.length,
+          gsnSections: reportStructure.gsnSections?.length || 0,
+          files: files.length,
+          language
+        });
+    }
 
     // ステップ1: 開始
     sendMessage({
@@ -185,7 +188,7 @@ async function streamHandler(
     const indexName = process.env.PINECONE_INDEX_NAME || 'safety-status-report-tool';
     
     // デバッグモードの場合、クエリ拡張をログ出力
-    if (process.env.DEBUG_LOGGING === 'true') {
+    if (DEBUG_LOGGING) {
       debugQueryEnhancement(stakeholder, {
         maxQueries: 5,
         includeEnglish: true,
@@ -203,22 +206,23 @@ async function streamHandler(
       indexName,
       {
         enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
-        debug: process.env.DEBUG_LOGGING === 'true'
+        debug: DEBUG_LOGGING === 'true'
       }
     );
 
     const ragContent = ragResult.content;
 
     // 検索結果のログ
-    console.log('RRF Search completed:', {
-      documentsFound: ragResult.documents.length,
-      dynamicK: ragResult.metadata.dynamicK,
-      queriesUsed: ragResult.metadata.queriesUsed.length,
-      totalChunks: ragResult.metadata.totalChunks,
-      searchDuration: ragResult.metadata.searchDuration,
-      hybridEnabled: ragResult.metadata.hybridSearchEnabled
-    });
-
+    if (DEBUG_LOGGING) {
+      console.log('RRF Search completed:', {
+        documentsFound: ragResult.documents.length,
+        dynamicK: ragResult.metadata.dynamicK,
+        queriesUsed: ragResult.metadata.queriesUsed.length,
+        totalChunks: ragResult.metadata.totalChunks,
+        searchDuration: ragResult.metadata.searchDuration,
+        hybridEnabled: ragResult.metadata.hybridSearchEnabled
+      });
+    }
     // ステップ3: コンテキスト準備
     sendMessage({
       type: 'progress',
@@ -286,10 +290,10 @@ async function streamHandler(
     
     // GSNファイルがある場合、動的にセクションを追加
     const finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
-    
-    console.log('Final sections:', finalSections);
-    console.log('Has GSN:', hasGSNFile);
-
+    if (DEBUG_LOGGING) {
+      console.log('Final sections:', finalSections);
+      console.log('Has GSN:', hasGSNFile);
+    }
     const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
     const promptContent = promptBuilder({
       stakeholder,

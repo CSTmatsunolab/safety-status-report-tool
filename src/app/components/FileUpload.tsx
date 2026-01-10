@@ -12,7 +12,7 @@ import { useI18n } from './I18nProvider';
 
 // ファイルサイズの閾値
 const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - これ以上はS3経由
-
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 // ファイル数制限（Gateway Timeout対策）
 const MAX_FILES = 10;
 
@@ -803,10 +803,12 @@ export function FileUpload({ files, onUpload, onRemove, onToggleFullText, onTogg
           // ファイルタイプの判定（議事録やGSNの自動検出）
           const lowerFileName = file.name.toLowerCase();
           console.log(`File: ${file.name}, Method: ${extractionMethod}, Content length: ${content.length}${originalContentLength ? `, Original length: ${originalContentLength}` : ''}`);
-          if (content.length > 0) {
-            console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
-            console.log(content.substring(0, PREVIEW_LENGTH));
-            if (originalContentLength && originalContentLength > PREVIEW_LENGTH) console.log(`...(truncated from ${originalContentLength.toLocaleString()} chars)`);
+          if (DEBUG_LOGGING) {
+            if (content.length > 0) {
+              console.log(`Extracted text (first ${PREVIEW_LENGTH} chars): ${file.name}`);
+              console.log(content.substring(0, PREVIEW_LENGTH));
+              if (originalContentLength && originalContentLength > PREVIEW_LENGTH) console.log(`...(truncated from ${originalContentLength.toLocaleString()} chars)`);
+            }
           }
           const type = lowerFileName.includes('議事録') || lowerFileName.includes('minutes') ? 'minutes' : 'other';
           

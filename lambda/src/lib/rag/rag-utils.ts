@@ -3,6 +3,8 @@
 
 import { Stakeholder, RRFStatistics, DocumentWithScore } from './types';
 
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
+
 /**
  * 動的K値計算関数
  * ステークホルダーとドキュメント数に基づいて最適なK値を計算
@@ -49,16 +51,16 @@ export function getDynamicK(
   
   const maxK = limits[storeType] || 50;
   const finalK = Math.ceil(Math.min(maxK, Math.max(5, baseK * roleMultiplier)));
-  
-  console.log(`📊 Dynamic K calculation:
-    Total chunks: ${totalChunks}
-    Base K (30%): ${baseK}
-    Stakeholder: ${stakeholder.id}
-    Role multiplier: ${roleMultiplier}
-    Store limit (${storeType}): ${maxK}
-    Final K: ${finalK}
-  `);
-
+  if (DEBUG_LOGGING) {
+    console.log(`📊 Dynamic K calculation:
+      Total chunks: ${totalChunks}
+      Base K (30%): ${baseK}
+      Stakeholder: ${stakeholder.id}
+      Role multiplier: ${roleMultiplier}
+      Store limit (${storeType}): ${maxK}
+      Final K: ${finalK}
+    `);
+  }
   return finalK;
 }
 
@@ -328,15 +330,16 @@ export function logKAchievementRate(
   stakeholder: Stakeholder
 ): void {
   const achievementRate = (actualCount / targetK) * 100;
-  
-  console.log(`📊 K値達成率:
-    Target K: ${targetK}
-    Actual: ${actualCount}
-    Rate: ${achievementRate.toFixed(1)}%
-    Stakeholder: ${stakeholder.id}
-  `);
-  
-  if (achievementRate < 50) {
-    console.warn(`⚠️ K値達成率が50%未満です。ナレッジベースのドキュメント数を確認してください。`);
+  if (DEBUG_LOGGING) {
+    console.log(`📊 K値達成率:
+      Target K: ${targetK}
+      Actual: ${actualCount}
+      Rate: ${achievementRate.toFixed(1)}%
+      Stakeholder: ${stakeholder.id}
+    `);
+    
+    if (achievementRate < 50) {
+      console.warn(`⚠️ K値達成率が50%未満です。ナレッジベースのドキュメント数を確認してください。`);
+    }
   }
 }

@@ -19,6 +19,8 @@ import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
 import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle } from 'react-icons/fi';
 
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
+
 export default function Home() {
   const { t, language } = useI18n();
   const { getUserIdentifier, status: authStatus } = useAuth();
@@ -295,9 +297,9 @@ export default function Home() {
         setErrorMessage(errorMsg);
         throw new Error(result.error || 'Knowledge base building failed');
       }
-      
-      console.log('Knowledge base built:', result);
-      
+      if (DEBUG_LOGGING) {
+        console.log('Knowledge base built:', result);
+      }
       if (result.warnings && result.warnings.length > 0) {
         setWarningMessages(result.warnings);
       }
@@ -632,9 +634,17 @@ export default function Home() {
         </div>
         
         {/* メインコンテンツ - レスポンシブグリッド */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 gap-6 ${
+          generatedReport 
+            ? 'lg:grid-cols-3'
+            : 'md:grid-cols-[1fr_1fr] md:grid-rows-[auto_auto] lg:grid-cols-3 lg:grid-rows-1'
+        }`}>
           {/* 左側：入力セクション */}
-          <div className="space-y-6 min-w-0 overflow-hidden md:col-start-1 lg:col-start-1">
+          <div className={`space-y-6 min-w-0 overflow-hidden ${
+            generatedReport 
+              ? ''
+              : 'md:col-start-1 md:row-start-1 lg:col-start-1 lg:row-start-1'
+          }`}>
             {/* 1. データアップロード */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               <div className="flex items-center justify-between mb-4">
@@ -740,7 +750,11 @@ export default function Home() {
           </div>
 
           {/* 中央：レポート構成選択 */}
-          <div className="space-y-6 min-w-0 overflow-hidden md:col-start-1 lg:col-start-2">
+          <div className={`space-y-6 min-w-0 overflow-hidden ${
+            generatedReport 
+              ? ''
+              : 'md:col-start-1 md:row-start-2 lg:col-start-2 lg:row-start-1'
+          }`}>
             <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all ${
               !selectedStakeholder ? 'opacity-50 pointer-events-none' : ''
             }`}>
@@ -793,7 +807,11 @@ export default function Home() {
           </div>
           
           {/* 右側：プレビューセクション */}
-          <div className="min-w-0 overflow-hidden md:col-start-2 md:row-start-1 md:row-span-2 lg:col-start-3 lg:row-span-1 md:sticky md:top-8 h-fit">
+          <div className={`min-w-0 overflow-hidden ${
+            generatedReport 
+              ? 'lg:sticky lg:top-8 h-fit'
+              : 'md:col-start-2 md:row-start-1 md:row-span-2 lg:col-start-3 lg:row-start-1 lg:row-span-1 md:sticky md:top-8 h-fit'
+          }`}>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               {/* カードヘッダー: タイトル + 保存ボタン */}
               <div className="flex items-center justify-between mb-4">

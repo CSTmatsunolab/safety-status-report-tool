@@ -24,6 +24,7 @@ import { createSparseVectorAuto } from './sparse-vector-utils';
 // 設定
 // ============================================================
 
+const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 const DEFAULT_RRF_CONSTANT = 60;
 const DEFAULT_SEARCH_K_MULTIPLIER = 1.5;
 const MIN_SEARCH_K = 20;
@@ -104,16 +105,16 @@ export async function performAdaptiveRRFSearch(
     // 検索K値
     const { rrfConstant = DEFAULT_RRF_CONSTANT, searchK } = config;
     const actualSearchK = searchK || Math.max(MIN_SEARCH_K, Math.ceil(dynamicK * DEFAULT_SEARCH_K_MULTIPLIER));
-    
-    console.log(`🎯 Adaptive RRF Search ${enableHybridSearch ? '(Hybrid)' : '(Dense only)'}:`);
-    console.log(`  - Stakeholder: ${stakeholder.id} (${stakeholder.role})`);
-    console.log(`  - Namespace: ${namespace}`);
-    console.log(`  - Total chunks: ${totalChunks}`);
-    console.log(`  - Dynamic K (topK): ${dynamicK}`);
-    console.log(`  - Search K: ${actualSearchK}`);
-    console.log(`  - Queries: ${queries.length}`);
-    console.log(`  - Weights: [${weights.map(w => w.toFixed(1)).join(', ')}]`);
-    
+    if (DEBUG_LOGGING) {
+      console.log(`🎯 Adaptive RRF Search ${enableHybridSearch ? '(Hybrid)' : '(Dense only)'}:`);
+      console.log(`  - Stakeholder: ${stakeholder.id} (${stakeholder.role})`);
+      console.log(`  - Namespace: ${namespace}`);
+      console.log(`  - Total chunks: ${totalChunks}`);
+      console.log(`  - Dynamic K (topK): ${dynamicK}`);
+      console.log(`  - Search K: ${actualSearchK}`);
+      console.log(`  - Queries: ${queries.length}`);
+      console.log(`  - Weights: [${weights.map(w => w.toFixed(1)).join(', ')}]`);
+    }
     // RRF検索の実行
     const documents = await executeRRFSearch(
       openai,
@@ -136,9 +137,10 @@ export async function performAdaptiveRRFSearch(
     
     // K値達成率のログ
     logKAchievementRate(documents.length, dynamicK, stakeholder);
-    
-    console.log(`✅ RRF completed in ${searchDuration}ms: ${documents.length} documents returned`);
-    
+    if (DEBUG_LOGGING) {
+      console.log(`✅ RRF completed in ${searchDuration}ms: ${documents.length} documents returned`);
+    }
+
     return {
       content: documents.length > 0 ? formatSearchResults(documents) : null,
       documents,
@@ -190,9 +192,9 @@ async function executeRRFSearch(
   for (let queryIndex = 0; queryIndex < queries.length; queryIndex++) {
     const query = queries[queryIndex];
     const weight = weights[queryIndex] || 1.0;
-    
-    console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
-    
+    if (DEBUG_LOGGING) {
+      console.log(`  Query ${queryIndex + 1}: "${query.substring(0, 50)}..." (weight: ${weight.toFixed(1)})`);
+    }
     try {
       let matches: Array<{
         id: string;
