@@ -577,7 +577,7 @@ export default function Home() {
                 {selectedStakeholder ? <FiCheck size={14} /> : '2'}
               </div>
               <span className="hidden sm:inline text-sm font-medium">
-                {language === 'en' ? 'Stakeholder' : '対象者'}
+                {language === 'en' ? 'Stakeholder' : 'ステークホルダー'}
               </span>
             </div>
 
@@ -631,7 +631,7 @@ export default function Home() {
           </div>
         </div>
         
-        {/* メインコンテンツ - レスポンシブグリッド（1列→2列→3列） */}
+        {/* メインコンテンツ - レスポンシブグリッド */}
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] lg:grid-cols-3 gap-6">
           {/* 左側：入力セクション */}
           <div className="space-y-6 min-w-0 overflow-hidden md:col-start-1 lg:col-start-1">

@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTheme } from 'next-themes';
 import Link from 'next/link';
+import Image from 'next/image';
 import { 
   FiMenu, 
   FiX, 
@@ -20,7 +21,9 @@ import {
   FiExternalLink,
   FiHelpCircle,
   FiMessageSquare,
-  FiClock
+  FiClock,
+  FiFileText,
+  FiUpload
 } from 'react-icons/fi';
 import { useI18n, Language, languageNames } from './I18nProvider';
 import { useAuth } from './AuthProvider';
@@ -123,6 +126,9 @@ export function SettingsMenu() {
     feedbackDesc: language === 'en' ? 'Send feedback or suggestions' : 'ご意見・ご要望はこちら',
     gsnCreate: language === 'en' ? 'Create GSN here' : 'GSN作成はこちら',
     history: language === 'en' ? 'Report History' : 'レポート履歴',
+    reportStructureSettings: language === 'en' ? 'Report Structure Settings' : 'レポート構成設定',
+    uploadGuide: language === 'en' ? 'Upload Guide' : 'アップロードガイド',
+    uploadGuideDesc: language === 'en' ? 'Tips for better quality' : '品質向上のヒント',
   };
 
   if (!mounted) {
@@ -270,6 +276,22 @@ export function SettingsMenu() {
                   <span>{sectionText.history}</span>
                 </Link>
 
+                {/* Report Structure Settings */}
+                <Link
+                  href="/report-structure-settings"
+                  className="
+                    flex items-center gap-5 px-6 py-5
+                    text-gray-700 dark:text-gray-200
+                    hover:bg-gray-100 dark:hover:bg-gray-700
+                    transition-colors
+                    text-xl
+                  "
+                  onClick={() => setIsOpen(false)}
+                >
+                  <FiFileText className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  <span>{sectionText.reportStructureSettings}</span>
+                </Link>
+
                 {/* 一般設定セクション */}
                 <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-2">
                   <div className="px-6 py-3">
@@ -411,6 +433,48 @@ export function SettingsMenu() {
                     </div>
                     <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0" />
                   </a>
+
+                  {/* Upload Guide Link */}
+                  <a
+                    href="/upload-guide.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="
+                      flex items-center justify-between w-full px-6 py-5
+                      text-gray-700 dark:text-gray-200
+                      hover:bg-gray-100 dark:hover:bg-gray-700
+                      transition-colors
+                      text-xl
+                    "
+                    onClick={() => setIsOpen(false)}
+                  >
+                    <div className="flex items-center gap-5">
+                      <FiUpload className="w-8 h-8 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                      <div className="flex flex-col items-start">
+                        <span>{sectionText.uploadGuide}</span>
+                        <span className="text-base text-gray-500 dark:text-gray-400">
+                          {sectionText.uploadGuideDesc}
+                        </span>
+                      </div>
+                    </div>
+                    <FiChevronRight className="w-6 h-6 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+                  </a>
+                </div>
+
+                {/* Version Info with D-Case Mark */}
+                <div className="border-t border-gray-200 dark:border-gray-700 mt-2 pt-4 pb-2">
+                  <div className="flex flex-col items-center gap-2 px-6">
+                    <Image
+                      src="/D-CaseMark.png"
+                      alt="D-Case Mark"
+                      width={80}
+                      height={80}
+                      className="w-20 h-20"
+                    />
+                    <span className="text-sm text-gray-400 dark:text-gray-500">
+                      Safety Reporter v1.0.0
+                    </span>
+                  </div>
                 </div>
               </>
             ) : activeSubmenu === 'language' ? (

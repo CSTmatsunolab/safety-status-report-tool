@@ -527,15 +527,6 @@ export default function ReportStructureSelector({
                   + {language === 'en' ? 'Add section' : 'セクションを追加'}
                 </button>
               </div>
-
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-                <p className="text-base text-yellow-800 dark:text-yellow-200">
-                  <strong>{language === 'en' ? 'Note:' : '注意:'}</strong> 
-                  {language === 'en'
-                    ? ' If GSN files are uploaded, GSN analysis sections may be automatically added even to custom structures.'
-                    : ' GSNファイルがアップロードされた場合、カスタム構成でも自動的にGSN分析セクションが追加される場合があります。'}
-                </p>
-              </div>
             </div>
 
             <div className="flex justify-end mt-6 space-x-3">
