@@ -472,7 +472,7 @@ export function SettingsMenu() {
                       className="w-20 h-20"
                     />
                     <span className="text-sm text-gray-400 dark:text-gray-500">
-                      Safety Reporter v1.0.0
+                      Safety Reporter v{process.env.APP_VERSION}
                     </span>
                   </div>
                 </div>
