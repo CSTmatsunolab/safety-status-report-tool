@@ -7,72 +7,77 @@ SSRツールのRAG検索精度を評価するためのスクリプトです。
 - **実際のツールと同じロジック**: `CustomStakeholderQueryEnhancer` でクエリを自動生成
 - **動的K値計算**: ステークホルダーとチャンク数に基づいて最適なK値を自動計算
 - **RRF検索**: 複数クエリをReciprocal Rank Fusionで統合
+- **優先度自動設定**: `RAG評価データリスト.xlsx` から優先度を自動適用
 - **7つの評価指標**: Precision@K, Recall@K, F1@K, MRR, nDCG@K, Coverage, K値達成率
 
 ---
 
 ## 📊 動的K値計算
 
-SSRツールと同じロジックでK値を自動計算します：
+SSRツールと同じ比率ベースのロジックでK値を自動計算します：
 
-```
-K = min(50, max(5, totalChunks × 0.3 × roleMultiplier))
-```
+| ステークホルダー | 比率 | 説明 |
+|------------------|------|------|
+| cxo | 8% | 経営層：要点を絞る |
+| business | 9% | 事業部門 |
+| product | 11% | プロダクト：バランス型 |
+| technical-fellows | 14% | 技術フェロー：詳細に参照 |
+| architect | 14% | アーキテクト |
+| r-and-d | 15% | 研究開発：最も多く参照 |
 
-| ステークホルダー | roleMultiplier | 説明 |
-|------------------|----------------|------|
-| technical-fellows, architect, r-and-d | 1.2 | 技術系：多めに参照 |
-| cxo, business | 0.7 | ビジネス系：要点を絞る |
-| product | 1.0 | バランス型 |
-| custom_* | 自動判定 | ロール名から推測 |
-
-**例**: 総チャンク100件、技術フェローの場合
-- baseK = 100 × 0.3 = 30
-- finalK = min(50, max(5, 30 × 1.2)) = 36
+**例**: 総チャンク237件、CxOの場合
+- targetK = 237 × 0.08 = 19件
 
 ---
 
 ## 📋 評価フロー
 
+### 方法A: 部分評価（検索結果のみラベリング）
+
+```
+① export-csv → ② ラベリング → ③ convert-csv → ④ evaluate-rrf
+```
+
+### 方法B: 完全評価（全チャンクラベリング）【推奨】
+
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  ① ナレッジベース構築（SSRツール側）                            │
-│     - 各ステークホルダーのnamespaceに24個のPDFをアップロード    │
+│  ① 全チャンクCSV出力                                            │
+│     npx ts-node rag-evaluator.ts export-all-csv \               │
+│       --uuid <uuid>                                              │
+│                                                                  │
+│     ※ RAG評価データリスト.xlsx があれば優先度を自動設定         │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  ② TSV出力（手動でCLI実行）                                     │
-│     npx ts-node rag-evaluator.ts export-tsv \                   │
-│       --namespace <namespace> \                                  │
-│       --stakeholders ./stakeholders.json                         │
+│  ② Excelでラベリング確認（手作業）                              │
+│     - CSVをExcelで開く                                          │
+│     - 自動設定された優先度を確認                                 │
+│     - 必要に応じて0に変更（無関係なチャンク）                    │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  ③ スプレッドシートでラベリング（人手作業）                     │
-│     - TSVをGoogle Sheetsにインポート                             │
-│     - relevance_score列に0〜3を入力                              │
-│     - TSVとしてエクスポート                                      │
+│  ③ Ground Truth JSON変換                                        │
+│     npx ts-node rag-evaluator.ts convert-all-csv \              │
+│       --input ./all-chunks.csv \                                 │
+│       --uuid <uuid> \                                            │
+│       --output ./ground-truth-all.json                           │
+│                                                                  │
+│     ※ relevance >= 2 のみを正解として変換                       │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  ④ Ground Truth JSON変換（手動でCLI実行）                       │
-│     npx ts-node rag-evaluator.ts convert-tsv \                   │
-│       --input ./labeled.tsv \                                    │
-│       --output ./ground-truth.json                               │
-└─────────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────────┐
-│  ⑤ 評価実行（手動でCLI実行）                                    │
+│  ④ 評価実行                                                     │
 │     npx ts-node rag-evaluator.ts evaluate-rrf \                  │
-│       --namespace <namespace> \                                  │
+│       --uuid <uuid> \                                            │
 │       --stakeholders ./stakeholders.json \                       │
-│       --ground-truth ./ground-truth.json                         │
+│       --ground-truth ./ground-truth-all.json                     │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  📊 評価結果出力                                                 │
-│     - evaluation-rrf-result-{timestamp}.json                     │
-│     - evaluation-rrf-report-{timestamp}.txt                      │
+│     - evaluation-results/evaluation-rrf-result-{timestamp}.json  │
+│     - evaluation-results/evaluation-rrf-report-{timestamp}.txt   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -97,67 +102,90 @@ OPENAI_API_KEY=your_openai_api_key
 PINECONE_INDEX_NAME=ssr-knowledge-base
 ```
 
+### 3. 優先度ファイルの配置（オプション）
+
+`RAG評価データリスト.xlsx` を配置すると、優先度が自動設定されます。
+
 ---
 
 ## 📖 コマンド一覧
 
-### export-tsv - TSV出力（ラベリング用）
+### export-all-csv - 全チャンクCSV出力【推奨】
 
-Pineconeに検索を実行し、チャンク一覧をTSV形式で出力します。
-**K値は自動計算されます（--k で固定値を指定することも可能）**
+全チャンクをCSV形式で出力します。優先度ファイルがあれば自動設定されます。
 
 ```bash
-# 動的K値を使用（推奨）
-npx ts-node rag-evaluator.ts export-tsv \
-  --namespace "technical-fellows" \
-  --stakeholders ./stakeholders.json \
-  --output ./chunks-for-labeling.tsv
-
-# 固定K値を使用
-npx ts-node rag-evaluator.ts export-tsv \
-  --namespace "technical-fellows" \
-  --stakeholders ./stakeholders.json \
-  --output ./chunks-for-labeling.tsv \
-  --k 15
+npx ts-node rag-evaluator.ts export-all-csv \
+  --uuid "f7842a18-90b1-709f-4483-64254980393a" \
+  --output ./all-chunks.csv
 ```
 
-**出力されるTSVの形式：**
+**オプション:**
+| オプション | 説明 | デフォルト |
+|-----------|------|-----------|
+| `--uuid` | ユーザーUUID（必須） | - |
+| `--output` | 出力ファイルパス | `./all-chunks-for-labeling.csv` |
+| `--stakeholders` | ステークホルダーID | `cxo,technical-fellows` |
+| `--priority` | 優先度ファイル | `./RAG評価データリスト.xlsx` |
+
+**出力CSVの形式（横並び）:**
 
 | 列名 | 説明 |
 |------|------|
-| query_id | クエリの識別子 |
-| query | 自動生成されたクエリ文字列 |
-| stakeholder_id | ステークホルダーID |
 | chunk_id | チャンクの識別子 |
 | file_name | ファイル名 |
 | chunk_index | チャンクのインデックス |
-| rank | **検索結果の順位（システムが決定）** |
-| score | RRFスコア |
-| content_preview | チャンク内容のプレビュー |
-| relevance_score | **空欄（人間がラベリング）** |
+| content_preview | チャンク内容 |
+| relevance_cxo | CxO向け関連度（自動設定） |
+| relevance_technical-fellows | TF向け関連度（自動設定） |
 
-### convert-tsv - TSV → JSON変換
+### convert-all-csv - 横並びCSV → JSON変換
 
-ラベリング済みTSVをGround Truth JSONに変換します。
+ラベリング済みCSVをGround Truth JSONに変換します。
+**relevance >= 2 のみを正解として変換します。**
 
 ```bash
-npx ts-node rag-evaluator.ts convert-tsv \
-  --input ./labeled.tsv \
-  --output ./ground-truth.json \
-  --description "評価用Ground Truth v1.0"
+npx ts-node rag-evaluator.ts convert-all-csv \
+  --input ./all-chunks.csv \
+  --uuid "f7842a18-90b1-709f-4483-64254980393a" \
+  --output ./ground-truth-all.json
 ```
 
-### evaluate-rrf - RRF方式で評価（推奨）
+### evaluate-rrf - RRF方式で評価【推奨】
 
 実際のツールと同じRRF検索方式・動的K値で評価を実行します。
 
 ```bash
-# 動的K値を使用（推奨）
+# CxO + TFの2ステークホルダーで評価
 npx ts-node rag-evaluator.ts evaluate-rrf \
-  --namespace "technical-fellows" \
+  --uuid "f7842a18-90b1-709f-4483-64254980393a" \
   --stakeholders ./stakeholders.json \
-  --ground-truth ./ground-truth.json \
-  --output ./evaluation-results
+  --ground-truth ./ground-truth-all.json
+
+# 全6ステークホルダーで評価
+npx ts-node rag-evaluator.ts evaluate-rrf \
+  --uuid "f7842a18-90b1-709f-4483-64254980393a" \
+  --stakeholders ./stakeholders-all.json \
+  --ground-truth ./ground-truth-all.json
+```
+
+### export-csv - 検索結果CSV出力（部分評価用）
+
+動的K値で検索を実行し、取得チャンクのみをCSV出力します。
+
+```bash
+npx ts-node rag-evaluator.ts export-csv \
+  --uuid "f7842a18-90b1-709f-4483-64254980393a" \
+  --stakeholders ./stakeholders.json \
+  --output ./chunks-for-labeling.csv
+```
+
+### convert-csv - CSV → JSON変換（部分評価用）
+
+```bash
+npx ts-node rag-evaluator.ts convert-csv \
+  --input ./chunks-for-labeling.csv \
+  --output ./ground-truth.json
 ```
 
 ### show-queries - クエリ生成確認
@@ -175,7 +203,7 @@ npx ts-node rag-evaluator.ts show-queries \
 
 | 指標 | 説明 | 数式 |
 |------|------|------|
-| **Precision@K** | 取得したK件のうち、正解だった割合 | `\|Hit(K)\| / \|Retrieved(K)\|` |
+| **Precision@K** | 取得したK件のうち、正解だった割合 | `\|Hit(K)\| / K` |
 | **Recall@K** | 正解チャンクのうち、K件以内に取得できた割合 | `\|Hit(K)\| / \|Relevant\|` |
 | **F1@K** | PrecisionとRecallの調和平均 | `2 * P * R / (P + R)` |
 | **MRR** | 最初の正解が出現した順位の逆数の平均 | `1/\|Q\| * Σ(1/rank)` |
@@ -187,14 +215,14 @@ npx ts-node rag-evaluator.ts show-queries \
 
 ## 📝 関連度スコアの基準
 
-ラベリング時のスコア基準：
+| スコア | 記号 | 意味 | Ground Truth |
+|--------|------|------|--------------|
+| **3** | ◎ | 必須（高優先度） | ✅ 正解 |
+| **2** | ○ | 重要（中優先度） | ✅ 正解 |
+| **1** | △ | 背景情報程度（低優先度） | ❌ 除外 |
+| **0** | - | 無関係 | ❌ 除外 |
 
-| スコア | 意味 | 説明 |
-|--------|------|------|
-| **0** | 無関係 | クエリと全く関係ない内容 |
-| **1** | 低関連 | 間接的に関連する内容（背景情報など） |
-| **2** | 中関連 | 部分的に関連する内容（一部の情報が該当） |
-| **3** | 高関連 | 直接的に関連する内容（クエリの回答に必須） |
+**注**: Ground Truth変換時、`relevance >= 2` のみを正解として扱います。
 
 ---
 
@@ -202,41 +230,102 @@ npx ts-node rag-evaluator.ts show-queries \
 
 ```
 rag-evaluation/
-├── rag-evaluator.ts       # メインスクリプト（CLIエントリーポイント）
-├── metrics.ts             # 評価指標計算ロジック
-├── tsv-exporter.ts        # TSV入出力・Ground Truth変換
-├── query-enhancer-copy.ts # クエリ生成ロジック（SSRツールと同じ）
-├── rag-utils-copy.ts      # 動的K値計算ロジック（SSRツールと同じ）
-├── types.ts               # 型定義
-├── package.json           # 依存関係
-├── tsconfig.json          # TypeScript設定
-├── stakeholders.json      # ステークホルダー定義（SSRツールと同じ）
-└── README.md              # このファイル
+├── rag-evaluator.ts          # メインスクリプト（CLIエントリーポイント）
+├── csv-exporter.ts           # CSV入出力・Ground Truth変換
+├── metrics.ts                # 評価指標計算ロジック
+├── types.ts                  # 型定義
+├── query-enhancer-copy.ts    # クエリ生成ロジック（SSRツールからコピー）
+├── rag-utils-copy.ts         # 動的K値計算ロジック（SSRツールからコピー）
+│
+├── stakeholders.json         # ステークホルダー定義（CxO + TFの2種）
+├── stakeholders-all.json     # ステークホルダー定義（全6種）
+├── RAG評価データリスト.xlsx   # 優先度マッピング（オプション）
+│
+├── package.json              # 依存関係
+├── package-lock.json         # 依存関係ロック
+├── tsconfig.json             # TypeScript設定
+├── README.md                 # このファイル
+│
+├── evaluation-results/       # 評価結果出力ディレクトリ（自動生成）
+│   ├── evaluation-rrf-result-*.json
+│   └── evaluation-rrf-report-*.txt
+│
+└── (生成ファイル - Git除外推奨)
+    ├── all-chunks.csv        # 全チャンクCSV
+    └── ground-truth-all.json # Ground Truth JSON
 ```
 
 ---
 
-## 🔍 rankとrelevance_scoreの違い
+## 🔍 部分評価 vs 完全評価
 
-| 列名 | 意味 | 誰が決める？ |
-|------|------|-------------|
-| **rank** | 検索結果の順位（1位〜K位） | **システム**（Pinecone + RRF） |
-| **relevance_score** | 実際の関連度（0〜3） | **人間**（ラベリング作業） |
+| 方式 | 部分評価 | 完全評価 |
+|------|---------|---------|
+| コマンド | `export-csv` | `export-all-csv` |
+| ラベリング対象 | 取得K件のみ | 全チャンク（237件） |
+| Recall計算 | 不正確（分母=取得K件） | 正確（分母=全正解数） |
+| 作業時間 | 短い | 長い |
+| 推奨用途 | 簡易テスト | **論文・正式評価** |
 
-**評価の目的**: rankとrelevance_scoreがどれだけ一致しているかを測定します。
+---
 
-理想的な状態：
-```
-rank=1 → relevance_score=3（高関連）  ✅
-rank=2 → relevance_score=3（高関連）  ✅
-...
-rank=10 → relevance_score=0（無関係） ✅
-```
+## 📈 評価結果の解釈
+
+| 指標 | 良い値 | 解釈 |
+|------|--------|------|
+| Precision@K | 80%+ | 取得チャンクの質が高い |
+| Recall@K | 設計次第 | 動的K値で意図的に絞っている場合は低くてもOK |
+| nDCG@K | 0.7+ | 高優先度チャンクが上位に配置されている |
+| MRR | 1.0 | 最重要チャンクが常に1位 |
 
 ---
 
 ## ⚠️ 注意事項
 
-1. **手動トリガー**: すべてのコマンドは手動でCLI実行します
-2. **環境変数**: Pinecone/OpenAI APIキーが必要です
-3. **namespace**: 評価対象のステークホルダーごとにnamespaceを指定してください
+1. **環境変数**: Pinecone/OpenAI APIキーが必要です
+2. **UUID**: 評価対象のユーザーUUIDを指定してください
+3. **優先度ファイル**: `RAG評価データリスト.xlsx` のシート名は `ファイル一覧` である必要があります
+4. **生成ファイル**: 以下はGitから除外推奨
+
+```gitignore
+# .gitignore
+node_modules/
+evaluation-results/
+all-chunks.csv
+ground-truth-all.json
+ground-truth.json
+chunks-for-labeling.csv
+```
+
+---
+
+## 📋 クイックスタート
+
+```bash
+# 1. セットアップ
+cd rag-evaluation
+npm install
+
+# 2. 全チャンクCSV出力（優先度自動設定）
+#    ※ RAG評価データリスト.xlsx があれば自動で優先度が設定されます
+npx ts-node rag-evaluator.ts export-all-csv \
+  --uuid "your-uuid-here" \
+  --output ./all-chunks.csv
+
+# 3. Excelで確認・必要に応じて調整
+#    - all-chunks.csv をExcelで開く
+#    - 無関係なチャンクがあれば relevance を 0 に変更
+#    - 保存（CSV UTF-8形式）
+
+# 4. Ground Truth変換（relevance >= 2 のみ正解として変換）
+npx ts-node rag-evaluator.ts convert-all-csv \
+  --input ./all-chunks.csv \
+  --uuid "your-uuid-here" \
+  --output ./ground-truth-all.json
+
+# 5. 評価実行
+npx ts-node rag-evaluator.ts evaluate-rrf \
+  --uuid "your-uuid-here" \
+  --stakeholders ./stakeholders.json \
+  --ground-truth ./ground-truth-all.json
+```

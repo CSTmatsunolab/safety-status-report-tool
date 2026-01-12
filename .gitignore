@@ -65,11 +65,14 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 
-# rag-evaluation 生成物
-rag-evaluation/chunks-*.csv
-rag-evaluation/chunks-*.json
-rag-evaluation/ground-truth.json
-rag-evaluation/evaluation-results/
+# rag-evaluation/.gitignore
+node_modules/
+evaluation-results/
+all-chunks.csv
+ground-truth-all.json
+ground-truth.json
+chunks-for-labeling.csv
+rag-evaluation/*.xlsx
 
 #testfile
 test-chunks.ts

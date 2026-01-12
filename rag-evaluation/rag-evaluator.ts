@@ -3,11 +3,13 @@
 // 実際のSSRツールと同じクエリ生成ロジック（CustomStakeholderQueryEnhancer）を使用
 //
 // コマンド一覧:
-//   export-csv      - 検索結果をCSV形式で出力（ラベリング用）
-//   convert-csv     - ラベリング済みCSVをGround Truth JSONに変換
-//   evaluate        - クエリ単位での評価を実行
-//   evaluate-rrf    - RRF方式での評価（実際のツールと同じ動作）
-//   show-queries    - ステークホルダーから生成されるクエリを確認
+//   export-csv       - 検索結果をCSV形式で出力（ラベリング用・部分評価）
+//   export-all-csv   - 全チャンクをCSV形式で出力（完全評価用・横並び）
+//   convert-csv      - ラベリング済みCSVをGround Truth JSONに変換（部分評価用）
+//   convert-all-csv  - 横並びCSVをGround Truth JSONに変換（完全評価用）
+//   evaluate         - クエリ単位での評価を実行
+//   evaluate-rrf     - RRF方式での評価（実際のツールと同じ動作）
+//   show-queries     - ステークホルダーから生成されるクエリを確認
 //   generate-template - Ground Truthテンプレートを生成
 
 import { Pinecone } from '@pinecone-database/pinecone';
@@ -39,6 +41,10 @@ import {
   convertLabeledCSVToGroundTruth,
   loadGroundTruth,
   generateGroundTruthTemplate,
+  exportAllChunksToCSV,
+  convertAllChunksCSVToGroundTruth,
+  loadPriorityMapping,
+  AllChunkData,
 } from './csv-exporter';
 
 import { CustomStakeholderQueryEnhancer } from './query-enhancer-copy';
@@ -236,6 +242,55 @@ async function getTotalChunks(
   }
 }
 
+/**
+ * Namespaceから全チャンクを取得（ラベリング用）
+ */
+async function getAllChunks(
+  pinecone: Pinecone,
+  namespace: string,
+  indexName: string
+): Promise<AllChunkData[]> {
+  try {
+    const index = pinecone.index(indexName);
+    
+    // ダミーベクトルで全件取得（topK: 10000）
+    const dummyVector = new Array(1536).fill(0);
+    const results = await index.namespace(namespace).query({
+      vector: dummyVector,
+      topK: 10000,
+      includeMetadata: true,
+    });
+
+    const chunks: AllChunkData[] = [];
+    for (const match of results.matches || []) {
+      const fileName = (match.metadata?.fileName as string) || 'unknown';
+      const content = (match.metadata?.pageContent as string) || '';
+      const chunkIndex = (match.metadata?.chunkIndex as number) || 0;
+      
+      // chunk_idからnamespace部分を除去（例: cxo_uuid_file.md_3 → uuid_file.md_3）
+      // これにより、異なるステークホルダーでも同じチャンク内容は同じIDになる
+      const parts = match.id.split('_');
+      const stakeholderPrefix = parts[0]; // cxo, technical-fellows等
+      const restOfId = parts.slice(1).join('_'); // uuid_file.md_3
+      
+      chunks.push({
+        chunkId: restOfId, // namespace-agnostic ID
+        fileName,
+        chunkIndex,
+        content,
+      });
+    }
+
+    // chunkIdでソート
+    chunks.sort((a, b) => a.chunkId.localeCompare(b.chunkId));
+
+    return chunks;
+  } catch (error) {
+    console.error('全チャンク取得エラー:', error);
+    return [];
+  }
+}
+
 // ============================================================
 // コマンド: export-csv
 // ============================================================
@@ -337,6 +392,73 @@ async function commandExportTSV(
   });
   fs.writeFileSync(queryInfoPath, JSON.stringify(queryInfo, null, 2), 'utf-8');
   console.log(`\n📄 クエリ情報を保存: ${queryInfoPath}`);
+}
+
+// ============================================================
+// コマンド: export-all-csv（全チャンクラベリング用）
+// ============================================================
+
+async function commandExportAllChunks(
+  uuid: string,
+  stakeholderIds: string[],
+  outputPath: string,
+  priorityFilePath?: string,
+  config: Partial<EvaluationConfig> = {}
+): Promise<void> {
+  console.log('\n📊 全チャンクラベリング用CSV出力を開始...\n');
+
+  const { pinecone } = initializeClients();
+  const indexName = config.indexName || DEFAULT_CONFIG.indexName!;
+
+  // 優先度マッピングの読み込み
+  let priorityMapping: Map<string, Record<string, number>> | undefined;
+  if (priorityFilePath) {
+    console.log(`📋 優先度ファイル: ${priorityFilePath}`);
+    priorityMapping = loadPriorityMapping(priorityFilePath);
+  }
+
+  // 最初のステークホルダーのnamespaceから全チャンクを取得
+  // （チャンク内容は全ステークホルダーで共通のため）
+  const firstStakeholderId = stakeholderIds[0];
+  const namespace = `${firstStakeholderId}_${uuid}`;
+
+  console.log(`📋 Namespace: ${namespace}`);
+  console.log(`📋 ステークホルダー列: ${stakeholderIds.join(', ')}`);
+
+  const totalChunks = await getTotalChunks(pinecone, namespace, indexName);
+  console.log(`📋 総チャンク数: ${totalChunks}`);
+
+  if (totalChunks === 0) {
+    console.error(`❌ Namespace "${namespace}" にチャンクが存在しません。`);
+    process.exit(1);
+  }
+
+  console.log(`\n🔎 全チャンクを取得中...`);
+  const chunks = await getAllChunks(pinecone, namespace, indexName);
+  console.log(`   取得: ${chunks.length} 件`);
+
+  // 出力ディレクトリの作成
+  const outputDir = path.dirname(outputPath);
+  if (outputDir && !fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  exportAllChunksToCSV(chunks, stakeholderIds, outputPath, priorityMapping);
+}
+
+// ============================================================
+// コマンド: convert-all-csv（横並びCSVからGround Truth JSONへ変換）
+// ============================================================
+
+function commandConvertAllChunks(
+  inputPath: string,
+  outputPath: string,
+  uuid: string,
+  description: string = ''
+): void {
+  console.log('\n📊 横並びCSV → Ground Truth JSON 変換を開始...\n');
+  console.log(`📋 UUID: ${uuid}`);
+  convertAllChunksCSVToGroundTruth(inputPath, outputPath, uuid, description);
 }
 
 // ============================================================
@@ -652,6 +774,64 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'export-all-csv': {
+      const uuid = getArg('uuid');
+      const output = getArg('output') || './all-chunks-for-labeling.csv';
+      const stakeholdersArg = getArg('stakeholders');
+      const priorityFile = getArg('priority') || './RAG評価データリスト.xlsx';
+
+      if (!uuid) {
+        console.error('❌ --uuid が必要です');
+        process.exit(1);
+      }
+
+      // ステークホルダーIDを指定（デフォルトはcxoとtechnical-fellows）
+      let stakeholderIds: string[];
+      if (stakeholdersArg) {
+        // JSONファイルまたはカンマ区切りのID
+        if (stakeholdersArg.endsWith('.json')) {
+          const stakeholders = JSON.parse(fs.readFileSync(stakeholdersArg, 'utf-8'));
+          stakeholderIds = stakeholders.map((s: Stakeholder) => s.id);
+        } else {
+          stakeholderIds = stakeholdersArg.split(',');
+        }
+      } else {
+        stakeholderIds = ['cxo', 'technical-fellows'];
+      }
+
+      // 優先度ファイルの存在確認
+      const priorityFilePath = fs.existsSync(priorityFile) ? priorityFile : undefined;
+      if (priorityFilePath) {
+        console.log(`✅ 優先度ファイルを検出: ${priorityFile}`);
+      } else {
+        console.log(`⚠️ 優先度ファイルが見つかりません: ${priorityFile}`);
+        console.log(`   → relevance列は空で出力されます（手動ラベリング用）`);
+      }
+
+      await commandExportAllChunks(uuid, stakeholderIds, output, priorityFilePath);
+      break;
+    }
+
+    case 'convert-all-csv': {
+      const input = getArg('input');
+      const output = getArg('output') || './ground-truth-all.json';
+      const uuid = getArg('uuid');
+      const description = getArg('description') || '';
+
+      if (!input) {
+        console.error('❌ --input（ラベリング済みCSVファイル）が必要です');
+        process.exit(1);
+      }
+
+      if (!uuid) {
+        console.error('❌ --uuid が必要です');
+        process.exit(1);
+      }
+
+      commandConvertAllChunks(input, output, uuid, description);
+      break;
+    }
+
     case 'evaluate': {
       const namespace = getArg('namespace');
       const groundTruth = getArg('ground-truth');
@@ -733,15 +913,27 @@ async function main(): Promise<void> {
 
 コマンド:
 
-  export-csv       検索結果をCSV形式で出力（ラベリング用）
+  export-csv       検索結果をCSV形式で出力（ラベリング用・部分評価）
     --uuid          <string>  ユーザーUUID（namespace自動生成）
     --namespace     <string>  Pinecone namespace（直接指定する場合）
     --stakeholders  <file>    ステークホルダーJSONファイル（必須）
     --output        <file>    出力CSVファイルパス
     --k             <number>  固定K値（省略時は動的計算）
 
-  convert-csv      ラベリング済みCSV/TSVをGround Truth JSONに変換
+  export-all-csv   全チャンクをCSV形式で出力（完全評価用・横並びフォーマット）
+    --uuid          <string>  ユーザーUUID（必須）
+    --stakeholders  <file>    ステークホルダーJSONまたはカンマ区切りID
+                              （省略時: cxo,technical-fellows）
+    --output        <file>    出力CSVファイルパス
+
+  convert-csv      ラベリング済みCSV/TSVをGround Truth JSONに変換（部分評価用）
     --input         <file>    ラベリング済みCSV/TSVファイル（必須）
+    --output        <file>    出力JSONファイル
+    --description   <string>  説明文
+
+  convert-all-csv  横並びCSVをGround Truth JSONに変換（完全評価用）
+    --input         <file>    ラベリング済みCSVファイル（必須）
+    --uuid          <string>  ユーザーUUID（必須）
     --output        <file>    出力JSONファイル
     --description   <string>  説明文
 
