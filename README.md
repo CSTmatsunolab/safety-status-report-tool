@@ -869,6 +869,11 @@ npx ts-node rag-evaluator.ts export-csv \
   --stakeholders ./stakeholders.json \
   --output ./chunks-for-labeling.csv
 
+# JSON 変換
+  npx ts-node rag-evaluator.ts convert-csv \
+    --input ./chunks-for-labeling.csv \
+    --output ./ground-truth.json
+
 # 評価実行
 npx ts-node rag-evaluator.ts evaluate-rrf \
   --uuid "ユーザーID" \

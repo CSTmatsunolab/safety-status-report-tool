@@ -83,7 +83,7 @@ export function exportChunksToCSV(chunks: ChunkForLabeling[], outputPath: string
       chunk.chunkIndex.toString(),
       chunk.rank.toString(),
       chunk.score.toFixed(4),
-      escapeCSVValue(chunk.contentPreview.substring(0, 200)),
+      escapeCSVValue(chunk.contentPreview),
       chunk.relevanceScore !== undefined ? chunk.relevanceScore.toString() : '',
     ];
     lines.push(row.join(','));
@@ -161,6 +161,52 @@ function parseLine(line: string, delimiter: ',' | '\t'): string[] {
 }
 
 /**
+ * 複数行フィールドを含むCSVを行単位に分割
+ * ダブルクォート内の改行を正しく処理する
+ */
+function splitCSVLines(content: string): string[] {
+  const lines: string[] = [];
+  let currentLine = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    const nextChar = content[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        // エスケープされたダブルクォート
+        currentLine += '""';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+        currentLine += char;
+      }
+    } else if ((char === '\n' || (char === '\r' && nextChar === '\n')) && !inQuotes) {
+      // クォート外の改行は行の区切り
+      lines.push(currentLine);
+      currentLine = '';
+      if (char === '\r' && nextChar === '\n') {
+        i++; // \r\n の場合は \n もスキップ
+      }
+    } else if (char === '\r' && !inQuotes) {
+      // \r 単独の改行
+      lines.push(currentLine);
+      currentLine = '';
+    } else {
+      currentLine += char;
+    }
+  }
+  
+  // 最後の行を追加
+  if (currentLine) {
+    lines.push(currentLine);
+  }
+  
+  return lines;
+}
+
+/**
  * ラベリング済みCSV/TSVをGround Truth JSONに変換
  */
 export function convertLabeledCSVToGroundTruth(
@@ -175,7 +221,8 @@ export function convertLabeledCSVToGroundTruth(
     content = content.slice(1);
   }
   
-  const lines = content.trim().split(/\r?\n/);
+  // 複数行フィールドを考慮してCSVを分割
+  const lines = splitCSVLines(content.trim());
 
   if (lines.length < 2) {
     throw new Error('CSVファイルにデータがありません');
@@ -184,6 +231,7 @@ export function convertLabeledCSVToGroundTruth(
   // 区切り文字を自動検出
   const delimiter = detectDelimiter(lines[0]);
   console.log(`📊 区切り文字を検出: ${delimiter === ',' ? 'カンマ (CSV)' : 'タブ (TSV)'}`);
+  console.log(`📊 検出された行数: ${lines.length} 行（ヘッダー含む）`);
 
   // ヘッダー解析
   const headers = parseLine(lines[0], delimiter);

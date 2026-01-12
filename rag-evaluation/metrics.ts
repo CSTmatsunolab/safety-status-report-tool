@@ -143,14 +143,24 @@ export function calculateCoverage(
 /**
  * K値達成率: 目標のK件を取得できたクエリの割合
  * 数式: Success_count / |Queries|
+ * 動的K値対応: 各クエリごとに異なるK値と比較
  */
 export function calculateKAchievementRate(
   allRetrievedChunks: RetrievedChunk[][],
-  k: number
+  kValues: number[]
 ): number {
   if (allRetrievedChunks.length === 0) return 0;
 
-  const successCount = allRetrievedChunks.filter(chunks => chunks.length >= k).length;
+  // 各クエリについて、そのクエリの動的K値以上取得できたかをチェック
+  let successCount = 0;
+  for (let i = 0; i < allRetrievedChunks.length; i++) {
+    const chunks = allRetrievedChunks[i];
+    const targetK = kValues[i] || kValues[0] || 10; // フォールバック
+    if (chunks.length >= targetK) {
+      successCount++;
+    }
+  }
+  
   return successCount / allRetrievedChunks.length;
 }
 
@@ -213,7 +223,8 @@ export function generateEvaluationReport(
   allFiles: string[],
   groundTruthVersion: string,
   k: number,
-  namespace: string
+  namespace: string,
+  kValues?: number[]  // 動的K値の配列（オプション）
 ): EvaluationReport {
   const totalQueries = queryResults.length;
 
@@ -226,7 +237,9 @@ export function generateEvaluationReport(
 
   // Coverage と K値達成率
   const coverage = calculateCoverage(allRetrievedChunks, allFiles);
-  const kAchievementRate = calculateKAchievementRate(allRetrievedChunks, k);
+  // 動的K値が提供されていれば使用、なければ固定K値の配列を作成
+  const kValuesForCalc = kValues || allRetrievedChunks.map(() => k);
+  const kAchievementRate = calculateKAchievementRate(allRetrievedChunks, kValuesForCalc);
 
   return {
     timestamp: new Date().toISOString(),

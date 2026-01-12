@@ -534,7 +534,8 @@ async function commandEvaluateRRF(
     uniqueFiles,
     groundTruth.version,
     avgK, // 平均K値を使用
-    uuid || namespace || 'unknown'
+    uuid || namespace || 'unknown',
+    kValues // 動的K値の配列を追加
   );
 
   if (!fs.existsSync(outputDir)) {
