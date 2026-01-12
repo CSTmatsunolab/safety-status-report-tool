@@ -35,6 +35,9 @@ const CHUNK_CONFIG = {
   // これを超えたらMax-Min/Traditionalで分割
   MAX_SECTION_SIZE: 1200,
   
+  // 表を含むセクションのサイズ上限（表は分割しないため大きめ）
+  MAX_TABLE_SECTION_SIZE: 3000,
+  
   // Traditional用の設定
   TRADITIONAL_CHUNK_SIZE: 1000,
   TRADITIONAL_OVERLAP: 100,
@@ -256,12 +259,12 @@ async function structureAwareChunking(
   const documents: Document[] = [];
   
   try {
-    // 1. 表を抽出（PRESERVE マーカーで囲まれた部分）+ 所属セクション情報
-    const { preservedBlocks, remainingText } = extractPreservedBlocksWithContext(text);
-    console.log(`Preserved Blocks (tables): ${preservedBlocks.length}`);
+    // 1. 保護マーカーのみを削除（表の内容はセクション内に残す）
+    const cleanedText = removePreserveMarkers(text);
+    console.log(`Text cleaned (preserve markers removed)`);
     
     // 2. 見出しでセクション分割
-    let sections = splitByHeadings(remainingText);
+    let sections = splitByHeadings(cleanedText);
     console.log(`Sections found: ${sections.length}`);
     
     // 3. 補足セクション（関連・参照、クロスリファレンス等）を前のセクションと結合
@@ -279,11 +282,20 @@ async function structureAwareChunking(
                   isPdfFile(fileType, fileName);
     
     // 6. 各セクションを処理
+    let sectionsWithTables = 0;
     for (const section of mergedSections) {
       const sectionContent = section.content.trim();
       if (sectionContent.length === 0) continue;
       
-      if (sectionContent.length <= CHUNK_CONFIG.MAX_SECTION_SIZE) {
+      // 表を含むかどうかでサイズ上限を決定
+      const hasTable = containsMarkdownTable(sectionContent);
+      const maxSize = hasTable 
+        ? CHUNK_CONFIG.MAX_TABLE_SECTION_SIZE 
+        : CHUNK_CONFIG.MAX_SECTION_SIZE;
+      
+      if (hasTable) sectionsWithTables++;
+      
+      if (sectionContent.length <= maxSize) {
         // 適切なサイズ → そのままチャンク化
         documents.push(createSectionDocument(
           sectionContent,
@@ -291,12 +303,12 @@ async function structureAwareChunking(
           section.headingLevel,
           fileName,
           metadata,
-          'section-whole',
+          hasTable ? 'section-with-table' : 'section-whole',
           isPDF
         ));
       } else {
         // 大きいセクション → Max-Min または Traditional で分割
-        console.log(`Large section "${section.heading.substring(0, 30)}..." (${sectionContent.length} chars) - splitting`);
+        console.log(`Large section "${section.heading.substring(0, 30)}..." (${sectionContent.length} chars, hasTable=${hasTable}) - splitting`);
         
         const subChunks = USE_ADVANCED_CHUNKING
           ? await splitLargeSectionWithMaxMin(sectionContent, embeddings, isPDF)
@@ -316,31 +328,7 @@ async function structureAwareChunking(
       }
     }
     
-    // 7. 保護ブロック（表）をチャンク化（所属セクションの見出し付き）
-    for (const block of preservedBlocks) {
-      if (block.content.trim().length === 0) continue;
-      
-      // 見出し + 表の内容
-      const contentWithContext = block.sectionHeading
-        ? `${block.sectionHeading}\n\n${block.content}`
-        : block.content;
-      
-      documents.push(new Document({
-        pageContent: contentWithContext,
-        metadata: {
-          ...metadata,
-          chunkingMethod: 'preserved-block',
-          isPreservedBlock: true,
-          sectionHeading: block.sectionHeading || '(no heading)',
-          sectionLevel: block.sectionLevel,
-          fileName: fileName,
-          isPDF: isPDF,
-          containedIds: extractSafetyIds(block.content)
-        }
-      }));
-    }
-    
-    // 8. チャンクインデックスと総数を設定
+    // 7. チャンクインデックスと総数を設定
     const totalChunks = documents.length;
     documents.forEach((doc, index) => {
       doc.metadata.chunkIndex = index;
@@ -349,8 +337,8 @@ async function structureAwareChunking(
     
     console.log(`\n--- Structure-Aware Chunking Result ---`);
     console.log(`Total Chunks: ${totalChunks}`);
-    console.log(`  - Section chunks: ${documents.filter(d => !d.metadata.isPreservedBlock).length}`);
-    console.log(`  - Table chunks: ${documents.filter(d => d.metadata.isPreservedBlock).length}`);
+    console.log(`  - Sections with tables: ${sectionsWithTables}`);
+    console.log(`  - Size limits: normal=${CHUNK_CONFIG.MAX_SECTION_SIZE}, table=${CHUNK_CONFIG.MAX_TABLE_SECTION_SIZE}`);
     
     // チャンク数が多すぎる場合の警告
     if (totalChunks > 100) {
@@ -377,6 +365,38 @@ interface PreservedBlockWithContext {
   sectionHeading: string;
   sectionLevel: number;
   originalIndex: number;
+}
+
+/**
+ * 保護マーカーのみを削除（内容は残す）
+ * 表をセクション内に統合するために使用
+ */
+function removePreserveMarkers(text: string): string {
+  return text
+    .replace(/<!-- PRESERVE_START -->/g, '')
+    .replace(/<!-- PRESERVE_END -->/g, '')
+    .replace(/\[TABLE_BLOCK\]/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * テキストにMarkdownテーブルが含まれているかを判定
+ */
+function containsMarkdownTable(text: string): boolean {
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // | で始まり | で終わる行（Markdownテーブル行）
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      return true;
+    }
+    // セパレータ行（|---|---|）
+    if (/^\|[\s\-:]+\|/.test(trimmed)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
