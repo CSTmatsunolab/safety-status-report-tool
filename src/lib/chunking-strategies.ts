@@ -261,20 +261,24 @@ async function structureAwareChunking(
     console.log(`Preserved Blocks (tables): ${preservedBlocks.length}`);
     
     // 2. 見出しでセクション分割
-    const sections = splitByHeadings(remainingText);
+    let sections = splitByHeadings(remainingText);
     console.log(`Sections found: ${sections.length}`);
     
-    // 3. 小さいセクションを結合
+    // 3. 補足セクション（関連・参照、クロスリファレンス等）を前のセクションと結合
+    sections = mergeSupplementarySections(sections);
+    console.log(`After merging supplementary sections: ${sections.length}`);
+    
+    // 4. 小さいセクションを結合
     const mergedSections = mergeTinySections(sections, CHUNK_CONFIG.MIN_SECTION_SIZE);
     console.log(`After merging tiny sections: ${mergedSections.length}`);
     
-    // 4. PDFかどうかを判定
+    // 5. PDFかどうかを判定
     const isPDF = metadata.extractionMethod === 'pdf' || 
                   metadata.extractionMethod === 'ocr' ||
                   metadata.extractionMethod === 'vision-ocr' ||
                   isPdfFile(fileType, fileName);
     
-    // 5. 各セクションを処理
+    // 6. 各セクションを処理
     for (const section of mergedSections) {
       const sectionContent = section.content.trim();
       if (sectionContent.length === 0) continue;
@@ -312,7 +316,7 @@ async function structureAwareChunking(
       }
     }
     
-    // 6. 保護ブロック（表）をチャンク化（所属セクションの見出し付き）
+    // 7. 保護ブロック（表）をチャンク化（所属セクションの見出し付き）
     for (const block of preservedBlocks) {
       if (block.content.trim().length === 0) continue;
       
@@ -336,7 +340,7 @@ async function structureAwareChunking(
       }));
     }
     
-    // 7. チャンクインデックスと総数を設定
+    // 8. チャンクインデックスと総数を設定
     const totalChunks = documents.length;
     documents.forEach((doc, index) => {
       doc.metadata.chunkIndex = index;
@@ -501,6 +505,58 @@ function splitByHeadings(text: string): Section[] {
   }
   
   return sections;
+}
+
+/**
+ * 補足的なセクション見出しパターン
+ * これらは独立セクションではなく、前のセクションの一部として扱う
+ */
+const SUPPLEMENTARY_HEADING_PATTERNS = [
+  /関連[・\/]?参照/i,
+  /クロスリファレンス/i,
+  /Cross\s*Reference/i,
+  /参照情報/i,
+  /備考/i,
+  /注記/i,
+  /補足/i,
+  /付記/i,
+  /See\s*Also/i,
+  /References?$/i,
+  /Notes?$/i,
+  /Remarks?$/i,
+  /Appendix/i,
+];
+
+/**
+ * 補足的な見出しかどうかを判定
+ */
+function isSupplementaryHeading(heading: string): boolean {
+  return SUPPLEMENTARY_HEADING_PATTERNS.some(pattern => pattern.test(heading));
+}
+
+/**
+ * 補足セクションを前のセクションと結合
+ * 「## 関連・参照」のようなセクションは独立させず、前の親セクションに含める
+ */
+function mergeSupplementarySections(sections: Section[]): Section[] {
+  if (sections.length <= 1) return sections;
+  
+  const merged: Section[] = [];
+  
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    
+    // 補足セクションかつ前のセクションがある場合は結合
+    if (merged.length > 0 && isSupplementaryHeading(section.heading)) {
+      const prev = merged[merged.length - 1];
+      prev.content += '\n\n' + section.content;
+      // 見出しは前のものを維持（補足セクションの見出しは親に含まれる）
+    } else {
+      merged.push({ ...section });
+    }
+  }
+  
+  return merged;
 }
 
 /**
