@@ -121,6 +121,22 @@ export function calculateNDCGAtK(
 }
 
 /**
+ * Success@1 for High Relevance (◎): 1位のチャンクがrelevance=3かどうか
+ * 数式: 1 if rank1_relevance == 3 else 0
+ */
+export function calculateSuccessAt1HighRelevance(
+  retrievedChunks: RetrievedChunk[],
+  relevanceScores: Map<string, number>
+): number {
+  if (retrievedChunks.length === 0) return 0;
+  
+  const firstChunkId = retrievedChunks[0].chunkId;
+  const relevance = relevanceScores.get(firstChunkId) || 0;
+  
+  return relevance === 3 ? 1 : 0;
+}
+
+/**
  * Coverage: どれだけ多様なファイルから情報を取得できたか
  * 数式: |Files_hit| / |Files_all|
  */
@@ -190,6 +206,7 @@ export function evaluateQuery(
   const f1AtK = calculateF1AtK(precisionAtK, recallAtK);
   const reciprocalRank = calculateReciprocalRank(retrievedChunks, relevantChunkIds);
   const ndcgAtK = calculateNDCGAtK(retrievedChunks, relevanceScores, k);
+  const successAt1HighRelevance = calculateSuccessAt1HighRelevance(retrievedChunks, relevanceScores);
 
   // ヒットしたチャンクを特定
   const hits = retrievedChunks
@@ -207,6 +224,7 @@ export function evaluateQuery(
       f1AtK,
       reciprocalRank,
       ndcgAtK,
+      successAt1HighRelevance,
     },
     retrievedChunks,
     relevantChunks,
@@ -234,6 +252,7 @@ export function generateEvaluationReport(
   const avgF1AtK = queryResults.reduce((sum, r) => sum + r.metrics.f1AtK, 0) / totalQueries;
   const mrr = queryResults.reduce((sum, r) => sum + r.metrics.reciprocalRank, 0) / totalQueries;
   const avgNdcgAtK = queryResults.reduce((sum, r) => sum + r.metrics.ndcgAtK, 0) / totalQueries;
+  const successAt1HighRelevance = queryResults.reduce((sum, r) => sum + r.metrics.successAt1HighRelevance, 0) / totalQueries;
 
   // Coverage と K値達成率
   const coverage = calculateCoverage(allRetrievedChunks, allFiles);
@@ -257,6 +276,7 @@ export function generateEvaluationReport(
       avgNdcgAtK,
       coverage,
       kAchievementRate,
+      successAt1HighRelevance,
     },
     queryResults,
   };
@@ -290,6 +310,7 @@ export function formatEvaluationReport(report: EvaluationReport): string {
   lines.push(`│ F1@${report.config.k.toString().padEnd(2)}              │ ${(report.summary.avgF1AtK * 100).toFixed(2).padStart(6)}%     │ Precision/Recallのバランス    │`);
   lines.push(`│ MRR                 │ ${report.summary.mrr.toFixed(4).padStart(6)}      │ 最初の正解の上位出現度        │`);
   lines.push(`│ nDCG@${report.config.k.toString().padEnd(2)}            │ ${report.summary.avgNdcgAtK.toFixed(4).padStart(6)}      │ 順位付き正解品質              │`);
+  lines.push(`│ Success@1(◎)       │ ${(report.summary.successAt1HighRelevance * 100).toFixed(2).padStart(6)}%     │ 1位が最重要(◎)の確率         │`);
   lines.push('├─────────────────────┼─────────────┼───────────────────────────────┤');
   lines.push(`│ Coverage            │ ${(report.summary.coverage * 100).toFixed(2).padStart(6)}%     │ ファイルの網羅率              │`);
   lines.push(`│ K値達成率           │ ${(report.summary.kAchievementRate * 100).toFixed(2).padStart(6)}%     │ 目標K件取得の成功率           │`);
@@ -308,7 +329,7 @@ export function formatEvaluationReport(report: EvaluationReport): string {
     lines.push(`🔍 ${result.queryId} (${result.stakeholderId})`);
     lines.push(`   Query: ${result.query.substring(0, 60)}${result.query.length > 60 ? '...' : ''}`);
     lines.push(`   P@K: ${(result.metrics.precisionAtK * 100).toFixed(1)}% | R@K: ${(result.metrics.recallAtK * 100).toFixed(1)}% | F1: ${(result.metrics.f1AtK * 100).toFixed(1)}%`);
-    lines.push(`   RR: ${result.metrics.reciprocalRank.toFixed(4)} | nDCG: ${result.metrics.ndcgAtK.toFixed(4)}`);
+    lines.push(`   RR: ${result.metrics.reciprocalRank.toFixed(4)} | nDCG: ${result.metrics.ndcgAtK.toFixed(4)} | S@1(◎): ${result.metrics.successAt1HighRelevance === 1 ? '✅' : '❌'}`);
     lines.push(`   Hits: ${result.hits.length}/${result.relevantChunks.length} (${result.hits.join(', ') || 'none'})`);
     lines.push('');
   }

@@ -778,7 +778,7 @@ async function main(): Promise<void> {
       const uuid = getArg('uuid');
       const output = getArg('output') || './all-chunks-for-labeling.csv';
       const stakeholdersArg = getArg('stakeholders');
-      const priorityFile = getArg('priority') || './RAG評価データリスト.xlsx';
+      const priorityFile = getArg('priority') || './rag-priority-mapping.xlsx';
 
       if (!uuid) {
         console.error('❌ --uuid が必要です');

@@ -7,7 +7,7 @@ SSRツールのRAG検索精度を評価するためのスクリプトです。
 - **実際のツールと同じロジック**: `CustomStakeholderQueryEnhancer` でクエリを自動生成
 - **動的K値計算**: ステークホルダーとチャンク数に基づいて最適なK値を自動計算
 - **RRF検索**: 複数クエリをReciprocal Rank Fusionで統合
-- **優先度自動設定**: `RAG評価データリスト.xlsx` から優先度を自動適用
+- **優先度自動設定**: `rag-priority-mapping.xlsx` から優先度を自動適用
 - **7つの評価指標**: Precision@K, Recall@K, F1@K, MRR, nDCG@K, Coverage, K値達成率
 
 ---
@@ -46,7 +46,7 @@ SSRツールと同じ比率ベースのロジックでK値を自動計算しま�
 │     npx ts-node rag-evaluator.ts export-all-csv \               │
 │       --uuid <uuid>                                              │
 │                                                                  │
-│     ※ RAG評価データリスト.xlsx があれば優先度を自動設定         │
+│     ※ rag-priority-mapping.xlsx があれば優先度を自動設定         │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -104,7 +104,7 @@ PINECONE_INDEX_NAME=ssr-knowledge-base
 
 ### 3. 優先度ファイルの配置（オプション）
 
-`RAG評価データリスト.xlsx` を配置すると、優先度が自動設定されます。
+`rag-priority-mapping.xlsx` を配置すると、優先度が自動設定されます。
 
 ---
 
@@ -126,7 +126,7 @@ npx ts-node rag-evaluator.ts export-all-csv \
 | `--uuid` | ユーザーUUID（必須） | - |
 | `--output` | 出力ファイルパス | `./all-chunks-for-labeling.csv` |
 | `--stakeholders` | ステークホルダーID | `cxo,technical-fellows` |
-| `--priority` | 優先度ファイル | `./RAG評価データリスト.xlsx` |
+| `--priority` | 優先度ファイル | `./rag-priority-mapping.xlsx` |
 
 **出力CSVの形式（横並び）:**
 
@@ -239,7 +239,7 @@ rag-evaluation/
 │
 ├── stakeholders.json         # ステークホルダー定義（CxO + TFの2種）
 ├── stakeholders-all.json     # ステークホルダー定義（全6種）
-├── RAG評価データリスト.xlsx   # 優先度マッピング（オプション）
+├── rag-priority-mapping.xlsx   # 優先度マッピング（オプション）
 │
 ├── package.json              # 依存関係
 ├── package-lock.json         # 依存関係ロック
@@ -284,7 +284,7 @@ rag-evaluation/
 
 1. **環境変数**: Pinecone/OpenAI APIキーが必要です
 2. **UUID**: 評価対象のユーザーUUIDを指定してください
-3. **優先度ファイル**: `RAG評価データリスト.xlsx` のシート名は `ファイル一覧` である必要があります
+3. **優先度ファイル**: `rag-priority-mapping.xlsx` のシート名は `ファイル一覧` である必要があります
 4. **生成ファイル**: 以下はGitから除外推奨
 
 ```gitignore
@@ -307,7 +307,7 @@ cd rag-evaluation
 npm install
 
 # 2. 全チャンクCSV出力（優先度自動設定）
-#    ※ RAG評価データリスト.xlsx があれば自動で優先度が設定されます
+#    ※ rag-priority-mapping.xlsx があれば自動で優先度が設定されます
 npx ts-node rag-evaluator.ts export-all-csv \
   --uuid "your-uuid-here" \
   --output ./all-chunks.csv

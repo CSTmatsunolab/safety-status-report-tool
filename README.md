@@ -792,7 +792,7 @@ rag-evaluation/
 │
 ├── stakeholders.json            # 評価用ステークホルダー（CxO + TFの2種）
 ├── stakeholders-all.json        # 全6ステークホルダー
-├── RAG評価データリスト.xlsx      # 優先度マッピング（オプション）
+├── rag-priority-mapping.xlsx      # 優先度マッピング（オプション）
 │
 ├── package.json
 ├── tsconfig.json
@@ -813,7 +813,7 @@ rag-evaluation/
    npx ts-node rag-evaluator.ts export-all-csv \
      --uuid <your-uuid> \
      --output ./all-chunks.csv
-   ※ RAG評価データリスト.xlsx があれば優先度を自動設定
+   ※ rag-priority-mapping.xlsx があれば優先度を自動設定
        ↓
 3. Excelで確認・調整（手作業）
    - 自動設定された優先度を確認

@@ -14,7 +14,7 @@ import {
 const UTF8_BOM = '\uFEFF';
 
 // ============================================================
-// 優先度マッピング読み込み（RAG評価データリスト.xlsx）
+// 優先度マッピング読み込み（rag-priority-mapping.xlsx）
 // ============================================================
 
 /**
@@ -50,13 +50,13 @@ function normalizeFileName(fileName: string): string {
 }
 
 /**
- * RAG評価データリスト.xlsxから優先度マッピングを読み込む
+ * rag-priority-mapping.xlsxから優先度マッピングを読み込む
  */
 export function loadPriorityMapping(
   xlsxPath: string
 ): Map<string, Record<string, number>> {
   const workbook = XLSX.readFile(xlsxPath);
-  const sheetName = 'ファイル一覧';
+  const sheetName = 'file_list';
   const worksheet = workbook.Sheets[sheetName];
   
   if (!worksheet) {
@@ -555,7 +555,7 @@ export function exportAllChunksToCSV(
   console.log(`   ${chunks.length} 件のチャンク`);
   console.log(`   ステークホルダー列: ${stakeholderIds.join(', ')}`);
   if (priorityMapping) {
-    console.log(`   📌 優先度を自動設定しました（RAG評価データリスト.xlsxより）`);
+    console.log(`   📌 優先度を自動設定しました（rag-priority-mapping.xlsxより）`);
     console.log(`   📌 内容を確認し、関係なさそうなチャンクは0に変更してください`);
   }
   console.log(`   📌 Excelでダブルクリックで開けます`);

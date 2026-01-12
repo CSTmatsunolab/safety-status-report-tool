@@ -73,6 +73,7 @@ export interface QueryEvaluationResult {
     f1AtK: number;
     reciprocalRank: number;
     ndcgAtK: number;
+    successAt1HighRelevance: number; // 1位が◎（relevance=3）か
   };
   retrievedChunks: RetrievedChunk[];
   relevantChunks: RelevantChunk[];
@@ -98,6 +99,7 @@ export interface EvaluationReport {
     avgNdcgAtK: number;
     coverage: number;
     kAchievementRate: number;
+    successAt1HighRelevance: number; // ◎（relevance=3）のSuccess@1
   };
   queryResults: QueryEvaluationResult[];
 }
