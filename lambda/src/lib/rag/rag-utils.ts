@@ -28,7 +28,7 @@ export function getDynamicK(
   // ========================================
   const RATIO_MIN = 0.08;     // 最低8%は取得
   const RATIO_MAX = 0.15;     // 最大15%まで
-  const ABSOLUTE_MIN = 5;     // 絶対下限（どんなに少なくても5は取得）
+  const ABSOLUTE_MIN = 10;     // 絶対下限（どんなに少なくても5は取得）
   const ABSOLUTE_MAX: Record<string, number> = {
     'pinecone': 50,
     'memory': 20

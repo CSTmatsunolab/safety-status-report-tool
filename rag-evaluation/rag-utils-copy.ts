@@ -15,7 +15,7 @@ export function getDynamicK(
   // 定数
   const RATIO_MIN = 0.08;
   const RATIO_MAX = 0.15;
-  const ABSOLUTE_MIN = 5;
+  const ABSOLUTE_MIN = 10;
   const ABSOLUTE_MAX: Record<string, number> = { 'pinecone': 50, 'memory': 20 };
 
   // ステークホルダー別ターゲット比率
