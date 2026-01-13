@@ -771,6 +771,126 @@ safety-status-report-tool/
 
 ---
 
+## クエリ拡張機能
+
+### 概要
+
+RAG検索の精度を向上させるため、ステークホルダーの関心事（concerns）から自動的に複数の検索クエリを生成します。各ステークホルダーに対して**6つのクエリ**（日本語5つ + 英語1つ）が生成され、RRF（Reciprocal Rank Fusion）で統合されます。
+
+### クエリ生成の仕組み
+
+```
+ステークホルダー情報
+    ↓
+1. Concernsの具体化（抽象的な表現を具体的なキーワードに変換）
+    ↓
+2. 日本語クエリ生成（5つ）
+   - ロール + 具体化されたconcerns
+   - Concernsの組み合わせ
+   - 同義語展開
+   - ロール特化用語
+    ↓
+3. 英語クエリ生成（1つ）
+   - ステークホルダー別の英語キーワード
+    ↓
+4. RRF検索で統合
+```
+
+### Concernsの具体化
+
+抽象的なconcernsを、実際のドキュメントに出現しやすい具体的なキーワードに自動変換します。
+
+| 元のConcern | 具体化後 |
+|-------------|----------|
+| 技術的な実現可能性 | 技術検証 実装可能性 |
+| 開発リソースの効率性 | 開発工数 リソース配分 |
+| 技術的リスクと課題 | 技術課題 技術リスク |
+| 戦略的整合性 | 経営方針 事業戦略 |
+| 企業価値への影響 | コスト ROI 投資対効果 |
+| 製品の品質と安全性 | 製品品質 安全性 品質保証 |
+
+### ステークホルダー別クエリ例
+
+#### R&D（研究開発部門）
+```
+1. 研究開発部門 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術
+2. 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術
+3. 技術検証 実装可能性 技術課題 技術リスク
+4. R&D 技術検証 実装可能性
+5. 研究開発部門 テスト
+6. technical verification implementation development issue risk
+```
+
+#### CxO（経営層）
+```
+1. 経営層 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理
+2. 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理
+3. 経営方針 事業戦略 コスト ROI 投資対効果
+4. 経営 経営方針 事業戦略
+5. 経営層 費用
+6. risk management cost ROI governance strategy
+```
+
+#### Architect（アーキテクト）
+```
+1. アーキテクト 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ
+2. 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ
+3. 設計整合性 アーキテクチャ 技術的負債
+4. 設計者 設計整合性 アーキテクチャ
+5. アーキテクト アーキテクチャ
+6. system architecture design ADR component interface
+```
+
+### 同義語展開
+
+検索の網羅性を高めるため、主要なキーワードに対して同義語を展開します。
+
+| キーワード | 同義語 |
+|-----------|--------|
+| リスク | ハザード, 危険, 脅威, 課題 |
+| 安全 | セーフティ, 安全性, 安全要件, ASIL |
+| 品質 | クオリティ, QA, 品質保証, 検証 |
+| 設計 | アーキテクチャ, 構成, 構造, ADR |
+| 課題 | 問題, イシュー, オープンイシュー, ブロッカー |
+| コスト | 費用, 予算, 見積, 工数 |
+
+### ロール特化用語
+
+各ステークホルダーの実務に即したキーワードを追加します。
+
+| ステークホルダー | ロール特化用語 |
+|-----------------|---------------|
+| CxO | 経営判断, コスト, 予算, 進捗, 承認, マイルストーン |
+| Technical Fellows | 技術評価, 設計判断, 技術レビュー, 品質基準, 技術方針 |
+| Architect | 設計, 構成, モジュール, インターフェース, ADR, 依存関係 |
+| Business | 収益, コスト削減, 市場影響, ビジネスリスク, 投資, 予算 |
+| Product | 品質, 安全性, 要件, 機能, リリース, 検証, テスト |
+| R&D | 技術検証, 実装, 開発課題, 技術評価, 検証結果, 課題 |
+
+### 英語クエリ
+
+英語ドキュメントへの対応として、6番目のクエリとして英語キーワードを生成します。
+
+| ステークホルダー | 英語クエリ |
+|-----------------|-----------|
+| CxO | risk management cost ROI governance strategy |
+| Technical Fellows | technical quality architecture design review standard |
+| Architect | system architecture design ADR component interface |
+| Business | business risk cost revenue ROI budget |
+| Product | product quality safety requirements verification test |
+| R&D | technical verification implementation development issue risk |
+
+### クエリ確認コマンド
+
+生成されるクエリを確認するには、以下のコマンドを使用します：
+
+```bash
+cd rag-evaluation
+npx ts-node rag-evaluator.ts show-queries --stakeholders ./stakeholders-all.json
+```
+
+---
+
 ## RAG 評価スクリプト
 
 `rag-evaluation/` ディレクトリには、RAG（Retrieval-Augmented Generation）システムの検索品質を評価するためのスクリプトが含まれています。

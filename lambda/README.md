@@ -60,7 +60,7 @@ lambda/
 │       ├── rag/
 │       │   ├── index.ts             # RAGモジュールエクスポート
 │       │   ├── types.ts             # RAG型定義
-│       │   ├── query-enhancer.ts    # クエリ拡張（5クエリ自動生成）
+│       │   ├── query-enhancer.ts    # クエリ拡張（5クエリ自動生成＋英語クエリ）
 │       │   ├── rag-utils.ts         # RAGユーティリティ
 │       │   ├── rrf-fusion.ts        # RRF検索・動的K値計算
 │       │   └── sparse-vector-utils.ts # 疎ベクトル生成（Kuromoji/Wink）
@@ -83,7 +83,7 @@ lambda/
 1. RRF検索（5クエリ自動生成 + 動的K値）
     ↓
 2. コンテキスト準備
-   - S3からファイル取得
+   - S3からファイル取得(18MB以上の場合)
    - XLSX → シート別テキスト
    - DOCX → テキスト抽出
    - PDF → ページ数付きテキスト

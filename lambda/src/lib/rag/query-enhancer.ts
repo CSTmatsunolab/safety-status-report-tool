@@ -1,4 +1,4 @@
-// src/lib/query-enhancer.ts
+// lambda/src/lib/rag/query-enhancer.ts
 
 import { Stakeholder } from './types';
 
@@ -93,16 +93,37 @@ export class QueryEnhancer {
       queries.push(...roleSpecificQueries);
     }
     
-    // 7. 英語クエリの追加
+    // 7. 【改善】日本語クエリを最大5つに制限し、英語クエリを6番目として追加
+    const japaneseQueries = [...new Set(queries)]
+      .filter(q => q && q.trim().length > 0)
+      .slice(0, 5);
+    
+    // 英語クエリを6番目として追加（日本語入力の場合）
     if (includeEnglish && (roleLang === 'ja' || concernsLang === 'ja')) {
-      const englishQueries = this.generateEnglishQueries(stakeholder);
-      queries.push(...englishQueries);
+      const englishQuery = this.generateEnglishQuerySingle(stakeholder);
+      if (englishQuery) {
+        return [...japaneseQueries, englishQuery];
+      }
     }
     
-    // 重複除去して最大数に制限
-    return [...new Set(queries)]
-      .filter(q => q && q.trim().length > 0)
-      .slice(0, maxQueries);
+    return japaneseQueries;
+  }
+
+  /**
+   * 【追加】英語クエリを1つ生成（6番目用）
+   */
+  protected generateEnglishQuerySingle(stakeholder: Stakeholder): string | null {
+    // ステークホルダー別の英語クエリテンプレート
+    const englishQueryTemplates: Record<string, string> = {
+      'cxo': 'risk management cost ROI governance strategy',
+      'technical-fellows': 'technical quality architecture design review standard',
+      'architect': 'system architecture design ADR component interface',
+      'business': 'business risk cost revenue ROI budget',
+      'product': 'product quality safety requirements verification test',
+      'r-and-d': 'technical verification implementation development issue risk'
+    };
+    
+    return englishQueryTemplates[stakeholder.id] || null;
   }
 
   /**
