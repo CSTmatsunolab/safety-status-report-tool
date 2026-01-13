@@ -601,9 +601,10 @@ export class CustomStakeholderQueryEnhancer extends QueryEnhancer {
     const roleLang = this.detectLanguage(stakeholder.role);
     const concernsLang = this.detectLanguage(stakeholder.concerns.join(' '));
     
-    // 3. 基本クエリ
+    // 3. 【改善】Concernsを具体化してから処理
+    const concretizedConcerns = this.concretizeConcerns(stakeholder.concerns);
     const cleanRole = this.cleanRole(stakeholder.role);
-    const prioritizedConcerns = this.prioritizeConcerns(stakeholder.concerns);
+    const prioritizedConcerns = this.prioritizeConcerns(concretizedConcerns);
     
     queries.push(
       `${cleanRole} ${prioritizedConcerns.join(' ')}`,
@@ -645,9 +646,86 @@ export class CustomStakeholderQueryEnhancer extends QueryEnhancer {
       queries.push(...customSynonymQueries);
     }
     
-    return [...new Set(queries)]
+    // 8. 【改善】日本語クエリを最大5つに制限し、英語クエリを6番目として追加
+    const japaneseQueries = [...new Set(queries)]
       .filter(q => q && q.trim().length > 0)
-      .slice(0, config.maxQueries || 5);
+      .slice(0, 5);
+    
+    // 英語クエリを6番目として追加（日本語入力の場合）
+    if (config.includeEnglish !== false && (roleLang === 'ja' || concernsLang === 'ja')) {
+      const englishQuery = this.generateCustomEnglishQuery(stakeholder, roleAnalysis.field);
+      if (englishQuery) {
+        return [...japaneseQueries, englishQuery];
+      }
+    }
+    
+    return japaneseQueries;
+  }
+
+  /**
+   * 【追加】カスタムステークホルダー用の英語クエリ生成
+   */
+  private generateCustomEnglishQuery(
+    stakeholder: Stakeholder,
+    field?: string
+  ): string | null {
+    // 分野別の英語クエリテンプレート
+    const fieldEnglishTemplates: Record<string, string> = {
+      'quality': 'quality assurance testing verification QA',
+      'security': 'security vulnerability risk protection',
+      'sales': 'sales revenue customer business',
+      'marketing': 'marketing brand promotion market',
+      'finance': 'cost budget ROI financial investment',
+      'legal': 'compliance regulatory governance legal',
+      'hr': 'human resources talent recruitment',
+      'manufacturing': 'manufacturing production quality efficiency',
+      'customer': 'customer satisfaction support CX',
+      'data': 'data analytics insights metrics KPI',
+      'project': 'project management schedule resources',
+      'devops': 'DevOps CI/CD infrastructure automation',
+      'development': 'development implementation technical engineering'
+    };
+    
+    // 分野が推測できた場合はそのテンプレートを使用
+    if (field && fieldEnglishTemplates[field]) {
+      return fieldEnglishTemplates[field];
+    }
+    
+    // 分野が推測できない場合はConcernsから英語キーワードを生成
+    const concernKeywords: Record<string, string> = {
+      'リスク': 'risk',
+      '安全': 'safety',
+      '品質': 'quality',
+      'コスト': 'cost',
+      '効率': 'efficiency',
+      '技術': 'technical',
+      '設計': 'design',
+      '検証': 'verification',
+      'テスト': 'testing',
+      '開発': 'development',
+      '管理': 'management',
+      '戦略': 'strategy',
+      '課題': 'issue',
+      '要件': 'requirements',
+      '進捗': 'progress',
+      'スケジュール': 'schedule'
+    };
+    
+    const englishTerms: string[] = [];
+    stakeholder.concerns.forEach(concern => {
+      Object.entries(concernKeywords).forEach(([ja, en]) => {
+        if (concern.includes(ja) && !englishTerms.includes(en)) {
+          englishTerms.push(en);
+        }
+      });
+    });
+    
+    if (englishTerms.length > 0) {
+      return englishTerms.slice(0, 5).join(' ');
+    }
+    
+    // デフォルトの汎用英語クエリ
+    return 'safety risk quality management';
   }
 
   /**
@@ -814,11 +892,15 @@ export class CustomStakeholderQueryEnhancer extends QueryEnhancer {
 
 /**
  * デバッグ用ユーティリティ
+ * DEBUG_LOGGING環境変数が設定されている場合のみ出力
  */
 export function debugQueryEnhancement(
   stakeholder: Stakeholder,
   config?: QueryEnhancementConfig
 ): void {
+  const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
+  if (!DEBUG_LOGGING) return;
+
   const enhancer = new CustomStakeholderQueryEnhancer();
   const originalQuery = `${stakeholder.role} ${stakeholder.concerns.join(' ')}`;
   const enhancedQueries = enhancer.enhanceQuery(stakeholder, config);
