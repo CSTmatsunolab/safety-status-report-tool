@@ -68,10 +68,8 @@ amplifytools.xcconfig
 # rag-evaluation/.gitignore
 node_modules/
 evaluation-results/
-all-chunks.csv
-ground-truth-all.json
-ground-truth.json
-chunks-for-labeling.csv
+ground-*.json
+*.csv
 rag-evaluation/*.xlsx
 
 #testfile

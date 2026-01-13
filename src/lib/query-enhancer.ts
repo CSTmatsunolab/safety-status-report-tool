@@ -38,7 +38,9 @@ export class QueryEnhancer {
     
     // 2. ロールと関心事の処理
     const cleanedRole = this.cleanRole(stakeholder.role);
-    const prioritizedConcerns = this.prioritizeConcerns(stakeholder.concerns);
+    // 【改善】concernsを具体化してから優先順位付け
+    const concretizedConcerns = this.concretizeConcerns(stakeholder.concerns);
+    const prioritizedConcerns = this.prioritizeConcerns(concretizedConcerns);
     
     // 3. 【変更】基本クエリパターン（重複回避ロジック）
     if (prioritizedConcerns.length >= 3) {
@@ -169,11 +171,65 @@ export class QueryEnhancer {
   }
 
   /**
+   * 【追加】抽象的なconcernsを具体的なキーワードに変換
+   */
+  protected readonly CONCERN_CONCRETIZATION: Record<string, string> = {
+    // R&D
+    '技術的な実現可能性': '技術検証 実装可能性',
+    '開発リソースの効率性': '開発工数 リソース配分',
+    'イノベーションの機会': '技術改善 新技術',
+    '技術的リスクと課題': '技術課題 技術リスク',
+    
+    // Technical Fellows
+    '技術的な卓越性': '技術品質 設計品質',
+    'ベストプラクティスの適用': '標準準拠 業界標準',
+    '長期的な技術戦略': '技術方針 技術選定',
+    '技術的イノベーション': '技術改善 最適化',
+    
+    // CxO
+    '戦略的整合性': '経営方針 事業戦略',
+    '企業価値への影響': 'コスト ROI 投資対効果',
+    'ステークホルダーへの説明責任': '報告 承認 意思決定',
+    
+    // Architect
+    'システム設計の整合性': '設計整合性 アーキテクチャ',
+    'アーキテクチャの保守性': '保守性 メンテナンス',
+    
+    // Business
+    'ビジネスインパクト': '事業影響 ビジネス価値',
+    'ROIと収益性': 'ROI 収益 コスト',
+    '事業リスク': '事業リスク ビジネスリスク',
+    
+    // Product
+    '製品の品質と安全性': '製品品質 安全性 品質保証',
+    '市場競争力': '競争力 差別化 市場価値',
+    'ユーザビリティ': '使いやすさ UX ユーザー体験',
+    '製品化のタイムライン': 'リリース スケジュール マイルストーン',
+  };
+
+  /**
+   * 【追加】concernを具体化
+   */
+  protected concretizeConcern(concern: string): string {
+    return this.CONCERN_CONCRETIZATION[concern] || concern;
+  }
+
+  /**
+   * 【追加】concernsリストを具体化
+   */
+  protected concretizeConcerns(concerns: string[]): string[] {
+    return concerns.map(c => this.concretizeConcern(c));
+  }
+
+  /**
    * 懸念事項の優先順位付け（多言語対応版）
    */
   protected prioritizeConcerns(concerns: string[]): string[] {
-    // 日本語の重要キーワード
-    const priorityKeywordsJa = ['安全', 'リスク', '品質', 'コスト', '戦略', 'セキュリティ'];
+    // 【改善】日本語の重要キーワード - 拡充版
+    const priorityKeywordsJa = [
+      '安全', 'リスク', '品質', 'コスト', '戦略', 'セキュリティ',
+      '課題', '検証', '設計', '要件', '技術', '実装'
+    ];
     
     // 英語の重要キーワード
     const priorityKeywordsEn = ['safety', 'risk', 'quality', 'cost', 'strategy', 
@@ -335,12 +391,44 @@ export class QueryEnhancer {
       'devops': ['DevOps engineer', 'infrastructure', 'SRE']
     };
     
-    // 日本語の関心事同義語
+    // 【改善】日本語の関心事同義語 - 拡充版
     const concernSynonymsJa: Record<string, string[]> = {
-      'リスク管理': ['リスク', 'ハザード', '危険', 'リスクアセスメント'],
-      '安全': ['セーフティ', '安全性', '安全確保'],
-      '品質': ['クオリティ', 'QA', '品質保証'],
-      'コスト': ['費用', '予算', 'コスト削減']
+      // リスク関連
+      'リスク管理': ['リスク', 'ハザード', '危険', 'リスク対策', 'リスク低減'],
+      'リスク': ['ハザード', '危険', '脅威', '課題'],
+      
+      // 安全関連
+      '安全': ['セーフティ', '安全性', '安全要件', 'ASIL'],
+      '安全性': ['セーフティ', '安全', '安全要件'],
+      
+      // 品質関連
+      '品質': ['クオリティ', 'QA', '品質保証', '検証'],
+      '検証': ['テスト', '妥当性確認', 'バリデーション', '評価'],
+      
+      // コスト関連
+      'コスト': ['費用', '予算', '見積', '工数'],
+      'ROI': ['投資対効果', '費用対効果', '投資回収'],
+      
+      // 設計関連
+      '設計': ['アーキテクチャ', '構成', '構造', 'ADR'],
+      'アーキテクチャ': ['設計', 'システム構成', '構造'],
+      
+      // 要件関連
+      '要件': ['仕様', '要求', 'スペック'],
+      '機能': ['機能要件', 'FR', '機能仕様'],
+      
+      // 課題関連
+      '課題': ['問題', 'イシュー', 'オープンイシュー', 'ブロッカー'],
+      '技術課題': ['技術的問題', '実装課題', '技術リスク'],
+      
+      // 進捗関連
+      '進捗': ['ステータス', '状況', '進行状況'],
+      'スケジュール': ['日程', 'タイムライン', '期限', 'マイルストーン'],
+      
+      // 技術関連（R&D/Technical Fellows向け）
+      '技術': ['テクノロジー', '技術的', '実装'],
+      '実装': ['開発', '実現', '構築'],
+      'イノベーション': ['技術革新', '改善', '刷新']
     };
     
     // 英語の関心事同義語
@@ -397,13 +485,14 @@ export class QueryEnhancer {
   protected generateRoleSpecificQueries(stakeholder: Stakeholder): string[] {
     const queries: string[] = [];
     
+    // 【改善】roleSpecificTerms - concernsと重複せず、実務に即したキーワード
     const roleSpecificTerms: Record<string, string[]> = {
-      'cxo': ['経営戦略', 'ビジネスインパクト', 'ROI', 'ガバナンス'],
-      'technical-fellows': ['アーキテクチャ', 'ベストプラクティス', '技術革新'],
-      'architect': ['システム設計', 'インフラ', 'スケーラビリティ'],
-      'business': ['売上', '市場', '競合', '顧客'],
-      'product': ['ユーザー', 'フィーチャー', 'ロードマップ'],
-      'r-and-d': ['研究', '実験', 'プロトタイプ', '特許']
+      'cxo': ['経営判断', 'コスト', '予算', '進捗', '承認', 'マイルストーン'],
+      'technical-fellows': ['技術評価', '設計判断', '技術レビュー', '品質基準', '技術方針'],
+      'architect': ['設計', '構成', 'モジュール', 'インターフェース', 'ADR', '依存関係'],
+      'business': ['収益', 'コスト削減', '市場影響', 'ビジネスリスク', '投資', '予算'],
+      'product': ['品質', '安全性', '要件', '機能', 'リリース', '検証', 'テスト'],
+      'r-and-d': ['技術検証', '実装', '開発課題', '技術評価', '検証結果', '課題', 'オープンイシュー']
     };
     
     const terms = roleSpecificTerms[stakeholder.id] || [];

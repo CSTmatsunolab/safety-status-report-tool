@@ -735,7 +735,7 @@ safety-status-report-tool/
 - **スタイリング**: Tailwind CSS
 - **認証**: AWS Cognito
 - **AI/LLM**: 
-  - Anthropic Claude API (Claude 3.5 Haiku) - レポート生成
+  - Anthropic Claude API (Claude Sonnet) - レポート生成
   - OpenAI API (text-embedding-3-small) - エンベディング
   - Google Cloud Vision API - OCR処理
 - **ベクトルストア**:
