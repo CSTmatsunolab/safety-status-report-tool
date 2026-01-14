@@ -660,13 +660,15 @@ async function commandEvaluateRRF(
     kValues // 動的K値の配列を追加
   );
 
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const jsonPath = path.join(outputDir, `evaluation-rrf-result-${timestamp}.json`);
-  const textPath = path.join(outputDir, `evaluation-rrf-report-${timestamp}.txt`);
+  const timestampDir = path.join(outputDir, timestamp);
+  
+  if (!fs.existsSync(timestampDir)) {
+    fs.mkdirSync(timestampDir, { recursive: true });
+  }
+  
+  const jsonPath = path.join(timestampDir, `evaluation-rrf-result.json`);
+  const textPath = path.join(timestampDir, `evaluation-rrf-report.txt`);
 
   // K値情報をレポートに追加
   const reportWithKInfo = {
