@@ -125,8 +125,8 @@ export async function POST(request: NextRequest) {
           pages
         }]
       };
-      
-      const [result] = await client.batchAnnotateFiles(request);
+      const visionClient = await client;
+      const [result] = await visionClient.batchAnnotateFiles(request);
       
       // テキストを結合し、信頼度を計算
       let fullText = '';
