@@ -1,7 +1,8 @@
 // lib/rag/query-enhancer/index.ts
 
 // Classes
-export { QueryEnhancer, QueryEnhancementConfig } from './QueryEnhancer';
+export { QueryEnhancer } from './QueryEnhancer';
+export type { QueryEnhancementConfig } from './QueryEnhancer';
 export { CustomStakeholderQueryEnhancer } from './CustomStakeholderQueryEnhancer';
 
 // Utils

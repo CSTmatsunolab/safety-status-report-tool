@@ -13,6 +13,7 @@
     "@aws-amplify/ui-react": "^6.13.2",
     "@aws-sdk/client-dynamodb": "^3.955.0",
     "@aws-sdk/client-s3": "^3.925.0",
+    "@aws-sdk/client-secrets-manager": "^3.969.0",
     "@aws-sdk/lib-dynamodb": "^3.955.0",
     "@aws-sdk/s3-request-presigner": "^3.922.0",
     "@google-cloud/vision": "^5.3.3",
