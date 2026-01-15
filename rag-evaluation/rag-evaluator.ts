@@ -46,8 +46,7 @@ import {
   loadPriorityMapping,
   AllChunkData,
 } from './csv-exporter';
-
-import { CustomStakeholderQueryEnhancer } from './query-enhancer-copy';
+import { CustomStakeholderQueryEnhancer } from './lib/query-enhancer';
 import { getDynamicK } from './rag-utils-copy';
 
 // 環境変数の読み込み
