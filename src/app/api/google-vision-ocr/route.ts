@@ -31,8 +31,8 @@ export async function POST(request: NextRequest) {
     // 4MB以上のファイルはクライアント側でチャンク分割されるため、ここでは4MB未満のみ処理
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    // Vision APIクライアントを取得
-    const client = getVisionClient();
+    // Vision APIクライアントを取得（非同期）
+    const client = await getVisionClient();
     
     // Google Cloud Vision APIでOCR実行
     const [result] = await client.documentTextDetection({
