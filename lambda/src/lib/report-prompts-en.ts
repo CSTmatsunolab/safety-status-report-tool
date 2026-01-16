@@ -1,5 +1,5 @@
 // src/lib/report-prompts-en.ts
-// Final version v2: Duplicates removed + Anti-hallucination reinforced + Causal analysis fabrication prohibited
+// v3: Markdown output support + Redundancy prevention
 
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
@@ -92,15 +92,15 @@ Creating "plausible-sounding stories" is a distortion of facts and is STRICTLY P
    PROHIBITED: Using causal expressions like "because of", "due to", "caused by" without documented evidence
    
    Specific prohibited examples:
-   • "Tool selection decision was delayed because..." (not documented)
-   • "Evaluation criteria were not established in advance because..." (not documented)
-   • "Resource was allocated to other tasks because..." (not documented)
-   • "Past project data was not utilized because..." (not documented)
+   - "Tool selection decision was delayed because..." (not documented)
+   - "Evaluation criteria were not established in advance because..." (not documented)
+   - "Resource was allocated to other tasks because..." (not documented)
+   - "Past project data was not utilized because..." (not documented)
    
    REQUIRED:
-   • State only the status: "H-104 countermeasure is currently planned" (documented fact)
-   • Indicate unknown cause: "[CAUSE UNKNOWN] Specific cause of delay is not documented"
-   • When analysis is needed: "[INVESTIGATION REQUIRED] Root cause identification requires additional investigation"
+   - State only the status: "H-104 countermeasure is currently planned" (documented fact)
+   - Indicate unknown cause: "[CAUSE UNKNOWN] Specific cause of delay is not documented"
+   - When analysis is needed: "[INVESTIGATION REQUIRED] Root cause identification requires additional investigation"
 
 9. Structural Problems / Organizational Issues Based on Speculation
    PROHIBITED: "Decision-making process delay", "Budget allocation rigidity", "Immature estimation methods"
@@ -157,17 +157,104 @@ The following information affecting business/executive decisions must be handled
 export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
   const role = stakeholder?.role || 'Safety Engineer';
   
-  // Common format rules
+  // Common format rules (Changed to Markdown recommended)
   const formatRules = `
 ## OUTPUT CONSTRAINTS (MANDATORY)
 
-### Format
-- Do NOT use Markdown notation at all
-  - Prohibited: ##, ###, **, *, - (bullets), >, \`\`\`, \`, []()
-- Use numbered format for headings: "1. Section Name", "1.1 Subsection Name"
-- For bullet points, use numbered lists (1. 2. 3.) or "•"
-- Emphasize with quotation marks or context, not formatting
-- Tables without grid lines, use line breaks for each item
+### Format (Output in Markdown)
+Use Markdown notation to structure the report.
+
+**Headings (Sections/Subsections):**
+- Main heading: \`## 1. Section Name\`
+- Subheading: \`### 1.1 Subsection Name\`
+- Use headings ONLY for document structure (chapters, sections)
+
+**Lists (Item Enumeration):**
+- Numbered list: \`1. Item\` \`2. Item\` \`3. Item\`
+- Bullet list: \`- Item\`
+
+---
+
+### 【CRITICAL RULE】## with numbers is ONLY for chapter headings
+
+**Absolute Rule:**
+- The \`## 1.\` format is used ONLY for **chapter titles** like "## 1. Executive Summary"
+- When enumerating items, ALWAYS start with \`1.\` (without ##)
+
+**Check before output:**
+- Are you writing \`## 1.\` \`## 2.\` \`## 3.\` consecutively?
+- If consecutive, it is a **list** and you MUST remove the ##
+
+---
+
+### FORBIDDEN Patterns (Output = Failure)
+
+\`\`\`
+[FAILURE 1] Listing rationale or criteria
+**Safety Status Criteria:**
+## 1. High-risk items are under mitigation
+## 2. Medium-risk items are planned
+## 3. Test pass rate is below target
+
+[FAILURE 2] Listing executive decision items
+**Executive Decisions Required:**
+## 1. **Resource allocation decision**
+## 2. **Schedule risk response**
+## 3. **Quality target achievement**
+
+[FAILURE 3] Listing weekly tasks
+**Week 1 Activities:**
+## 1. Complete resource adjustment
+## 2. Deploy test environment
+## 3. Finalize implementation schedule
+
+[FAILURE 4] Listing delay factors
+**Delay Factors:**
+## 1. Self-diagnostic test failure
+## 2. Test environment preparation delay
+\`\`\`
+
+---
+
+### CORRECT Patterns (Output these)
+
+\`\`\`
+[CORRECT 1] Listing rationale or criteria
+**Safety Status Criteria:**
+1. High-risk items are under mitigation
+2. Medium-risk items are planned
+3. Test pass rate is below target
+
+[CORRECT 2] Listing executive decision items
+**Executive Decisions Required:**
+1. **Resource allocation decision**
+2. **Schedule risk response**
+3. **Quality target achievement**
+
+[CORRECT 3] Listing weekly tasks
+**Week 1 Activities:**
+1. Complete resource adjustment
+2. Deploy test environment
+3. Finalize implementation schedule
+
+[CORRECT 4] Listing delay factors
+**Delay Factors:**
+1. Self-diagnostic test failure
+2. Test environment preparation delay
+\`\`\`
+
+---
+
+### Decision Flowchart
+
+When about to write \`## number.\`:
+1. Is this a "chapter/section title"? → Yes = \`## 1. Section Name\` is OK
+2. Is this an "enumeration of items"? → Yes = Remove \`##\` and write \`1. Item name\`
+
+**Other Notation:**
+- Emphasis: Use \`**important term**\` for bold
+- Tables: Use Markdown table format (| Header | Header |)
+- Code or technical values: Wrap in \`backticks\`
 
 ### Style
 - Use formal writing style consistently throughout`;
@@ -180,11 +267,11 @@ export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
 - Total pages: 8-12 pages maximum (strictly enforced)
 - Total word count: 4,000-6,000 words
 - Section guidelines:
-  • Executive Summary: 1-2 pages
-  • GSN Analysis (if included): within 1 page
-  • Technical Overview: 1 page
-  • Risks and Countermeasures: 2-3 pages
-  • Recommendations: 1-2 pages
+  - Executive Summary: 1-2 pages
+  - GSN Analysis (if included): within 1 page
+  - Technical Overview: 1 page
+  - Risks and Countermeasures: 2-3 pages
+  - Recommendations: 1-2 pages
 - Avoid redundant explanations and repetition
 - MUST complete report through final section`;
   }
@@ -195,59 +282,110 @@ export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
 - Total pages: 12-15 pages maximum (strictly enforced)
 - Total word count: 6,000-8,000 words
 - Section guidelines:
-  • Executive Summary: 1-2 pages
-  • Technical Overview: 1-2 pages
-  • GSN Analysis (if included): 2-3 pages
-  • Risks and Countermeasures: 2-3 pages
-  • Test Results: 2-3 pages
-  • Improvement Proposals: 1-2 pages
+  - Executive Summary: 1-2 pages
+  - Technical Overview: 1-2 pages
+  - GSN Analysis (if included): 2-3 pages
+  - Risks and Countermeasures: 2-3 pages
+  - Test Results: 2-3 pages
+  - Improvement Proposals: 1-2 pages
 - Avoid redundant explanations and repetition
 - MUST complete report through final section`;
 }
 
 // ============================================================================
-// 4. Document Usage Principles
+// 4. Redundancy Prevention Rules
+// ============================================================================
+
+export function generateRedundancyPreventionPromptEN(): string {
+  return `
+## REDUNDANCY PREVENTION RULES (MANDATORY)
+
+### Fundamental Principle
+Describing the same information multiple times is PROHIBITED. State information once, then reference from other sections.
+
+### Cross-Reference Usage
+Use the following patterns to reference other sections and figures/tables:
+- Section reference: "As shown in Section 1", "See Section 2.3"
+- Figure/Table reference: "As shown in Table 1", "See Figure 2"
+- Forward/backward reference: "The aforementioned XX (Section X)", "XX discussed later (Section Y)"
+
+### Prohibited Patterns
+1. **Duplicate Data Entries**
+   PROHIBITED: Re-listing numbers detailed in Executive Summary within main body
+   REQUIRED: "As the key metrics in Section 1 indicate, ..."
+
+2. **Duplicate Risk Descriptions**
+   PROHIBITED: Repeating same risk explanations in both risk list and countermeasures section
+   REQUIRED: Detail in "Table X: Risk List", then in countermeasures: "For H-001 (see Table X), the countermeasure is..."
+
+3. **Duplicate Conclusions**
+   PROHIBITED: Repeating same conclusions at the end of each section
+   REQUIRED: Consolidate conclusions in "Recommendations" or "Summary" section
+
+4. **Duplicate GSN Information**
+   PROHIBITED: Re-explaining GSN analysis section content in other sections
+   REQUIRED: "See Table X: GSN Achievement Status (Section Y)"
+
+5. **Duplicating Figure/Table Content in Text**
+   PROHIBITED: Listing all data from a figure/table in the main text
+   REQUIRED: "See Table X for details" and state only key points in text
+
+### Role Distribution Between Sections
+| Section | Role | Relationship with Other Sections |
+|---------|------|----------------------------------|
+| Executive Summary | Conclusions and key metrics only | State "see main body for details" |
+| GSN Analysis | GSN structure and achievement status | Do not re-explain elsewhere |
+| Risk Analysis | Risk details | Countermeasures section references only |
+| Countermeasures/Recommendations | Specific actions | Reference risks by ID number |
+
+### Word Count Reduction Target
+- Cross-referencing and figure/table numbering can reduce total word count by 20-30%
+- Second and subsequent mentions of same content MUST be replaced with reference format`;
+}
+
+// ============================================================================
+// 5. Document Usage Principles
 // ============================================================================
 
 export function generateDocumentUsagePrinciplesEN(): string {
   return `
 ## DOCUMENT USAGE PRINCIPLES
 
-### Required Extraction Items
-Extract and reflect the following elements without omission:
-- Numerical data (statistics, measurements, counts, probabilities, percentages)
+### Mandatory Extraction Items
+Extract the following elements without omission and reflect in the report:
+- Numerical data (statistics, measurements, occurrence counts, probabilities, percentages)
 - Proper nouns (system names, project names, organization names, standard names)
-- Temporal information (dates, deadlines, milestones)
+- Timeline information (dates, deadlines, milestones)
 - Risk-countermeasure relationships
-- Responsible persons/owners
-- Causal relationships and root cause analysis results explicitly documented
+- Responsible person/owner information
+- Causal relationships and analysis results explicitly stated in documents
 
 ### Citation Rules
-- Cite source for all values/facts: "XX (from Document ID: XXX-001)"
-- Cite each source when using multiple documents
-- Quote important values accurately from source
-- When describing causal relationships, cite the source document
+- Cite source for all numbers and facts: "XX (from Document ID: XXX-001)"
+- Record sources for information from multiple documents
+- Quote important numbers accurately from original text
+- When describing causal relationships, cite the supporting document
 
 ### Priority Order
 1. Explicit statements in provided documents
 2. Information derivable from documents (show calculation process)
-3. Explicit statement of "Not documented", "Cause unknown", or "Investigation required"`;
+3. Explicit statements of "Not documented", "Cause unknown", "Investigation required"`;
 }
 
 // ============================================================================
-// 5. Stakeholder Information
+// 6. Stakeholder Information
 // ============================================================================
 
 export function generateStakeholderSectionEN(stakeholder: Stakeholder, strategy: string): string {
   return `
 ## STAKEHOLDER INFORMATION
 - Role: ${stakeholder.role}
-- Key Concerns: ${stakeholder.concerns.join(', ')}
+- Primary Concerns: ${stakeholder.concerns.join(', ')}
 - Rhetoric Strategy: ${strategy}`;
 }
 
 // ============================================================================
-// 6. Report Guidelines (Stakeholder-specific)
+// 7. Report Creation Guidelines (By Stakeholder)
 // ============================================================================
 
 export function generateReportGuidelinesEN(stakeholder: Stakeholder): string {
@@ -259,29 +397,29 @@ export function generateReportGuidelinesEN(stakeholder: Stakeholder): string {
 - Present information needed for executive decisions concisely
 - Minimize technical details, emphasize conclusions and impacts
 - Include specific, actionable recommendations
-- Include causal analysis only when documented in source materials`;
+- Include causal analysis only when documented`;
   }
   
   if (isBusinessRole(role)) {
     return `
 ## REPORT GUIDELINES (Business Division)
-- Clearly present business impact and response measures
-- State "calculation required" for investment/ROI unless documented
+- Clearly present business impacts and countermeasures
+- State "[TO BE CALCULATED]" for investment/ROI unless documented
 - Use only documented dates for schedule impacts
-- State "investigation required" for causal analysis/root cause unless documented`;
+- State "[INVESTIGATION REQUIRED]" for root causes unless documented`;
   }
   
   return `
 ## REPORT GUIDELINES
-- Focus on the perspective and concerns of ${role}
-- Use technical terminology as needed, but explain clearly
+- Focus on ${role}'s perspective and concerns
+- Use technical terms as needed but explain clearly
 - Provide objective analysis based on data and facts
 - Include specific, actionable recommendations
-- Describe causal relationships only when documented in source materials`;
+- Describe causal relationships only when documented`;
 }
 
 // ============================================================================
-// 7. GSN Analysis Prompt (Stakeholder-specific)
+// 8. GSN Analysis Prompt (By Stakeholder)
 // ============================================================================
 
 export function generateGSNAnalysisPromptEN(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
@@ -291,70 +429,70 @@ export function generateGSNAnalysisPromptEN(hasGSNFile: boolean, stakeholder?: S
 
   const role = stakeholder?.role || 'Safety Engineer';
   
-  // Executive (Concise version)
+  // Executive version (concise)
   if (isExecutiveRole(role)) {
     return `
-## GSN ANALYSIS (Executive Summary - Within 1 Page)
+## GSN ANALYSIS (Executive - Within 1 Page)
 
-Summarize in ONE section. Do NOT create individual subsections for each node.
+Consolidate into one section as follows. Do NOT create separate subsections for each node.
 
-1. GSN Achievement Status (Table format)
-   • Major goals only (G1, G2, etc.)
-   • Achievement status (Achieved/Partial/Not achieved)
-   • Business impact (High/Medium/Low)
+1. GSN Achievement Status (Table Format)
+   - Major goals only (G1, G2, etc.)
+   - Achievement status (Achieved/Partially Achieved/Not Achieved)
+   - Business impact level (High/Medium/Low)
 
-2. Overall Argumentation Evaluation (3-5 sentences)
+2. Overall Argumentation Structure Assessment (3-5 sentences)
 
 3. Key Points for Executive Decision (3-5 items)
 
 4. Recommended Actions (2-3 items)
 
-PROHIBITED: Individual subsections for each node, more than 1 page per node
-PROHIBITED: Fabricating causes of non-achievement without documented evidence`;
+PROHIBITED: Do not create separate subsections for each node; do not use more than 1 page per node
+PROHIBITED: Do not fabricate causes for non-achievement without documented evidence`;
   }
   
-  // Regulator
+  // Regulator version
   if (isRegulatorRole(role)) {
     return `
-## GSN ANALYSIS (Regulatory Review)
+## GSN ANALYSIS (Regulatory Authority)
 
 1. GSN Structure and Standards Compliance
-   [Table: GSN Node × Standards Requirements]
+   [Figure: GSN Node × Standard Requirements Mapping Table]
 
-2. Major Goal Evaluation
-   [Table: Goal Node Evaluation Summary]
+2. Major Goal Assessment
+   [Figure: Goal Node Evaluation List]
 
 3. Evidence Auditability
-   [Table: Evidence List and Verification Status]
+   [Figure: Evidence List and Verification Status]
 
 4. Argumentation Gaps and Corrective Plans
-   Note: Gap causes should only be described when documented`;
+   Note: Describe gap causes only when documented`;
   }
   
-  // Architect (Detailed version)
+  // Architect version (detailed)
   if (isArchitectRole(role)) {
     return `
-## GSN DETAILED ANALYSIS (Designer/Architect)
+## GSN DETAILED ANALYSIS (For Designers)
 
 1. GSN Structure Visualization
-   [Figure: GSN Hierarchical Diagram]
+   [Figure: GSN Hierarchy Diagram]
 
 2. Goal Node (G) Detailed Evaluation
-   • Achievement status and basis (document reference required)
-   • Technical issues (only those documented)
-   • Related components
+   - Achievement status and rationale (document reference required)
+   - Technical issues (only those documented)
+   - Related components
 
 3. Strategy Node (S) Evaluation
-   • Decomposition validity, coverage evaluation
+   - Decomposition validity, coverage assessment
 
 4. Evidence Node (Sn) Technical Evaluation
-   • Evidence type and strength, coverage and limitations
+   - Evidence type and strength, coverage and limitations
 
-5. GSN-Architecture Correspondence Analysis
-   [Table: GSN Node × Component Mapping]
+5. GSN-Architecture Mapping Analysis
+   [Figure: GSN Node × Component Mapping Table]
 
 6. Argumentation Gap Technical Analysis
-   Note: Gap causes only when documented, otherwise state "[INVESTIGATION REQUIRED]"`;
+   Note: Describe gap causes only when documented; otherwise state "[INVESTIGATION REQUIRED]"`;
   }
   
   // Default (Safety Engineer)
@@ -365,7 +503,7 @@ PROHIBITED: Fabricating causes of non-achievement without documented evidence`;
    [Figure: Complete GSN Hierarchy]
 
 2. Goal Node (G) Evaluation
-   Each goal: Achievement status, basis (evidence reference required), issues/recommendations
+   Each goal: Achievement status, rationale (evidence reference required), issues/recommendations
 
 3. Strategy Node (S) Evaluation
    Validity, coverage, effectiveness
@@ -374,40 +512,40 @@ PROHIBITED: Fabricating causes of non-achievement without documented evidence`;
    Evidence type and strength, coverage and limitations
 
 5. Overall GSN Structure Evaluation
-   Argumentation completeness, logical consistency, unresolved/information-lacking nodes
+   Argumentation completeness, logical consistency, unresolved/information-insufficient nodes
 
 6. Argumentation Gap Analysis
-   [Table: Argumentation Gap Summary]
-   Note: Gap causes only when documented, otherwise state "[CAUSE UNKNOWN]"`;
+   [Figure: Argumentation Gap List Table]
+   Note: Describe gap causes only when documented; otherwise state "[CAUSE UNKNOWN]"`;
 }
 
 // ============================================================================
-// 8. Figure Requirements (Stakeholder-specific)
+// 9. Figure Requirements (By Stakeholder)
 // ============================================================================
 
 export function generateFigureRequirementsPromptEN(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
   const role = stakeholder?.role || 'Safety Engineer';
-  const minFigures = getMinimumFigureCountEN(role, hasGSNFile);
+  const minFigures = getMinimumFigureCount(role, hasGSNFile);
   
   let prompt = `
 ## FIGURE/TABLE REQUIREMENTS
 
 ### Required Figures (2)
-1. [Table: Safety Evaluation Results Summary]
-2. [Table: Hazard-Countermeasure Mapping]`;
+1. [Figure: Safety Assessment Results Summary]
+2. [Figure: Hazard-Countermeasure Mapping Table]`;
 
   if (isExecutiveRole(role)) {
     prompt += `
 
 ### Recommended for Executives
-3. Safety Dashboard (achievement rates, status indicators)
+3. Safety Dashboard (achievement rate, status)
 4. Risk Heatmap`;
   } else if (isArchitectRole(role)) {
     prompt += `
 
 ### Recommended for Designers
 3. System Architecture Diagram
-4. Component Risk Mapping
+4. Component-wise Risk Mapping
 5. Technical Specification Compliance Table`;
   } else {
     prompt += `
@@ -419,24 +557,42 @@ export function generateFigureRequirementsPromptEN(hasGSNFile: boolean, stakehol
 
   if (hasGSNFile) {
     prompt += isExecutiveRole(role) 
-      ? `\n\n### GSN-Related: GSN Achievement Status Table (single table only)`
-      : `\n\n### GSN-Related: GSN Hierarchical Diagram, GSN Node Relationship Matrix`;
+      ? `\n\n### GSN Related: GSN Achievement Status Table (1 only)`
+      : `\n\n### GSN Related: GSN Hierarchy Diagram, GSN Node Relationship Matrix`;
   }
 
   prompt += `
 
 ### Figure Count: Minimum ${minFigures}, Recommended ${minFigures + 2}-${minFigures + 4}
 
-### Insertion Method
-- Indicate insertion position using [Figure/Table: Description] format
-- Mention key values from figures in the text
-- If information is insufficient, state "Cannot illustrate due to insufficient information"
-- All data in figures/tables MUST be from documented sources (fabrication prohibited)`;
+### Figure/Table Numbering System (MANDATORY)
+Assign sequential numbers and titles to all figures and tables.
+
+**For Tables:**
+- Format: "Table X: Title" (e.g., Table 1: Risk List, Table 2: GSN Achievement Status)
+- Create tables in Markdown format
+- Reference from text: "As shown in Table 1", "See Table 2"
+
+**For Figures:**
+- Format: "Figure X: Title" (e.g., Figure 1: System Architecture, Figure 2: GSN Hierarchy)
+- Since figures cannot be created, use placeholder format:
+  \`\`\`
+  [Figure 1: System Architecture]
+  * This figure shows the overall system configuration. Illustrate main components and their connections.
+  \`\`\`
+- Reference from text: "As shown in Figure 1", "See Figure 2"
+
+### Figure/Table Insertion Rules
+- Use sequential numbering throughout the document (Table 1, Table 2..., Figure 1, Figure 2...)
+- Assign number and title at first appearance
+- Subsequent references use number only (re-explanation of content prohibited)
+- State "Cannot illustrate due to insufficient information" when data is lacking
+- All figure/table data must be from documents (fabrication prohibited)`;
 
   return prompt;
 }
 
-function getMinimumFigureCountEN(role: string, hasGSN: boolean): number {
+function getMinimumFigureCount(role: string, hasGSN: boolean): number {
   const baseCount = 4;
   const gsnBonus = hasGSN ? 1 : 0;
   
@@ -446,7 +602,7 @@ function getMinimumFigureCountEN(role: string, hasGSN: boolean): number {
 }
 
 // ============================================================================
-// 9. Risk Analysis
+// 10. Risk Analysis
 // ============================================================================
 
 export function generateRiskAnalysisPromptEN(): string {
@@ -465,7 +621,7 @@ Note:
 }
 
 // ============================================================================
-// 10. Completeness and Accuracy
+// 11. Completeness and Accuracy
 // ============================================================================
 
 export function generateCompletenessPromptEN(): string {
@@ -486,7 +642,7 @@ Causal Relationship Descriptions:
 }
 
 // ============================================================================
-// 11. Invalid File Guidelines
+// 12. Invalid File Guidelines
 // ============================================================================
 
 export function generateInvalidFileGuidelinesEN(): string {
@@ -503,7 +659,7 @@ Valid document criteria:
 }
 
 // ============================================================================
-// 12. Rhetoric Strategy Guidelines
+// 13. Rhetoric Strategy Guidelines
 // ============================================================================
 
 export function getStrategyGuidelinesEN(strategy: RhetoricStrategy): string {
@@ -546,7 +702,7 @@ export function getStrategyGuidelinesEN(strategy: RhetoricStrategy): string {
 }
 
 // ============================================================================
-// 13. Report Structure Prompt
+// 14. Report Structure Prompt
 // ============================================================================
 
 export function generateStructurePromptEN(
@@ -585,7 +741,7 @@ ${sectionsFormatted}`;
 }
 
 // ============================================================================
-// 14. Build Complete User Prompt
+// 15. Build Complete User Prompt
 // ============================================================================
 
 export function buildCompleteUserPromptEN(params: {
@@ -609,29 +765,32 @@ export function buildCompleteUserPromptEN(params: {
     // 3. Output constraints (Format, Style, Volume consolidated)
     generateOutputConstraintsEN(stakeholder),
     
-    // 4. Document usage principles (including citation rules)
+    // 4. Redundancy prevention rules (NEW)
+    generateRedundancyPreventionPromptEN(),
+    
+    // 5. Document usage principles (including citation rules)
     generateDocumentUsagePrinciplesEN(),
     
-    // 5. Stakeholder-specific settings
+    // 6. Stakeholder-specific settings
     generateStakeholderSectionEN(stakeholder, strategy),
     generateReportGuidelinesEN(stakeholder),
     
-    // 6. Content generation guides
+    // 7. Content generation guides
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
     generateRiskAnalysisPromptEN(),
     generateCompletenessPromptEN(),
     
-    // 7. Invalid file handling (reference)
+    // 8. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),
     
-    // 8. Rhetoric strategy
+    // 9. Rhetoric strategy
     `\nApply the characteristics of ${strategy}:${getStrategyGuidelinesEN(strategy)}`,
     
-    // 9. Provided documents
+    // 10. Provided documents
     `\n## PROVIDED DOCUMENT CONTENT\n${contextContent}`,
     
-    // 10. Structure instruction
+    // 11. Structure instruction
     generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription)
   ];
 

@@ -710,3 +710,252 @@ li {
 
 /* Z-index */
 .z-50 { z-index: 50 !important; }
+
+/* Markdownコンテンツ用の基本スタイル */
+.prose {
+  color: var(--app-text);
+  max-width: 65ch;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.prose.prose-sm {
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* 見出し */
+.prose h1 {
+  color: var(--app-text);
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--app-border);
+  line-height: 1.2;
+}
+
+.prose h2 {
+  color: var(--app-text);
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.6rem;
+  line-height: 1.3;
+}
+
+.prose h3 {
+  color: var(--app-text);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.prose h4 {
+  color: var(--app-text);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.4rem;
+}
+
+/* 段落 */
+.prose p {
+  margin-top: 0.6rem;
+  margin-bottom: 0.6rem;
+  line-height: 1.6;
+}
+
+/* リスト */
+.prose ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose li {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+
+.prose li > ul,
+.prose li > ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* テーブル */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+}
+
+.prose thead {
+  border-bottom: 2px solid var(--app-border);
+}
+
+.prose th {
+  background-color: var(--app-bg-secondary);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid var(--app-border);
+}
+
+.prose td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--app-border);
+}
+
+.prose tbody tr:nth-child(even) {
+  background-color: var(--app-bg-secondary);
+}
+
+/* 強調 */
+.prose strong {
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+/* コード */
+.prose code {
+  background-color: var(--app-bg-secondary);
+  padding: 0.15rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.prose pre {
+  background-color: var(--app-bg-secondary);
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85rem;
+}
+
+/* 引用 */
+.prose blockquote {
+  border-left: 4px solid var(--app-accent);
+  padding-left: 1rem;
+  margin: 1rem 0;
+  color: var(--app-text-secondary);
+  font-style: italic;
+}
+
+/* 水平線 */
+.prose hr {
+  border: 0;
+  border-top: 1px solid var(--app-border);
+  margin: 1.5rem 0;
+}
+
+/* リンク */
+.prose a {
+  color: var(--app-accent);
+  text-decoration: underline;
+}
+
+.prose a:hover {
+  opacity: 0.8;
+}
+
+/* ダークモード対応 */
+.dark .prose {
+  color: var(--app-text);
+}
+
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4 {
+  color: var(--app-text);
+}
+
+.dark .prose strong {
+  color: var(--app-text);
+}
+
+.dark .prose th {
+  background-color: #1f2937;
+}
+
+.dark .prose tbody tr:nth-child(even) {
+  background-color: #111827;
+}
+
+.dark .prose code {
+  background-color: #1f2937;
+}
+
+.dark .prose pre {
+  background-color: #1f2937;
+}
+
+/* prose-invert（ダークモード用クラス） */
+.prose-invert {
+  color: #f9fafb;
+}
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4 {
+  color: #f9fafb;
+}
+
+.prose-invert strong {
+  color: #f9fafb;
+}
+
+.prose-invert th {
+  background-color: #1f2937;
+}
+
+.prose-invert tbody tr:nth-child(even) {
+  background-color: #111827;
+}
+
+.prose-invert code {
+  background-color: #1f2937;
+}
+
+.prose-invert pre {
+  background-color: #1f2937;
+}
+
+.prose-invert blockquote {
+  color: #9ca3af;
+}
+
+/* max-w-none（最大幅制限なし） */
+.prose.max-w-none {
+  max-width: none;
+}

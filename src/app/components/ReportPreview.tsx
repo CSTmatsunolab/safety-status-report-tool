@@ -3,6 +3,8 @@
 
 import { useState } from 'react';
 import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile, FiCode } from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Report } from '@/types';
 import { useI18n } from './I18nProvider';
 
@@ -25,65 +27,96 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     setIsEditing(false);
   };
 
-  // プレーンテキストをMarkdown形式に変換
-  const convertToMarkdown = (text: string): string => {
+  // 後処理: ## 1. → 1. に修正（番号付きリストの誤ったMarkdown記法を修正）
+  const fixNumberedLists = (text: string): string => {
     const lines = text.split('\n');
     const result: string[] = [];
-
+    
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
-
-      // 1. セクション番号のパターン（例: "1. セクション名", "2. 概要"）
-      // 行頭が数字+ピリオド+スペースで始まり、短め（80文字以下）の行
-      if (/^(\d+)\.\s+(.+)$/.test(line) && line.length <= 80) {
-        const match = line.match(/^(\d+)\.\s+(.+)$/);
-        if (match) {
-          line = `## ${match[1]}. ${match[2]}`;
+      
+      // ## 数字. で始まる行をチェック
+      const match = line.match(/^## (\d+)\. (.+)$/);
+      if (match) {
+        const num = match[1];
+        const content = match[2];
+        
+        // セクション見出しかどうかを判定
+        const isSectionHeading = isSectionTitle(content, num);
+        
+        if (!isSectionHeading) {
+          // リスト項目の場合は ## を削除
+          line = `${num}. ${content}`;
         }
       }
-      // 2. サブセクション番号のパターン（例: "1.1 サブセクション", "2.3.1 詳細"）
-      else if (/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/.test(line) && line.length <= 80) {
-        const match = line.match(/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/);
-        if (match) {
-          line = `### ${match[1]} ${match[2]}`;
-        }
-      }
-      // 3. 箇条書きパターン（・、•、‣、※）
-      else if (/^[・•‣※]\s*(.+)$/.test(line)) {
-        const match = line.match(/^[・•‣※]\s*(.+)$/);
-        if (match) {
-          line = `- ${match[1]}`;
-        }
-      }
-      // 4. 番号付きリスト（括弧付き: (1), (2), ①, ②）
-      else if (/^[（(](\d+)[)）]\s*(.+)$/.test(line)) {
-        const match = line.match(/^[（(](\d+)[)）]\s*(.+)$/);
-        if (match) {
-          line = `${match[1]}. ${match[2]}`;
-        }
-      }
-      else if (/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/.test(line)) {
-        const circleNums: { [key: string]: string } = {
-          '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
-          '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10'
-        };
-        const match = line.match(/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/);
-        if (match) {
-          line = `${circleNums[match[1]]}. ${match[2]}`;
-        }
-      }
-
+      
       result.push(line);
     }
+    
+    return result.join('\n');
+  };
 
-    // タイトルを先頭に追加
-    const titleLine = `# ${report.title}\n\n`;
-    return titleLine + result.join('\n');
+  // セクション見出しかどうかを判定
+  const isSectionTitle = (content: string, num: string): boolean => {
+    // 日本語のセクション見出しキーワード
+    const jaSectionKeywords = [
+      'エグゼクティブサマリー',
+      '現状分析',
+      'リスク評価',
+      '推奨事項',
+      '次のステップ',
+      '付録',
+      '概要',
+      '背景',
+      '目的',
+      '結論',
+      'まとめ',
+      '分析',
+      '評価',
+      '提言',
+      '対策',
+    ];
+    
+    // 英語のセクション見出しキーワード
+    const enSectionKeywords = [
+      'Executive Summary',
+      'Current Status',
+      'Risk Assessment',
+      'Recommendations',
+      'Next Steps',
+      'Appendix',
+      'Overview',
+      'Background',
+      'Purpose',
+      'Conclusion',
+      'Summary',
+      'Analysis',
+      'Evaluation',
+    ];
+    
+    // 数字が1桁で、セクションキーワードを含む場合はセクション見出し
+    if (parseInt(num) <= 10) {
+      for (const keyword of [...jaSectionKeywords, ...enSectionKeywords]) {
+        if (content.includes(keyword)) {
+          return true;
+        }
+      }
+    }
+    
+    // 短い見出し（30文字以下）で太字やその他の装飾がない場合はセクション見出しの可能性が高い
+    if (content.length <= 30 && !content.startsWith('**')) {
+      return true;
+    }
+    
+    return false;
   };
 
   // Markdownエクスポート
   const handleExportMarkdown = () => {
-    const markdownContent = convertToMarkdown(report.content);
+    const titleLine = `# ${report.title}\n\n`;
+    const fixedContent = fixNumberedLists(report.content);
+    const markdownContent = titleLine + fixedContent;
+    
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -216,6 +249,9 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     }
   };
 
+  // 表示用のコンテンツ（後処理適用済み）
+  const displayContent = fixNumberedLists(report.content);
+
   return (
     <div className="h-full flex flex-col">
       <div className="items-center mb-4">
@@ -315,10 +351,12 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
             </div>
           </div>
         ) : (
-          <div className="prose dark:prose-invert max-w-none">
-            <div className="whitespace-pre-wrap bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg text-gray-800 dark:text-gray-200 leading-relaxed text-sm">
-              {report.content}
-            </div>
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+            <article className="prose prose-sm max-w-none dark:prose-invert">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {displayContent}
+              </ReactMarkdown>
+            </article>
           </div>
         )}
       </div>
