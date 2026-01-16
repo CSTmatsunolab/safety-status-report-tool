@@ -60,7 +60,17 @@ lambda/
 │       ├── rag/
 │       │   ├── index.ts             # RAGモジュールエクスポート
 │       │   ├── types.ts             # RAG型定義
-│       │   ├── query-enhancer.ts    # クエリ拡張（5クエリ自動生成＋英語クエリ）
+│       │   ├── query-enhancer/
+│       │   │       ├── index.ts                     # 全エクスポート + debugQueryEnhancement
+│       │   │       ├── QueryEnhancer.ts             # 基本クラス
+│       │   │       ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
+│       │   │       ├── dictionaries/
+│       │   │       │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
+│       │   │       │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
+│       │   │       │   └── field-terms.ts           # 分野別キーワード・判定用辞書
+│       │   │       └── utils/
+│       │   │           ├── language-detection.ts    # detectLanguage + ヘルパー関数
+│       │   │           └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 │       │   ├── rag-utils.ts         # RAGユーティリティ
 │       │   ├── rrf-fusion.ts        # RRF検索・動的K値計算
 │       │   └── sparse-vector-utils.ts # 疎ベクトル生成（Kuromoji/Wink）

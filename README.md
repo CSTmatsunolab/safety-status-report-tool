@@ -559,7 +559,16 @@ safety-status-report-tool/
 │   │   │           └── route.ts      # レポート詳細・削除API
 │   │   │
 │   │   ├── components/
-│   │   │   ├── FileUpload.tsx               # ファイルアップロードUI
+│   │   │   └── FileUpload/
+│   │   │       ├── index.tsx              # メインコンポーネント
+│   │   │       ├── FileValidation.ts      # validateFile, マジックバイト検証
+│   │   │       ├── FileProcessor.ts       # S3/PDF/Excel/DOCX/画像処理
+│   │   │       ├── hooks/
+│   │   │       │   └── useFileUpload.ts   # 状態管理ロジック
+│   │   │       └── components/
+│   │   │           ├── FileList.tsx       # ファイル一覧表示
+│   │   │           ├── UploadZone.tsx     # ドロップゾーン
+│   │   │           └── FileWarnings.tsx   # 警告メッセージ
 │   │   │   ├── KnowledgeBaseManager.tsx     # 知識ベース管理UI
 │   │   │   ├── StakeholderSelect.tsx        # ステークホルダー選択UI
 │   │   │   ├── ReportPreview.tsx            # レポートプレビュー・編集
@@ -600,7 +609,22 @@ safety-status-report-tool/
 │   │   ├── amplify-config.ts           # 認証設定
 │   │   ├── browser-id.ts               # ブラウザID管理
 │   │   ├── chunking-strategies.ts      # チャンキング戦略セレクタ
-│   │   ├── md-converter.ts             # Markdown変換（DOCX/HTML/TXT対応）
+│   │   ├── md-converter/
+│   │   │   ├── index.ts              (154行) - メインエントリーポイント
+│   │   │   ├── types.ts              (32行)  - 型定義
+│   │   │   ├── converters/
+│   │   │   │   ├── docx.ts           (63行)  - DOCX変換
+│   │   │   │   ├── excel.ts          (116行) - Excel/CSV変換
+│   │   │   │   ├── text.ts           (221行) - TXT/JSON/XML/HTML変換
+│   │   │   │   └── pdf.ts            (80行)  - PDF警告ハンドラ
+│   │   │   ├── utils/
+│   │   │   │   ├── file-detection.ts (81行)  - ファイル形式判定
+│   │   │   │   ├── html-to-md.ts     (115行) - HTML→MD変換
+│   │   │   │   ├── table-utils.ts    (304行) - テーブル処理
+│   │   │   │   └── text-utils.ts     (44行)  - テキストユーティリティ
+│   │   │   └── safety/
+│   │   │       ├── normalizer.ts     (33行)  - 安全性文書正規化
+│   │   │       └── preserve-markers.ts(247行) - 保護マーカー・ID抽出
 │   │   ├── table-aware-chunking.ts     # 表認識チャンキング
 │   │   ├── max-min-chunking.ts         # Max-Min Semanticチャンキング
 │   │   ├── sparse-vector-utils.ts      # 疎ベクトル生成
@@ -616,7 +640,17 @@ safety-status-report-tool/
 │   │   ├── report-prompts-en.ts        # 英語プロンプトテンプレート
 │   │   ├── rag-utils.ts                # 検索ユーティリティ
 │   │   ├── rhetoric-strategies.ts      # レトリック戦略
-│   │   ├── query-enhancer.ts           # 検索クエリ拡張機能
+│   │   ├── query-enhancer/
+│   │   │   ├── index.ts                     # 全エクスポート + debugQueryEnhancement
+│   │   │   ├── QueryEnhancer.ts             # 基本クラス
+│   │   │   ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
+│   │   │   ├── dictionaries/
+│   │   │   │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
+│   │   │   │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
+│   │   │   │   └── field-terms.ts           # 分野別キーワード・判定用辞書
+│   │   │   └── utils/
+│   │   │       ├── language-detection.ts    # detectLanguage + ヘルパー関数
+│   │   │       └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 │   │   ├── report-structures.ts        # レポート構成管理
 │   │   ├── s3-utils.ts                 # S3ユーティリティ
 │   │   └── date-utils.ts               # 日付ユーティリティ
@@ -638,7 +672,17 @@ safety-status-report-tool/
 │   │       ├── rag/
 │   │       │   ├── index.ts             # RAGモジュールエクスポート
 │   │       │   ├── types.ts             # RAG型定義
-│   │       │   ├── query-enhancer.ts    # クエリ拡張
+│   │       │   ├── query-enhancer/
+│   │       │   │   ├── index.ts                     # 全エクスポート + debugQueryEnhancement
+│   │       │   │   ├── QueryEnhancer.ts             # 基本クラス
+│   │       │   │   ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
+│   │       │   │   ├── dictionaries/
+│   │       │   │   │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
+│   │       │   │   │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
+│   │       │   │   │   └── field-terms.ts           # 分野別キーワード・判定用辞書
+│   │       │   │   └── utils/
+│   │       │   │       ├── language-detection.ts    # detectLanguage + ヘルパー関数
+│   │       │   │       └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 │   │       │   ├── rag-utils.ts         # RAGユーティリティ
 │   │       │   ├── rrf-fusion.ts        # RRF検索
 │   │       │   └── sparse-vector-utils.ts # 疎ベクトル生成
@@ -907,7 +951,18 @@ rag-evaluation/
 ├── csv-exporter.ts              # CSV入出力・Ground Truth変換
 ├── metrics.ts                   # 評価指標計算（Precision, Recall, nDCG等）
 ├── types.ts                     # 型定義
-├── query-enhancer-copy.ts       # クエリ生成（本体からコピー）
+├── lib/
+│   └── query-enhancer/
+│       ├── index.ts                     # 全エクスポート + debugQueryEnhancement
+│       ├── QueryEnhancer.ts             # 基本クラス (約250行)
+│       ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス (約180行)
+│       ├── dictionaries/
+│       │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
+│       │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
+│       │   └── field-terms.ts           # 分野別キーワード・判定用辞書
+│       └── utils/
+│           ├── language-detection.ts    # detectLanguage + ヘルパー関数
+│           └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 ├── rag-utils-copy.ts            # RAGユーティリティ（本体からコピー）
 │
 ├── stakeholders.json            # 評価用ステークホルダー（CxO + TFの2種）

@@ -234,7 +234,18 @@ rag-evaluation/
 ├── csv-exporter.ts           # CSV入出力・Ground Truth変換
 ├── metrics.ts                # 評価指標計算ロジック
 ├── types.ts                  # 型定義
-├── query-enhancer-copy.ts    # クエリ生成ロジック（SSRツールからコピー）
+├── lib/
+│   └── query-enhancer/ #（SSRツールからコピー）
+│       ├── index.ts                     # 全エクスポート + debugQueryEnhancement
+│       ├── QueryEnhancer.ts             # 基本クラス
+│       ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
+│       ├── dictionaries/
+│       │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
+│       │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
+│       │   └── field-terms.ts           # 分野別キーワード・判定用辞書
+│       └── utils/
+│           ├── language-detection.ts    # detectLanguage + ヘルパー関数
+│           └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 ├── rag-utils-copy.ts         # 動的K値計算ロジック（SSRツールからコピー）
 │
 ├── stakeholders.json         # ステークホルダー定義（CxO + TFの2種）

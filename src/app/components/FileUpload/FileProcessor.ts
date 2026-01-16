@@ -5,7 +5,11 @@ import * as mammoth from 'mammoth';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
 
 // ファイルサイズの閾値
-export const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - これ以上はS3経由
+export const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - Excel/Word/テキスト用（ブラウザ処理）
+
+// PDF/画像用の閾値（Lambda 6MB制限対策）
+// これらはサーバーAPIに送信されるため、Lambdaペイロード制限に引っかかる
+export const API_PAYLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB - PDF/画像用
 
 type FileType = 'excel' | 'word' | 'pdf' | 'image' | 'text' | 'other';
 
@@ -138,12 +142,14 @@ export interface ImageExtractionResult {
 
 /**
  * 画像からテキストを抽出
+ * 注意: 画像はサーバーAPI経由で処理されるため、API_PAYLOAD_THRESHOLDを使用
  */
 export async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<ImageExtractionResult> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    if (file.size < S3_THRESHOLD) {
+    // 画像はサーバーAPIに送信されるため、Lambda 6MB制限を考慮
+    if (file.size < API_PAYLOAD_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -194,8 +200,9 @@ export async function extractTextFromImage(file: File, language: 'ja' | 'en'): P
         confidence: result.confidence
       };
     } 
-    // S3_THRESHOLD以上はS3経由
+    // API_PAYLOAD_THRESHOLD以上はS3経由
     else {
+      console.log(`Large image file (${(file.size / 1024 / 1024).toFixed(2)} MB), using S3...`);
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type);
       
@@ -248,12 +255,14 @@ export interface PDFExtractionResult {
 
 /**
  * PDFからテキストを抽出
+ * 注意: PDFはサーバーAPI経由で処理されるため、API_PAYLOAD_THRESHOLDを使用
  */
 export async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<PDFExtractionResult> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
-    if (file.size < S3_THRESHOLD) {
+    // PDFはサーバーAPIに送信されるため、Lambda 6MB制限を考慮
+    if (file.size < API_PAYLOAD_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
       
@@ -281,7 +290,9 @@ export async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Pro
         confidence: result.confidence
       };
     } 
+    // API_PAYLOAD_THRESHOLD以上はS3経由
     else {
+      console.log(`Large PDF file (${(file.size / 1024 / 1024).toFixed(2)} MB), using S3...`);
       const s3Key = await uploadToS3(file);
       const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
       return {
@@ -325,11 +336,13 @@ export interface ExcelExtractionResult {
 
 /**
  * Excelからテキストを抽出（Base64で保存し、プレビュー用テキストも抽出）
+ * 注意: Excelはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
 export async function extractTextFromExcel(file: File, language: string = 'ja'): Promise<ExcelExtractionResult> {
   try {
     console.log(`Processing Excel (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
+    // Excelはブラウザで処理されるため、Lambda制限に関係なし
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
       
@@ -401,11 +414,13 @@ export interface DocxExtractionResult {
 
 /**
  * Word (DOCX)からテキストを抽出（Base64で保存し、プレビュー用テキストも抽出）
+ * 注意: Wordはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
 export async function extractTextFromDocx(file: File, language: string = 'ja'): Promise<DocxExtractionResult> {
   try {
     console.log(`Processing Word (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
+    // Wordはブラウザで処理されるため、Lambda制限に関係なし
     if (file.size < S3_THRESHOLD) {
       const arrayBuffer = await file.arrayBuffer();
       
@@ -456,12 +471,14 @@ export async function extractTextFromDocx(file: File, language: string = 'ja'): 
 
 /**
  * テキストファイルを処理
+ * 注意: テキストはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
 export async function processTextFile(file: File): Promise<{
   content: string;
   s3Key?: string;
   originalContentLength: number;
 }> {
+  // テキストはブラウザで処理されるため、Lambda制限に関係なし
   if (file.size < S3_THRESHOLD) {
     const content = await file.text();
     return {
