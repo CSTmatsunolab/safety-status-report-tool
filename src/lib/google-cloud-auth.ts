@@ -41,9 +41,8 @@ async function getCredentialsFromSecretsManager(): Promise<object | null> {
 /**
  * Get Google Cloud Vision API client (async version)
  * Priority:
- * 1. AWS Secrets Manager (recommended for production)
- * 2. Environment variable GOOGLE_CLOUD_VISION_KEY (for development)
- * 3. GOOGLE_APPLICATION_CREDENTIALS file path (for local development)
+ * 1. AWS Secrets Manager (production)
+ * 2. GOOGLE_APPLICATION_CREDENTIALS file path (local development)
  */
 export async function getVisionClient(): Promise<ImageAnnotatorClient> {
   if (cachedClient) {
@@ -59,19 +58,7 @@ export async function getVisionClient(): Promise<ImageAnnotatorClient> {
     return cachedClient;
   }
 
-  // 2. Retrieve from environment variable (development / backup)
-  if (process.env.GOOGLE_CLOUD_VISION_KEY) {
-    try {
-      const credentials = JSON.parse(process.env.GOOGLE_CLOUD_VISION_KEY);
-      console.log('Using credentials from environment variable');
-      cachedClient = new ImageAnnotatorClient({ credentials });
-      return cachedClient;
-    } catch (error) {
-      console.error('Failed to parse credentials from environment variable:', error);
-    }
-  }
-
-  // 3. File-based authentication (local development)
+  // 2. File-based authentication (local development)
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     console.log('Using credentials from GOOGLE_APPLICATION_CREDENTIALS file');
     cachedClient = new ImageAnnotatorClient();
@@ -82,9 +69,8 @@ export async function getVisionClient(): Promise<ImageAnnotatorClient> {
   throw new Error(
     'Google Cloud Vision API credentials are not configured.\n' +
     'Please set up one of the following:\n' +
-    '1. AWS Secrets Manager secret "ssr-prod-google-cloud-vision-key"\n' +
-    '2. Environment variable GOOGLE_CLOUD_VISION_KEY\n' +
-    '3. Environment variable GOOGLE_APPLICATION_CREDENTIALS (file path)'
+    '1. AWS Secrets Manager secret (set GOOGLE_CLOUD_SECRET_NAME env var)\n' +
+    '2. Environment variable GOOGLE_APPLICATION_CREDENTIALS (file path for local dev)'
   );
 }
 

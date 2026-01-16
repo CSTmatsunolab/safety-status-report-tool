@@ -21,7 +21,7 @@ frontend:
         - echo "APP_AWS_SECRET_ACCESS_KEY=$APP_AWS_SECRET_ACCESS_KEY" >> .env
         - echo "APP_AWS_S3_BUCKET_NAME=$APP_AWS_S3_BUCKET_NAME" >> .env
         - echo "VECTOR_STORE=$VECTOR_STORE" >> .env
-        - echo "GOOGLE_CLOUD_VISION_KEY=$GOOGLE_CLOUD_VISION_KEY" >> .env
+        - echo "GOOGLE_CLOUD_SECRET_NAME=$GOOGLE_CLOUD_SECRET_NAME" >> .env
         - echo "USE_RRF=$USE_RRF" >> .env
         - echo "USE_ADVANCED_CHUNKING=$USE_ADVANCED_CHUNKING" >> .env
         - echo "DEBUG_LOGGING=$DEBUG_LOGGING" >> .env
