@@ -1,57 +1,58 @@
-// src/app/api/docx-extract/route.ts
+// src/app/api/export-docx/route.ts
+// DOCX エクスポート API（Markdown対応）
+
 import { NextRequest, NextResponse } from 'next/server';
-import * as mammoth from 'mammoth';
+import { Report } from '@/types';
+import { generateDOCX } from '@/lib/docx-exporter';
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-    
-    if (!file) {
+    const { report, language = 'ja' }: { 
+      report: Report; 
+      language?: 'ja' | 'en';
+    } = await request.json();
+
+    if (!report) {
       return NextResponse.json(
-        { error: 'No file provided' },
+        { error: 'Report data is required' },
         { status: 400 }
       );
     }
 
-    console.log(`Processing Word document: ${file.name}, Size: ${file.size} bytes`);
+    console.log('DOCX generation started for report:', report.title);
+    console.log('Language:', language);
 
-    // 4MB以上のファイルはクライアント側でチャンク分割されるため、ここでは4MB未満のみ処理
-    const buffer = Buffer.from(await file.arrayBuffer());
+    // DOCXを生成（Markdown対応）
+    const docxBuffer = await generateDOCX(report, {
+      language,
+      includeMetadata: true,
+      includeTimestamp: true,
+    });
     
-    try {
-      // mammothを使用してdocxからテキストを抽出
-      const result = await mammoth.extractRawText({ buffer });
-      
-      console.log(`DOCX extraction successful: ${file.name}, extracted ${result.value.length} characters`);
-      
-      return NextResponse.json({ 
-        text: result.value,
-        success: true,
-        fileName: file.name,
-        textLength: result.value.length,
-        messages: result.messages // 警告やエラーメッセージ
-      });
-    } catch (parseError) {
-      console.error('DOCX parsing error:', parseError);
-      
-      return NextResponse.json({ 
-        text: '', 
-        success: false,
-        error: 'DOCX parsing failed',
-        fileName: file.name,
-        details: parseError instanceof Error ? parseError.message : 'Unknown parse error'
-      });
+    console.log('DOCX buffer size:', docxBuffer.length);
+    
+    if (!docxBuffer || docxBuffer.length === 0) {
+      throw new Error('Generated DOCX buffer is empty');
     }
-  } catch (error) {
-    console.error('Request processing error:', error);
-    
-    return NextResponse.json(
-      { 
-        error: 'Request processing failed',
-        details: error instanceof Error ? error.message : 'Unknown error'
+
+    // BufferをUint8Arrayに変換
+    const uint8Array = new Uint8Array(docxBuffer);
+
+    return new Response(uint8Array, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': `attachment; filename="${encodeURIComponent(report.title)}.docx"`,
+        'Content-Length': docxBuffer.length.toString(),
       },
+    });
+  } catch (error) {
+    console.error('DOCX export error:', error);
+    return NextResponse.json(
+      { error: 'DOCX export failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 }
+
+export const maxDuration = 60;

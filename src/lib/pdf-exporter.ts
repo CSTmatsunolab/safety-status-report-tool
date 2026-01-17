@@ -1,4 +1,5 @@
 // src/lib/pdf-exporter.ts
+// Markdown対応版 PDF エクスポーター
 
 import React from 'react';
 import { 
@@ -13,6 +14,7 @@ import {
 import type { DocumentProps, PageProps } from '@react-pdf/renderer';
 import { Report } from '@/types';
 import { formatDate } from '@/lib/date-utils';
+import { parseMarkdown, ParsedBlock, stripInlineMarkdown } from '@/lib/markdown-parser';
 
 export interface PDFOptions {
   includeMetadata?: boolean;
@@ -30,7 +32,7 @@ export interface PDFOptions {
   language?: 'ja' | 'en';
 }
 
-// 日本語フォントを登録（Google Fonts）
+// 日本語フォントを登録
 Font.register({
   family: 'NotoSansJP',
   fonts: [
@@ -46,7 +48,7 @@ Font.register({
 });
 
 // ハイフネーションを無効化
-Font.registerHyphenationCallback(word => [word]);
+Font.registerHyphenationCallback((word: string) => [word]);
 
 // スタイル定義
 const styles = StyleSheet.create({
@@ -91,9 +93,21 @@ const styles = StyleSheet.create({
     lineHeight: 1.7,
     color: '#333333',
   },
-  // セクション見出し（【】形式）
-  sectionHeading: {
-    fontSize: 12,
+  // H1見出し
+  h1: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1a1a1a',
+    marginTop: 20,
+    marginBottom: 12,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderBottomStyle: 'solid',
+  },
+  // H2見出し
+  h2: {
+    fontSize: 14,
     fontWeight: 'bold',
     color: '#2c3e50',
     marginTop: 18,
@@ -105,9 +119,9 @@ const styles = StyleSheet.create({
     borderLeftColor: '#34495e',
     borderLeftStyle: 'solid',
   },
-  // 数字付き見出し
-  numberedHeading: {
-    fontSize: 11,
+  // H3見出し
+  h3: {
+    fontSize: 12,
     fontWeight: 'bold',
     color: '#34495e',
     marginTop: 14,
@@ -117,13 +131,86 @@ const styles = StyleSheet.create({
     borderLeftColor: '#7f8c8d',
     borderLeftStyle: 'solid',
   },
-  paragraph: {
+  // H4見出し
+  h4: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#34495e',
+    marginTop: 12,
     marginBottom: 6,
+  },
+  paragraph: {
+    marginBottom: 8,
+    lineHeight: 1.6,
   },
   listItem: {
     marginBottom: 4,
     marginLeft: 15,
     paddingLeft: 5,
+  },
+  numberedListItem: {
+    marginBottom: 4,
+    marginLeft: 15,
+    paddingLeft: 5,
+  },
+  blockquote: {
+    marginVertical: 10,
+    paddingLeft: 15,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3b82f6',
+    borderLeftStyle: 'solid',
+    fontStyle: 'italic',
+    color: '#666666',
+  },
+  code: {
+    fontFamily: 'Courier',
+    fontSize: 9,
+    backgroundColor: '#f5f5f5',
+    padding: 10,
+    marginVertical: 8,
+  },
+  hr: {
+    marginVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderBottomStyle: 'solid',
+  },
+  // テーブル
+  table: {
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderStyle: 'solid',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    borderBottomStyle: 'solid',
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 2,
+    borderBottomColor: '#34495e',
+    borderBottomStyle: 'solid',
+  },
+  tableCell: {
+    flex: 1,
+    padding: 6,
+    fontSize: 9,
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0',
+    borderRightStyle: 'solid',
+  },
+  tableHeaderCell: {
+    flex: 1,
+    padding: 6,
+    fontSize: 9,
+    fontWeight: 'bold',
+    borderRightWidth: 1,
+    borderRightColor: '#e0e0e0',
+    borderRightStyle: 'solid',
   },
   pageNumber: {
     position: 'absolute',
@@ -158,100 +245,68 @@ const styles = StyleSheet.create({
   },
 });
 
-// コンテンツをパースして構造化
-interface ContentBlock {
-  type: 'sectionHeading' | 'numberedHeading' | 'paragraph' | 'listItem';
-  text: string;
-}
-
-// コンテンツをパースして構造化
-interface ContentBlock {
-  type: 'sectionHeading' | 'numberedHeading' | 'paragraph' | 'listItem';
-  text: string;
+/**
+ * ParsedBlockをReact要素に変換
+ */
+function renderBlock(block: ParsedBlock, index: number): React.ReactNode {
+  const key = `block-${index}`;
+  const text = stripInlineMarkdown(block.text);
+  
+  switch (block.type) {
+    case 'h1':
+      return React.createElement(Text, { key, style: styles.h1 }, text);
+    case 'h2':
+      return React.createElement(Text, { key, style: styles.h2 }, text);
+    case 'h3':
+      return React.createElement(Text, { key, style: styles.h3 }, text);
+    case 'h4':
+      return React.createElement(Text, { key, style: styles.h4 }, text);
+    case 'paragraph':
+      return React.createElement(Text, { key, style: styles.paragraph }, text);
+    case 'listItem':
+      return React.createElement(Text, { key, style: styles.listItem }, `• ${text}`);
+    case 'numberedListItem':
+      return React.createElement(Text, { key, style: styles.numberedListItem }, `${block.number}. ${text}`);
+    case 'blockquote':
+      return React.createElement(View, { key, style: styles.blockquote },
+        React.createElement(Text, {}, text)
+      );
+    case 'code':
+      return React.createElement(Text, { key, style: styles.code }, block.text);
+    case 'hr':
+      return React.createElement(View, { key, style: styles.hr });
+    case 'table':
+      return renderTable(block, key);
+    default:
+      return React.createElement(Text, { key, style: styles.paragraph }, text);
+  }
 }
 
 /**
- * 単一のテキストブロック内の不要な改行を削除
+ * テーブルをReact要素に変換
  */
-function removeLineBreaks(text: string): string {
-  return text
-    // 改行をスペースに変換
-    .replace(/\r\n/g, ' ')
-    .replace(/\n/g, ' ')
-    .replace(/\r/g, ' ')
-    // 連続するスペースを1つに
-    .replace(/\s+/g, ' ')
-    .trim();
+function renderTable(block: ParsedBlock, key: string): React.ReactNode {
+  if (!block.headers || !block.rows) return null;
+  
+  const headerCells = block.headers.map((header: string, i: number) =>
+    React.createElement(Text, { key: `header-${i}`, style: styles.tableHeaderCell }, stripInlineMarkdown(header))
+  );
+  
+  const headerRow = React.createElement(View, { key: 'header-row', style: styles.tableHeaderRow }, ...headerCells);
+  
+  const dataRows = block.rows.map((row: string[], rowIndex: number) => {
+    const cells = row.map((cell: string, cellIndex: number) =>
+      React.createElement(Text, { key: `cell-${rowIndex}-${cellIndex}`, style: styles.tableCell }, stripInlineMarkdown(cell))
+    );
+    return React.createElement(View, { key: `row-${rowIndex}`, style: styles.tableRow }, ...cells);
+  });
+  
+  return React.createElement(View, { key, style: styles.table }, headerRow, ...dataRows);
 }
 
-function parseContent(content: string): ContentBlock[] {
-  // 【】で始まるセクション見出しを基準に分割
-  // 見出しの前に改行を入れて分割しやすくする
-  const preparedContent = content
-    .replace(/【/g, '\n\n【')
-    .replace(/】\s*/g, '】\n\n');
-  
-  const lines = preparedContent.split('\n');
-  const blocks: ContentBlock[] = [];
-  let currentParagraph = '';
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      // 空行の場合、蓄積した段落を出力
-      if (currentParagraph) {
-        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
-        currentParagraph = '';
-      }
-      continue;
-    }
-    
-    // 【】で囲まれたセクション見出し
-    if (trimmed.match(/^【.+】$/)) {
-      // 蓄積した段落を先に出力
-      if (currentParagraph) {
-        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
-        currentParagraph = '';
-      }
-      blocks.push({ 
-        type: 'sectionHeading', 
-        text: trimmed.replace(/^【/, '').replace(/】$/, '') 
-      });
-    }
-    // 数字で始まる見出し（1. や 1.1 など）
-    else if (trimmed.match(/^\d+(\.\d+)*\.\s/)) {
-      if (currentParagraph) {
-        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
-        currentParagraph = '';
-      }
-      blocks.push({ type: 'numberedHeading', text: removeLineBreaks(trimmed) });
-    }
-    // 箇条書き（・、• など）- ハイフンは除外（英単語で使用されるため）
-    else if (trimmed.match(/^[・•]\s*/)) {
-      if (currentParagraph) {
-        blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
-        currentParagraph = '';
-      }
-      blocks.push({ 
-        type: 'listItem', 
-        text: removeLineBreaks(trimmed.replace(/^[・•]\s*/, ''))
-      });
-    }
-    // 通常のテキスト → 段落として蓄積
-    else {
-      currentParagraph += (currentParagraph ? ' ' : '') + trimmed;
-    }
-  }
-  
-  // 最後に蓄積した段落を出力
-  if (currentParagraph) {
-    blocks.push({ type: 'paragraph', text: removeLineBreaks(currentParagraph) });
-  }
-  
-  return blocks;
-}
-
-// PDFドキュメントを生成
+/**
+ * PDFドキュメントを生成
+ */
 function createReportDocument(
   report: Report, 
   options: PDFOptions
@@ -274,42 +329,26 @@ function createReportDocument(
       })
     : formatDate(report.createdAt);
 
-  const contentBlocks = parseContent(report.content);
+  // Markdownをパース
+  const blocks = parseMarkdown(report.content);
   const pageStyle = language === 'en' ? styles.pageEn : styles.page;
 
   // コンテンツ要素を生成
-  const contentElements = contentBlocks.map((block, index) => {
-    const key = `block-${index}`;
-    switch (block.type) {
-      case 'sectionHeading':
-        return React.createElement(Text, { key, style: styles.sectionHeading }, block.text);
-      case 'numberedHeading':
-        return React.createElement(Text, { key, style: styles.numberedHeading }, block.text);
-      case 'listItem':
-        return React.createElement(Text, { key, style: styles.listItem }, `• ${block.text}`);
-      default:
-        return React.createElement(Text, { key, style: styles.paragraph }, block.text);
-    }
-  });
+  const contentElements = blocks.map((block: ParsedBlock, index: number) => renderBlock(block, index));
 
   // ページ内の子要素を構築
   const pageChildren: React.ReactNode[] = [
-    // ヘッダー
     React.createElement(Text, { key: 'header', style: styles.header, fixed: true }, 
       headerText || report.title
     ),
   ];
 
-  // 透かし（オプション）
   if (watermark) {
     pageChildren.push(
-      React.createElement(Text, { key: 'watermark', style: styles.watermark, fixed: true }, 
-        watermark
-      )
+      React.createElement(Text, { key: 'watermark', style: styles.watermark, fixed: true }, watermark)
     );
   }
 
-  // タイトルセクションの子要素
   const titleChildren: React.ReactNode[] = [
     React.createElement(Text, { key: 'title', style: styles.title }, report.title),
     React.createElement(Text, { key: 'target', style: styles.subtitle }, 
@@ -328,38 +367,29 @@ function createReportDocument(
     );
   }
 
-  // タイトルセクション
   pageChildren.push(
-    React.createElement(View, { key: 'titleSection', style: styles.titleSection }, 
-      ...titleChildren
-    )
+    React.createElement(View, { key: 'titleSection', style: styles.titleSection }, ...titleChildren)
   );
 
-  // コンテンツ
   pageChildren.push(
-    React.createElement(View, { key: 'content', style: styles.content }, 
-      ...contentElements
-    )
+    React.createElement(View, { key: 'content', style: styles.content }, ...contentElements)
   );
 
-  // ページ番号
   pageChildren.push(
     React.createElement(Text, { 
       key: 'pageNumber',
       style: styles.pageNumber, 
-      render: ({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`,
+      render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `${pageNumber} / ${totalPages}`,
       fixed: true 
     })
   );
 
-  // Page要素
   const pageElement = React.createElement(
     Page, 
     { size: 'A4', style: pageStyle, wrap: true } as PageProps,
     ...pageChildren
   );
 
-  // Document要素
   return React.createElement(
     Document,
     {
@@ -380,7 +410,7 @@ export async function generatePDF(
   options: PDFOptions = {}
 ): Promise<Buffer> {
   try {
-    console.log('Generating PDF with @react-pdf/renderer...');
+    console.log('Generating PDF with Markdown support...');
     console.log('Report title:', report.title);
     console.log('Language:', options.language || 'ja');
     

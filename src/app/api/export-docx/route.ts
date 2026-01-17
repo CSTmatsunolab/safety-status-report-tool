@@ -1,92 +1,58 @@
+// src/app/api/export-docx/route.ts
+// DOCX エクスポート API（Markdown対応）
+
 import { NextRequest, NextResponse } from 'next/server';
-import { Document, Paragraph, TextRun, HeadingLevel, Packer, AlignmentType } from 'docx';
 import { Report } from '@/types';
+import { generateDOCX } from '@/lib/docx-exporter';
 
 export async function POST(request: NextRequest) {
   try {
-    const { report, language = 'ja' }: { report: Report; language?: 'ja' | 'en' } = await request.json();
+    const { report, language = 'ja' }: { 
+      report: Report; 
+      language?: 'ja' | 'en';
+    } = await request.json();
 
-    // 言語に応じたラベル
-    const labels = language === 'en' 
-      ? { target: 'Target: ', strategy: 'Strategy: ', createdAt: 'Created: ' }
-      : { target: '対象: ', strategy: '戦略: ', createdAt: '作成日: ' };
+    if (!report) {
+      return NextResponse.json(
+        { error: 'Report data is required' },
+        { status: 400 }
+      );
+    }
 
-    // 日付フォーマット
-    const dateLocale = language === 'en' ? 'en-US' : 'ja-JP';
+    console.log('DOCX generation started for report:', report.title);
+    console.log('Language:', language);
 
-    // Word文書を作成
-    const doc = new Document({
-      sections: [{
-        properties: {},
-        children: [
-          // タイトル
-          new Paragraph({
-            text: report.title,
-            heading: HeadingLevel.TITLE,
-            alignment: AlignmentType.CENTER,
-            spacing: { after: 400 }
-          }),
-
-          // メタデータ
-          new Paragraph({
-            children: [
-              new TextRun({ text: labels.target, bold: true }),
-              new TextRun(report.stakeholder.role),
-            ],
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: labels.strategy, bold: true }),
-              new TextRun(report.rhetoricStrategy),
-            ],
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: labels.createdAt, bold: true }),
-              new TextRun(new Date(report.createdAt).toLocaleDateString(dateLocale)),
-            ],
-            spacing: { after: 400 }
-          }),
-
-          // 本文を段落ごとに追加
-          ...report.content.split('\n').map(line => {
-            if (line.match(/^\d+\.\s/)) {
-              // 見出し
-              return new Paragraph({
-                text: line,
-                heading: HeadingLevel.HEADING_2,
-                spacing: { before: 240, after: 120 }
-              });
-            }
-            // 通常の段落
-            return new Paragraph({
-              text: line,
-              spacing: { after: 200 }
-            });
-          })
-        ],
-      }],
+    // DOCXを生成（Markdown対応）
+    const docxBuffer = await generateDOCX(report, {
+      language,
+      includeMetadata: true,
+      includeTimestamp: true,
     });
-
-    // Word文書をバッファに変換
-    const buffer = await Packer.toBuffer(doc);
     
-    // BufferをUint8Arrayに変換
-    const uint8Array = new Uint8Array(buffer);
+    console.log('DOCX buffer size:', docxBuffer.length);
+    
+    if (!docxBuffer || docxBuffer.length === 0) {
+      throw new Error('Generated DOCX buffer is empty');
+    }
 
-    // ファイルとして返す
+    // BufferをUint8Arrayに変換
+    const uint8Array = new Uint8Array(docxBuffer);
+
     return new Response(uint8Array, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${encodeURIComponent(report.title)}.docx"`,
+        'Content-Length': docxBuffer.length.toString(),
       },
     });
   } catch (error) {
     console.error('DOCX export error:', error);
     return NextResponse.json(
-      { error: 'DOCX export failed' },
+      { error: 'DOCX export failed', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 }
+
+export const maxDuration = 60;

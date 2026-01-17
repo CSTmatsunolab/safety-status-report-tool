@@ -1,3 +1,6 @@
+// src/app/api/export-pdf/route.ts
+// PDF エクスポート API
+
 import { NextRequest, NextResponse } from 'next/server';
 import { Report } from '@/types';
 import { generatePDF } from '@/lib/pdf-exporter';
@@ -14,10 +17,17 @@ export async function POST(request: NextRequest) {
       language?: 'ja' | 'en';
     } = await request.json();
 
+    if (!report) {
+      return NextResponse.json(
+        { error: 'Report data is required' },
+        { status: 400 }
+      );
+    }
+
     console.log('PDF generation started for report:', report.title);
     console.log('Language:', language);
 
-    // PDFを生成（言語パラメータを渡す）
+    // PDFを生成（Markdown対応）
     const pdfBuffer = await generatePDF(report, {
       ...options,
       language: language,
@@ -29,8 +39,6 @@ export async function POST(request: NextRequest) {
       throw new Error('Generated PDF buffer is empty');
     }
 
-    // 型アサーションを使用してTypeScriptエラーを回避
-    // 実行時にはBufferは正しく処理される
     return new Response(pdfBuffer as unknown as BodyInit, {
       status: 200,
       headers: {
