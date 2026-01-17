@@ -1,9 +1,11 @@
 // src/app/components/GenerationProgress.tsx
 // レポート生成の進捗表示コンポーネント
+// 【追加】中断ボタン機能
 
 'use client';
 
 import { FC } from 'react';
+import { FiXCircle } from 'react-icons/fi';
 
 interface LambdaProgress {
   status: string;
@@ -24,29 +26,67 @@ interface SectionProgress {
 interface GenerationProgressProps {
   progress: SectionProgress;
   language: 'ja' | 'en';
+  onCancel?: () => void;        // 【追加】中断ハンドラー
+  isCancelling?: boolean;       // 【追加】中断処理中フラグ
 }
 
 export const GenerationProgress: FC<GenerationProgressProps> = ({
   progress,
   language,
+  onCancel,
+  isCancelling = false,
 }) => {
   if (progress.status !== 'generating') return null;
 
+  const texts = {
+    cancel: language === 'en' ? 'Cancel' : '中断',
+    cancelling: language === 'en' ? 'Cancelling...' : '中断中...',
+    cancelConfirm: language === 'en' 
+      ? 'Are you sure you want to cancel the report generation?\n\nPartial results will not be saved.' 
+      : 'レポート生成を中断しますか？\n\n途中の結果は保存されません。',
+  };
+
+  const handleCancelClick = () => {
+    if (onCancel && !isCancelling) {
+      if (confirm(texts.cancelConfirm)) {
+        onCancel();
+      }
+    }
+  };
+
   return (
     <div className="space-y-3">
-      {/* スピナーとメッセージ */}
-      <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
-        <div className="relative">
-          <div className="w-8 h-8 border-4 border-blue-200 dark:border-blue-700 rounded-full"></div>
-          <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
+      {/* スピナーとメッセージ + 中断ボタン */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3 text-blue-700 dark:text-blue-300">
+          <div className="relative">
+            <div className="w-8 h-8 border-4 border-blue-200 dark:border-blue-700 rounded-full"></div>
+            <div className="w-8 h-8 border-4 border-blue-600 dark:border-blue-400 rounded-full animate-spin absolute top-0 left-0 border-t-transparent"></div>
+          </div>
+          <div>
+            <p className="font-medium">
+              {progress.lambdaProgress?.message || 
+                (language === 'en' ? 'Processing...' : '処理中...')
+              }
+            </p>
+          </div>
         </div>
-        <div>
-          <p className="font-medium">
-            {progress.lambdaProgress?.message || 
-              (language === 'en' ? 'Processing...' : '処理中...')
-            }
-          </p>
-        </div>
+        
+        {/* 【追加】中断ボタン */}
+        {onCancel && (
+          <button
+            onClick={handleCancelClick}
+            disabled={isCancelling}
+            className={`flex items-center px-4 py-2 rounded-lg text-base font-bold transition-colors ${
+              isCancelling
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                : 'bg-red-500 dark:bg-red-600 text-white hover:bg-red-600 dark:hover:bg-red-700 shadow-md hover:shadow-lg'
+            }`}
+          >
+            <FiXCircle className="mr-2" size={20} />
+            {isCancelling ? texts.cancelling : texts.cancel}
+          </button>
+        )}
       </div>
       
       {/* リアルタイム進捗バー */}

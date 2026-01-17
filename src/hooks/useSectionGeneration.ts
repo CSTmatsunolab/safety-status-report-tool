@@ -1,6 +1,7 @@
 // src/hooks/useSectionGeneration.ts
 // セクション分割生成用のReactフック
 // Lambda Function URL（ストリーミング対応）を使用
+// 【追加】AbortControllerによるキャンセル機能
 
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
@@ -87,6 +88,31 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
   const [streamingContent, setStreamingContent] = useState<string>('');
   const streamingContentRef = useRef<string>('');
 
+  // 【追加】AbortController用のref
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  /**
+   * 【追加】生成をキャンセルする関数
+   */
+  const cancel = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    
+    setIsGenerating(false);
+    setStreamingContent('');
+    streamingContentRef.current = '';
+    setProgress({
+      currentSection: 0,
+      totalSections: 0,
+      sectionName: '',
+      status: 'idle',
+      completedSections: [],
+      contextPrepared: false,
+    });
+  }, []);
+
   /**
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
@@ -96,6 +122,15 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
     setStreamingContent('');
+
+    // 【追加】前のリクエストがあればキャンセル
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // 【追加】新しいAbortControllerを作成
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     // 初期進捗
     const initialProgress: SectionProgress = {
@@ -129,6 +164,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       .filter(f => f.includeFullText)
       .map(f => f.name);
 
+    // 【変更】signalを追加
     const response = await fetch(LAMBDA_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -142,6 +178,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         language,
         userIdentifier,
       }),
+      signal,  // 【追加】キャンセル用のsignal
     });
 
     if (!response.ok) {
@@ -161,6 +198,12 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
 
     try {
       while (true) {
+        // 【追加】キャンセルチェック
+        if (signal.aborted) {
+          await reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
         
         if (done) {
@@ -176,6 +219,11 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         buffer = lines.pop() || ''; // 不完全な行を保持
 
         for (const line of lines) {
+          // 【追加】ループ内でもキャンセルチェック
+          if (signal.aborted) {
+            break;
+          }
+
           if (!line.startsWith('data: ')) continue;
           
           try {
@@ -254,6 +302,11 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       reader.releaseLock();
     }
 
+    // 【追加】キャンセルされた場合はnullを返す
+    if (signal.aborted) {
+      return null;
+    }
+
     // Lambdaからのエラーをチェック
     if (lambdaError) {
       throw new Error(lambdaError);
@@ -284,6 +337,12 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       return await generateReportWithLambda(params);
 
     } catch (err) {
+      // 【追加】AbortErrorの場合は特別処理（エラー表示しない）
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.log('Report generation was cancelled by user');
+        return null;
+      }
+
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error('Report generation failed:', errorMessage);
       
@@ -298,10 +357,18 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       return null;
     } finally {
       setIsGenerating(false);
+      // 【追加】生成完了後にAbortControllerをクリア
+      abortControllerRef.current = null;
     }
   }, [options, progress.sectionName, generateReportWithLambda]);
 
   const reset = useCallback(() => {
+    // 【追加】進行中のリクエストをキャンセル
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
     setIsGenerating(false);
     setError(null);
     setStreamingContent('');
@@ -322,6 +389,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     progress,
     error,
     reset,
+    cancel,  // 【追加】キャンセル関数を公開
     isLambdaAvailable: isLambdaGenerationAvailable(),
     // ストリーミング中のコンテンツ
     streamingContent,

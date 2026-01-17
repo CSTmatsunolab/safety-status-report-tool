@@ -36,6 +36,9 @@ export default function Home() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
+  
+  // 【追加】中断処理用の状態
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // レポート生成時のファイルスナップショット（履歴保存時に使用）
   const filesAtGenerationRef = useRef<UploadedFile[]>([]);
@@ -59,12 +62,22 @@ export default function Home() {
     progress,
     error: sectionError,
     reset: resetSectionGeneration,
+    cancel: cancelGeneration,  // 【追加】キャンセル関数
     streamingContent,
   } = useSectionGeneration();
 
   // レポート履歴フック
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
+
+  // 【追加】レポート生成中断ハンドラー
+  const handleCancelGeneration = () => {
+    setIsCancelling(true);
+    cancelGeneration();
+    setTimeout(() => {
+      setIsCancelling(false);
+    }, 300);
+  };
 
   // 履歴に保存
   const handleSaveToHistory = async () => {
@@ -802,7 +815,12 @@ export default function Home() {
                 <h4 className="text-blue-800 dark:text-blue-200 font-medium mb-3">
                   {language === 'en' ? 'Generating Report...' : 'レポート生成中...'}
                 </h4>
-                <GenerationProgress progress={progress} language={language} />
+                <GenerationProgress 
+                  progress={progress} 
+                  language={language}
+                  onCancel={handleCancelGeneration}
+                  isCancelling={isCancelling}
+                />
               </div>
             )}
 
