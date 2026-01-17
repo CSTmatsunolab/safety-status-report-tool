@@ -19,6 +19,8 @@ import {
   FiChevronUp,
   FiDatabase
 } from 'react-icons/fi';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useI18n } from '../../components/I18nProvider';
 import { useAuth } from '../../components/AuthProvider';
 import { SettingsMenu } from '../../components/SettingsMenu';
@@ -77,65 +79,206 @@ export default function ReportDetailPage() {
     }
   };
 
-  // プレーンテキストをMarkdown形式に変換
-  const convertToMarkdown = (text: string, title: string): string => {
+  // 後処理: ## 1. → 1. に修正（番号付きリストの誤ったMarkdown記法を修正）
+  // ReportPreviewと同じロジック
+  const fixNumberedLists = (text: string): string => {
     const lines = text.split('\n');
     const result: string[] = [];
-
+    
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i];
-
-      // 1. セクション番号のパターン（例: "1. セクション名", "2. 概要"）
-      if (/^(\d+)\.\s+(.+)$/.test(line) && line.length <= 80) {
-        const match = line.match(/^(\d+)\.\s+(.+)$/);
-        if (match) {
-          line = `## ${match[1]}. ${match[2]}`;
+      
+      // ## 数字. で始まる行をチェック
+      const match = line.match(/^## (\d+)\. (.+)$/);
+      if (match) {
+        const num = match[1];
+        const content = match[2];
+        
+        // セクション見出しかどうかを判定
+        const isSectionHeading = isSectionTitle(content, num);
+        
+        if (!isSectionHeading) {
+          // リスト項目の場合は ## を削除
+          line = `${num}. ${content}`;
         }
       }
-      // 2. サブセクション番号のパターン（例: "1.1 サブセクション"）
-      else if (/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/.test(line) && line.length <= 80) {
-        const match = line.match(/^(\d+\.\d+(?:\.\d+)?)\s+(.+)$/);
-        if (match) {
-          line = `### ${match[1]} ${match[2]}`;
-        }
-      }
-      // 3. 箇条書きパターン（・、•、‣、※）
-      else if (/^[・•‣※]\s*(.+)$/.test(line)) {
-        const match = line.match(/^[・•‣※]\s*(.+)$/);
-        if (match) {
-          line = `- ${match[1]}`;
-        }
-      }
-      // 4. 番号付きリスト（括弧付き: (1), ①）
-      else if (/^[（(](\d+)[)）]\s*(.+)$/.test(line)) {
-        const match = line.match(/^[（(](\d+)[)）]\s*(.+)$/);
-        if (match) {
-          line = `${match[1]}. ${match[2]}`;
-        }
-      }
-      else if (/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/.test(line)) {
-        const circleNums: { [key: string]: string } = {
-          '①': '1', '②': '2', '③': '3', '④': '4', '⑤': '5',
-          '⑥': '6', '⑦': '7', '⑧': '8', '⑨': '9', '⑩': '10'
-        };
-        const match = line.match(/^([①②③④⑤⑥⑦⑧⑨⑩])\s*(.+)$/);
-        if (match) {
-          line = `${circleNums[match[1]]}. ${match[2]}`;
-        }
-      }
-
+      
       result.push(line);
     }
+    
+    return result.join('\n');
+  };
 
-    // タイトルを先頭に追加
-    const titleLine = `# ${title}\n\n`;
-    return titleLine + result.join('\n');
+  // セクション見出しかどうかを判定
+  const isSectionTitle = (content: string, num: string): boolean => {
+    // 日本語のセクション見出しキーワード
+    const jaSectionKeywords = [
+      'エグゼクティブサマリー',
+      '現状分析',
+      'リスク評価',
+      '推奨事項',
+      '次のステップ',
+      '付録',
+      '概要',
+      '背景',
+      '目的',
+      '結論',
+      'まとめ',
+      '分析',
+      '評価',
+      '提言',
+      '対策',
+    ];
+    
+    // 英語のセクション見出しキーワード
+    const enSectionKeywords = [
+      'Executive Summary',
+      'Current Status',
+      'Risk Assessment',
+      'Recommendations',
+      'Next Steps',
+      'Appendix',
+      'Overview',
+      'Background',
+      'Purpose',
+      'Conclusion',
+      'Summary',
+      'Analysis',
+      'Evaluation',
+    ];
+    
+    // 数字が1桁で、セクションキーワードを含む場合はセクション見出し
+    if (parseInt(num) <= 10) {
+      for (const keyword of [...jaSectionKeywords, ...enSectionKeywords]) {
+        if (content.includes(keyword)) {
+          return true;
+        }
+      }
+    }
+    
+    // 短い見出し（30文字以下）で太字やその他の装飾がない場合はセクション見出しの可能性が高い
+    if (content.length <= 30 && !content.startsWith('**')) {
+      return true;
+    }
+    
+    return false;
+  };
+
+  // MarkdownをHTMLに変換（印刷用）
+  const convertMarkdownToHtml = (markdown: string): string => {
+    const lines = markdown.split('\n');
+    const result: string[] = [];
+    let inTable = false;
+    let tableRows: string[] = [];
+
+    const processTable = (rows: string[]): string => {
+      if (rows.length < 2) return rows.join('\n');
+      
+      let tableHtml = '<table>';
+      
+      // ヘッダー行
+      const headerCells = rows[0].split('|').filter(cell => cell.trim() !== '');
+      tableHtml += '<thead><tr>';
+      headerCells.forEach(cell => {
+        tableHtml += `<th>${cell.trim()}</th>`;
+      });
+      tableHtml += '</tr></thead>';
+      
+      // ボディ行（区切り行をスキップ）
+      tableHtml += '<tbody>';
+      for (let i = 2; i < rows.length; i++) {
+        const cells = rows[i].split('|').filter(cell => cell.trim() !== '');
+        if (cells.length > 0) {
+          tableHtml += '<tr>';
+          cells.forEach(cell => {
+            tableHtml += `<td>${cell.trim()}</td>`;
+          });
+          tableHtml += '</tr>';
+        }
+      }
+      tableHtml += '</tbody></table>';
+      
+      return tableHtml;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // 表の検出（|で始まる行）
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        if (!inTable) {
+          inTable = true;
+          tableRows = [];
+        }
+        tableRows.push(line);
+      } else {
+        // 表の終了
+        if (inTable) {
+          result.push(processTable(tableRows));
+          inTable = false;
+          tableRows = [];
+        }
+        
+        let processedLine = line;
+        
+        // 見出し
+        if (processedLine.match(/^### (.+)$/)) {
+          processedLine = processedLine.replace(/^### (.+)$/, '<h3>$1</h3>');
+        } else if (processedLine.match(/^## (.+)$/)) {
+          processedLine = processedLine.replace(/^## (.+)$/, '<h2>$1</h2>');
+        } else if (processedLine.match(/^# (.+)$/)) {
+          processedLine = processedLine.replace(/^# (.+)$/, '<h1>$1</h1>');
+        }
+        // リスト項目
+        else if (processedLine.match(/^- (.+)$/)) {
+          processedLine = processedLine.replace(/^- (.+)$/, '<li>$1</li>');
+        }
+        // 番号付きリスト
+        else if (processedLine.match(/^(\d+)\. (.+)$/)) {
+          processedLine = processedLine.replace(/^(\d+)\. (.+)$/, '<li>$2</li>');
+        }
+        
+        // インライン要素
+        processedLine = processedLine.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        processedLine = processedLine.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        processedLine = processedLine.replace(/`(.+?)`/g, '<code>$1</code>');
+        
+        result.push(processedLine);
+      }
+    }
+    
+    // 最後に表が残っていた場合
+    if (inTable && tableRows.length > 0) {
+      result.push(processTable(tableRows));
+    }
+    
+    // 連続するliをulで囲む
+    let html = result.join('\n');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    
+    // 段落処理（空行で区切られたテキストをpタグで囲む）
+    html = html.split('\n\n').map(para => {
+      const trimmed = para.trim();
+      if (trimmed === '' || 
+          trimmed.startsWith('<h') || 
+          trimmed.startsWith('<li') || 
+          trimmed.startsWith('<ul') ||
+          trimmed.startsWith('<table')) {
+        return para;
+      }
+      return `<p>${para}</p>`;
+    }).join('\n');
+    
+    return html;
   };
 
   // エクスポート: Markdown
   const handleExportMarkdown = () => {
     if (!report) return;
-    const markdownContent = convertToMarkdown(report.content, report.title);
+    const titleLine = `# ${report.title}\n\n`;
+    const fixedContent = fixNumberedLists(report.content);
+    const markdownContent = titleLine + fixedContent;
+    
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -255,13 +398,16 @@ export default function ReportDetailPage() {
     }
   };
 
-  // 印刷
+  // 印刷（Markdown対応）
   const handlePrint = () => {
     if (!report) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const htmlContent = `
+    const fixedContent = fixNumberedLists(report.content);
+    const htmlContent = convertMarkdownToHtml(fixedContent);
+
+    const printHtml = `
 <!DOCTYPE html>
 <html lang="${language}">
 <head>
@@ -269,18 +415,31 @@ export default function ReportDetailPage() {
   <title>${report.title}</title>
   <style>
     body {
-      font-family: ${language === 'en' ? "'Segoe UI', sans-serif" : "'Noto Sans JP', sans-serif"};
+      font-family: ${language === 'en' ? "'Segoe UI', sans-serif" : "'Noto Sans JP', 'Hiragino Sans', sans-serif"};
       line-height: 1.8;
       color: #333;
       max-width: 210mm;
       margin: 0 auto;
       padding: 20mm;
     }
-    h1 { font-size: 24px; margin-bottom: 10px; }
+    h1 { font-size: 24px; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { font-size: 20px; margin-top: 24px; margin-bottom: 12px; color: #1a1a1a; }
+    h3 { font-size: 16px; margin-top: 16px; margin-bottom: 8px; color: #333; }
     .metadata { color: #666; font-size: 14px; margin-bottom: 30px; }
-    .content { white-space: pre-wrap; }
+    .content { }
+    p { margin: 12px 0; }
+    ul, ol { margin: 12px 0; padding-left: 24px; }
+    li { margin: 6px 0; }
+    strong { font-weight: 600; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; font-weight: 600; }
     @media print {
       body { margin: 0; padding: 10mm; }
+      h1 { page-break-after: avoid; }
+      h2, h3 { page-break-after: avoid; }
+      ul, ol, table { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -290,11 +449,11 @@ export default function ReportDetailPage() {
     <p>${language === 'en' ? 'Target' : '対象'}: ${report.stakeholder.role} | ${language === 'en' ? 'Strategy' : '戦略'}: ${report.rhetoricStrategy}</p>
     <p>${language === 'en' ? 'Created' : '作成日'}: ${new Date(report.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP')}</p>
   </div>
-  <div class="content">${report.content}</div>
+  <div class="content">${htmlContent}</div>
 </body>
 </html>`;
 
-    printWindow.document.write(htmlContent);
+    printWindow.document.write(printHtml);
     printWindow.document.close();
     printWindow.onload = () => {
       printWindow.print();
@@ -303,9 +462,10 @@ export default function ReportDetailPage() {
 
   // 日時フォーマット
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP', {
+    const date = new Date(dateString);
+    return date.toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP', {
       year: 'numeric',
-      month: 'long',
+      month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
@@ -314,17 +474,16 @@ export default function ReportDetailPage() {
 
   // テキスト
   const texts = {
-    appTitle: 'Safety Reporter',
+    appTitle: language === 'en' ? 'Safety Report Generator' : '安全性情報レポートジェネレーター',
     backToHistory: language === 'en' ? 'Back to History' : '履歴に戻る',
     loading: language === 'en' ? 'Loading...' : '読み込み中...',
     notFound: language === 'en' ? 'Report not found' : 'レポートが見つかりません',
     delete: language === 'en' ? 'Delete' : '削除',
     print: language === 'en' ? 'Print' : '印刷',
     inputFiles: language === 'en' ? 'Input Files' : '入力ファイル',
-    noFiles: language === 'en' ? 'No input files' : '入力ファイルなし',
   };
 
-  // 未ログイン時
+  // 未ログイン
   if (authStatus === 'unauthenticated') {
     return (
       <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -374,6 +533,9 @@ export default function ReportDetailPage() {
       </main>
     );
   }
+
+  // 表示用のコンテンツ（後処理適用済み）
+  const displayContent = fixNumberedLists(report.content);
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
@@ -536,12 +698,14 @@ export default function ReportDetailPage() {
             </div>
           )}
 
-          {/* レポート本文 */}
+          {/* レポート本文 - ReactMarkdownでレンダリング */}
           <div className="p-6">
-            <div className="prose dark:prose-invert max-w-none">
-              <div className="whitespace-pre-wrap bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg text-gray-800 dark:text-gray-200 leading-relaxed">
-                {report.content}
-              </div>
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
+              <article className="prose prose-sm max-w-none dark:prose-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {displayContent}
+                </ReactMarkdown>
+              </article>
             </div>
           </div>
         </div>

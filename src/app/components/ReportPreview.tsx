@@ -111,6 +111,114 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     return false;
   };
 
+  // MarkdownをHTMLに変換（印刷用）
+  const convertMarkdownToHtml = (markdown: string): string => {
+    const lines = markdown.split('\n');
+    const result: string[] = [];
+    let inTable = false;
+    let tableRows: string[] = [];
+
+    const processTable = (rows: string[]): string => {
+      if (rows.length < 2) return rows.join('\n');
+      
+      let tableHtml = '<table>';
+      
+      // ヘッダー行
+      const headerCells = rows[0].split('|').filter(cell => cell.trim() !== '');
+      tableHtml += '<thead><tr>';
+      headerCells.forEach(cell => {
+        tableHtml += `<th>${cell.trim()}</th>`;
+      });
+      tableHtml += '</tr></thead>';
+      
+      // ボディ行（区切り行をスキップ）
+      tableHtml += '<tbody>';
+      for (let i = 2; i < rows.length; i++) {
+        const cells = rows[i].split('|').filter(cell => cell.trim() !== '');
+        if (cells.length > 0) {
+          tableHtml += '<tr>';
+          cells.forEach(cell => {
+            tableHtml += `<td>${cell.trim()}</td>`;
+          });
+          tableHtml += '</tr>';
+        }
+      }
+      tableHtml += '</tbody></table>';
+      
+      return tableHtml;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // 表の検出（|で始まる行）
+      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
+        if (!inTable) {
+          inTable = true;
+          tableRows = [];
+        }
+        tableRows.push(line);
+      } else {
+        // 表の終了
+        if (inTable) {
+          result.push(processTable(tableRows));
+          inTable = false;
+          tableRows = [];
+        }
+        
+        let processedLine = line;
+        
+        // 見出し
+        if (processedLine.match(/^### (.+)$/)) {
+          processedLine = processedLine.replace(/^### (.+)$/, '<h3>$1</h3>');
+        } else if (processedLine.match(/^## (.+)$/)) {
+          processedLine = processedLine.replace(/^## (.+)$/, '<h2>$1</h2>');
+        } else if (processedLine.match(/^# (.+)$/)) {
+          processedLine = processedLine.replace(/^# (.+)$/, '<h1>$1</h1>');
+        }
+        // リスト項目
+        else if (processedLine.match(/^- (.+)$/)) {
+          processedLine = processedLine.replace(/^- (.+)$/, '<li>$1</li>');
+        }
+        // 番号付きリスト
+        else if (processedLine.match(/^(\d+)\. (.+)$/)) {
+          processedLine = processedLine.replace(/^(\d+)\. (.+)$/, '<li>$2</li>');
+        }
+        
+        // インライン要素
+        processedLine = processedLine.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        processedLine = processedLine.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        processedLine = processedLine.replace(/`(.+?)`/g, '<code>$1</code>');
+        
+        result.push(processedLine);
+      }
+    }
+    
+    // 最後に表が残っていた場合
+    if (inTable && tableRows.length > 0) {
+      result.push(processTable(tableRows));
+    }
+    
+    // 連続するliをulで囲む
+    let html = result.join('\n');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    
+    // 段落処理（空行で区切られたテキストをpタグで囲む）
+    html = html.split('\n\n').map(para => {
+      const trimmed = para.trim();
+      if (trimmed === '' || 
+          trimmed.startsWith('<h') || 
+          trimmed.startsWith('<li') || 
+          trimmed.startsWith('<ul') ||
+          trimmed.startsWith('<table')) {
+        return para;
+      }
+      return `<p>${para}</p>`;
+    }).join('\n');
+    
+    return html;
+  };
+
   // Markdownエクスポート
   const handleExportMarkdown = () => {
     const titleLine = `# ${report.title}\n\n`;
@@ -182,11 +290,15 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     }
   };
 
+  // 印刷（Markdown対応）
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const htmlContent = `
+    const fixedContent = fixNumberedLists(report.content);
+    const htmlContent = convertMarkdownToHtml(fixedContent);
+
+    const printHtml = `
 <!DOCTYPE html>
 <html lang="${language}">
 <head>
@@ -194,18 +306,30 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
   <title>${report.title}</title>
   <style>
     body {
-      font-family: ${language === 'en' ? "'Segoe UI', sans-serif" : "'Noto Sans JP', sans-serif"};
+      font-family: ${language === 'en' ? "'Segoe UI', sans-serif" : "'Noto Sans JP', 'Hiragino Sans', sans-serif"};
       line-height: 1.8;
       color: #333;
       max-width: 210mm;
       margin: 0 auto;
       padding: 20mm;
     }
-    h1 { font-size: 24px; margin-bottom: 10px; }
+    h1 { font-size: 24px; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { font-size: 20px; margin-top: 24px; margin-bottom: 12px; color: #1a1a1a; }
+    h3 { font-size: 16px; margin-top: 16px; margin-bottom: 8px; color: #333; }
     .metadata { color: #666; font-size: 14px; margin-bottom: 30px; }
-    .content { white-space: pre-wrap; }
+    p { margin: 12px 0; }
+    ul, ol { margin: 12px 0; padding-left: 24px; }
+    li { margin: 6px 0; }
+    strong { font-weight: 600; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+    th { background: #f5f5f5; font-weight: 600; }
     @media print {
       body { margin: 0; padding: 10mm; }
+      h1 { page-break-after: avoid; }
+      h2, h3 { page-break-after: avoid; }
+      ul, ol, table { page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -215,11 +339,11 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     <p>${language === 'en' ? 'Target' : '対象'}: ${report.stakeholder.role} | ${language === 'en' ? 'Strategy' : '戦略'}: ${report.rhetoricStrategy}</p>
     <p>${language === 'en' ? 'Created' : '作成日'}: ${new Date(report.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP')}</p>
   </div>
-  <div class="content">${report.content}</div>
+  <div class="content">${htmlContent}</div>
 </body>
 </html>`;
 
-    printWindow.document.write(htmlContent);
+    printWindow.document.write(printHtml);
     printWindow.document.close();
     
     printWindow.onload = () => {
