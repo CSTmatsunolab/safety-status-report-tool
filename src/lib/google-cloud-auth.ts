@@ -14,10 +14,23 @@ async function getCredentialsFromSecretsManager(): Promise<object | null> {
     return credentialsCache;
   }
 
+  // Check if AWS credentials are available
+  const accessKeyId = process.env.APP_AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.APP_AWS_SECRET_ACCESS_KEY;
+  
+  if (!accessKeyId || !secretAccessKey) {
+    console.log('AWS credentials not found in environment variables, skipping Secrets Manager');
+    return null;
+  }
+
   try {
-    // Use APP_AWS_REGION to avoid Amplify build errors with AWS_ prefix
+    // Use APP_AWS_* credentials explicitly (Amplify doesn't allow AWS_ prefix)
     const client = new SecretsManagerClient({ 
-      region: process.env.APP_AWS_REGION || 'ap-northeast-1' 
+      region: process.env.APP_AWS_REGION || 'ap-northeast-1',
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      }
     });
     
     const command = new GetSecretValueCommand({
