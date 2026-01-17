@@ -1,4 +1,4 @@
-// src/lib/report-prompts-en.ts
+// lamdba/src/lib/report-prompts-en.ts
 // v3: Markdown output support + Redundancy prevention
 
 import { Stakeholder } from '../types';

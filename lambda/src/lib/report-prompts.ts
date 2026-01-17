@@ -1,4 +1,4 @@
-// src/lib/report-prompts.ts
+// lamdba/src/lib/report-prompts.ts
 // v3: Markdown出力対応 + 冗長防止強化
 
 import { Stakeholder } from '../types';

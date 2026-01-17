@@ -53,7 +53,7 @@ const s3Client = new S3Client({
 
 // 定数
 const MAX_CONTENT_CHARS_PER_FILE = 50000;
-const MAX_TOTAL_CONTEXT_CHARS = 100000;
+const MAX_TOTAL_CONTEXT_CHARS = 150000;
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
 // 進捗メッセージの型
