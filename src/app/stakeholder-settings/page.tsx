@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Stakeholder } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
-import { FiPlus, FiTrash2, FiX, FiCloud, FiHardDrive, FiLoader } from 'react-icons/fi';
+import { FiPlus, FiTrash2, FiX, FiCloud, FiHardDrive, FiArrowLeft, FiLoader } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useUserSettings } from '@/hooks/useUserSettings';
 
@@ -212,9 +212,15 @@ export default function StakeholderSettings() {
     <div className="bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            {t.settingsTitle}
-          </h1>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+            >
+              <FiArrowLeft className="mr-2" />
+              {t.backToReport}
+            </Link>
+          </div>
           
           {/* ストレージ状態インジケーター */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
@@ -239,6 +245,11 @@ export default function StakeholderSettings() {
               </>
             )}
           </div>
+        </div>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {t.settingsTitle}
+          </h1>
         </div>
 
         {/* エラーメッセージ */}
@@ -435,7 +446,7 @@ export default function StakeholderSettings() {
           </div>
         </div>
 
-        {/* ホームに戻るボタン */}
+        {/* レポート生成画面に戻るボタン */}
         <div className="mt-8 text-center">
           <Link
             href="/"

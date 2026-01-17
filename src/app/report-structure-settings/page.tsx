@@ -466,7 +466,7 @@ export default function ReportStructureSettings() {
           </div>
         </div>
 
-        {/* ホームに戻るボタン */}
+        {/* レポート生成画面に戻るボタン */}
         <div className="mt-8 text-center">
           <Link
             href="/"

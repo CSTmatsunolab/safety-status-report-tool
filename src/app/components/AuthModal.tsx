@@ -1,7 +1,7 @@
 // src/components/AuthModal.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiX, FiEye, FiEyeOff, FiLoader, FiGlobe } from 'react-icons/fi';
 import { useAuth } from './AuthProvider';
 import { useI18n, Language } from './I18nProvider';
@@ -56,6 +56,20 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [showLangMenu, setShowLangMenu] = useState(false);
+
+  // モーダルが開く時にフォームをリセット（セキュリティ対策）
+  useEffect(() => {
+    if (isOpen) {
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setConfirmationCode('');
+      setShowPassword(false);
+      setError('');
+      setMessage('');
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   // 全テキストを言語設定に連動
   const t = {

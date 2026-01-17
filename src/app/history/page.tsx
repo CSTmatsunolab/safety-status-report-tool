@@ -17,7 +17,9 @@ import {
   FiArrowDown,
   FiFilter,
   FiChevronDown,
-  FiCheck
+  FiCheck,
+  FiCloud,
+  FiHardDrive
 } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useAuth } from '../components/AuthProvider';
@@ -124,7 +126,7 @@ export default function HistoryPage() {
   // テキスト
   const texts = {
     pageTitle: language === 'en' ? 'Report History' : 'レポート履歴',
-    backToHome: language === 'en' ? 'Back to Home' : 'ホームに戻る',
+    backToReport: language === 'en' ? 'Back to Home' : 'レポート生成画面に戻る',
     noReports: language === 'en' ? 'No reports saved yet' : '保存されたレポートはありません',
     noReportsHint: language === 'en' 
       ? 'Generate a report and click "Save to History" to save it here.'
@@ -140,6 +142,9 @@ export default function HistoryPage() {
     filterAll: language === 'en' ? 'All stakeholders' : 'すべて',
     filterLabel: language === 'en' ? 'Filter' : '絞り込み',
     sortLabel: language === 'en' ? 'Sort' : '並び替え',
+    syncingCloud: language === 'en' ? 'Syncing...' : '同期中...',
+    storedInCloud: language === 'en' ? 'Cloud Storage' : 'クラウド保存',
+    storedLocally: language === 'en' ? 'Local Storage' : 'ローカル保存',
   };
 
   // 未ログイン時
@@ -147,6 +152,7 @@ export default function HistoryPage() {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto">
+          
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-12 text-center">
             <FiAlertCircle className="mx-auto text-yellow-500 mb-4" size={48} />
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
@@ -156,7 +162,7 @@ export default function HistoryPage() {
               href="/"
               className="inline-block mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
-              {texts.backToHome}
+              {texts.backToReport}
             </Link>
           </div>
         </div>
@@ -179,20 +185,48 @@ export default function HistoryPage() {
     <div className="bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
 
-        {/* サブヘッダー */}
-        <div className="flex items-center justify-between mb-6">
+        {/* ヘッダー上部 - 戻るボタン & ストレージ状態 */}
+        <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <Link
               href="/"
               className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
             >
               <FiArrowLeft className="mr-2" />
-              {texts.backToHome}
+              {texts.backToReport}
             </Link>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {texts.pageTitle}
-            </h2>
           </div>
+          
+          {/* ストレージ状態インジケーター */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
+            isAuthenticated 
+              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+          }`}>
+            {isLoading ? (
+              <>
+                <FiLoader className="animate-spin" size={14} />
+                <span>{texts.syncingCloud}</span>
+              </>
+            ) : isAuthenticated ? (
+              <>
+                <FiCloud size={14} />
+                <span>{texts.storedInCloud}</span>
+              </>
+            ) : (
+              <>
+                <FiHardDrive size={14} />
+                <span>{texts.storedLocally}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ページタイトル */}
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {texts.pageTitle}
+          </h2>
         </div>
 
         {/* ソート・フィルターコントロール */}

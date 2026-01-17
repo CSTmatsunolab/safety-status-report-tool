@@ -474,7 +474,6 @@ export default function ReportDetailPage() {
 
   // テキスト
   const texts = {
-    appTitle: language === 'en' ? 'Safety Report Generator' : '安全性情報レポートジェネレーター',
     backToHistory: language === 'en' ? 'Back to History' : '履歴に戻る',
     loading: language === 'en' ? 'Loading...' : '読み込み中...',
     notFound: language === 'en' ? 'Report not found' : 'レポートが見つかりません',
@@ -540,14 +539,6 @@ export default function ReportDetailPage() {
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
       <div className="max-w-4xl mx-auto">
-        {/* ヘッダー */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            <Link href="/">{texts.appTitle}</Link>
-          </h1>
-          <SettingsMenu />
-        </div>
-
         {/* ナビゲーション */}
         <Link
           href="/history"

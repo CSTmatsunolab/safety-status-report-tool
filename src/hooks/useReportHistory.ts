@@ -206,45 +206,36 @@ export function useReportHistory(): UseReportHistoryReturn {
         throw new Error('Not authenticated');
       }
 
-      // 1. 現在セッションでアップロードしたファイルのメタデータ
-      const uploadedFileMetadata = inputFiles?.map(file => {
-        console.log('Processing uploaded file:', file.name, file);
-        return {
-          id: file.id,
-          name: file.name,
-          type: file.type,
-          size: file.metadata?.size || file.content?.length || 0,
-          originalType: file.metadata?.originalType || 'unknown',
-          useFullText: file.includeFullText === true,
-          source: 'uploaded' as const,
-        };
-      }) || [];
+      // 1. 渡されたinputFilesからメタデータを作成
+      // ★ inputFilesが渡されている場合は、それのみを使用
+      // （ゲスト→ログイン遷移時も、生成時のファイル情報が正しく保存される）
+      const uploadedFileMetadata = inputFiles?.map(file => ({
+        id: file.id,
+        name: file.name,
+        type: file.type,
+        size: file.metadata?.size || file.content?.length || 0,
+        originalType: file.metadata?.originalType || 'unknown',
+        useFullText: file.includeFullText === true,
+        // ★ 全文使用なら'uploaded'、RAG使用なら'knowledgebase'としてタグ表示を正しく行う
+        source: file.includeFullText ? 'uploaded' as const : 'knowledgebase' as const,
+      })) || [];
 
-      // 2. Pineconeからナレッジベースのファイル情報を取得
-      let knowledgeBaseFiles: Array<{
-        id: string;
-        name: string;
-        type: string;
-        size: number;
-        originalType: string;
-        useFullText: boolean;
-        source: 'knowledgebase';
-        chunkCount?: number;
-      }> = [];
+      // ★ inputFilesが渡されている場合は、それのみを使用（ナレッジベースからの取得をスキップ）
+      // inputFilesが空の場合のみ、フォールバックとしてナレッジベースから取得
+      let allFiles = uploadedFileMetadata;
 
-      if (userIdentifier && report.stakeholder?.id) {
+      if (allFiles.length === 0 && userIdentifier && report.stakeholder?.id) {
+        // フォールバック: inputFilesがない場合のみナレッジベースからファイル情報を取得
         try {
-          console.log('Fetching knowledge base files...');
           const kbResponse = await fetch(
             `/api/list-knowledge-files?stakeholderId=${encodeURIComponent(report.stakeholder.id)}&userIdentifier=${encodeURIComponent(userIdentifier)}`
           );
           
           if (kbResponse.ok) {
             const kbData = await kbResponse.json();
-            console.log('Knowledge base files:', kbData);
             
             if (kbData.files && Array.isArray(kbData.files)) {
-              knowledgeBaseFiles = kbData.files.map((file: { fileName: string; chunkCount?: number; uploadedAt?: string }) => ({
+              allFiles = kbData.files.map((file: { fileName: string; chunkCount?: number; uploadedAt?: string }) => ({
                 id: `kb_${file.fileName}`,
                 name: file.fileName,
                 type: 'knowledgebase',
@@ -258,15 +249,8 @@ export function useReportHistory(): UseReportHistoryReturn {
           }
         } catch (kbError) {
           console.warn('Failed to fetch knowledge base files:', kbError);
-          // ナレッジベースの取得に失敗しても続行
         }
       }
-
-      // 3. アップロードファイルとナレッジベースファイルをマージ（重複排除）
-      const uploadedFileNames = new Set(uploadedFileMetadata.map(f => f.name));
-      const uniqueKbFiles = knowledgeBaseFiles.filter(f => !uploadedFileNames.has(f.name));
-      
-      const allFiles = [...uploadedFileMetadata, ...uniqueKbFiles];
 
       const response = await fetch('/api/reports', {
         method: 'POST',

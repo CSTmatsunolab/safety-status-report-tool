@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { FileUpload } from './components/FileUpload';
 import StakeholderSelect from './components/StakeholderSelect';
@@ -36,6 +36,11 @@ export default function Home() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
+
+  // レポート生成時のファイルスナップショット（履歴保存時に使用）
+  const filesAtGenerationRef = useRef<UploadedFile[]>([]);
+  // レポート生成時のuserIdentifierスナップショット（ゲスト→ログイン遷移時のフォールバック用）
+  const userIdentifierAtGenerationRef = useRef<string>('');
 
   // ユーザー設定フック（カスタムステークホルダー & カスタム構成）
   const {
@@ -73,7 +78,17 @@ export default function Home() {
 
     setSaveStatus('saving');
     const structureInfo = selectedStructure ? { id: selectedStructure.id, name: selectedStructure.name } : undefined;
-    const result = await saveReport(generatedReport, files, userIdentifier, structureInfo);
+    
+    // ★ 生成時のファイルスナップショットを優先使用
+    // （ログイン後でも生成時のファイル情報を使用することで、正しい入力ファイルが保存される）
+    const filesToSave = filesAtGenerationRef.current.length > 0 
+      ? filesAtGenerationRef.current 
+      : files;
+    
+    // ★ 生成時のuserIdentifierを使用（フォールバック時のナレッジベース取得で正しいnamespaceを参照）
+    const userIdForSave = userIdentifierAtGenerationRef.current || userIdentifier;
+    
+    const result = await saveReport(generatedReport, filesToSave, userIdForSave, structureInfo);
     
     if (result.success) {
       setSaveStatus('saved');
@@ -431,6 +446,11 @@ export default function Home() {
   // レポート生成
   const handleGenerateReport = async () => {
     if (!selectedStakeholder || !selectedStructure || !userIdentifier) return;
+    
+    // ★ レポート生成時の情報をスナップショットとして保存
+    // （ログイン前後でuserIdentifierが変わっても、生成時の情報を保持）
+    filesAtGenerationRef.current = [...files];
+    userIdentifierAtGenerationRef.current = userIdentifier;
     
     setErrorMessage(null);
     setWarningMessages([]);

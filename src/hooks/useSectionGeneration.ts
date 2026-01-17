@@ -164,7 +164,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         const { done, value } = await reader.read();
         
         if (done) {
-          console.log('🚀 [generateReportWithLambda] Stream ended');
+          //console.log('[generateReportWithLambda] Stream ended');
           break;
         }
 
