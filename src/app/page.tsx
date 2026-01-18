@@ -37,7 +37,7 @@ export default function Home() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
   
-  // 【追加】中断処理用の状態
+  // 中断処理用の状態
   const [isCancelling, setIsCancelling] = useState(false);
 
   // レポート生成時のファイルスナップショット（履歴保存時に使用）
@@ -62,7 +62,7 @@ export default function Home() {
     progress,
     error: sectionError,
     reset: resetSectionGeneration,
-    cancel: cancelGeneration,  // 【追加】キャンセル関数
+    cancel: cancelGeneration,  // キャンセル関数
     streamingContent,
   } = useSectionGeneration();
 
@@ -70,7 +70,7 @@ export default function Home() {
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
-  // 【追加】レポート生成中断ハンドラー
+  // レポート生成中断ハンドラー
   const handleCancelGeneration = () => {
     setIsCancelling(true);
     cancelGeneration();

@@ -19,7 +19,10 @@ import {
   FiChevronDown,
   FiCheck,
   FiCloud,
-  FiHardDrive
+  FiHardDrive,
+  FiSquare,
+  FiCheckSquare,
+  FiMinusSquare
 } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useAuth } from '../components/AuthProvider';
@@ -39,6 +42,7 @@ export default function HistoryPage() {
     loadReports,
     loadMore,
     deleteReport,
+    deleteReports,
     isDeleting,
     isAuthenticated,
   } = useReportHistory();
@@ -48,6 +52,10 @@ export default function HistoryPage() {
   const [stakeholderFilter, setStakeholderFilter] = useState<string>('all');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // 選択状態管理
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isSelectMode, setIsSelectMode] = useState(false);
 
   // ドロップダウン外クリックで閉じる
   useEffect(() => {
@@ -66,6 +74,7 @@ export default function HistoryPage() {
       loadReports();
     }
   }, [authStatus, loadReports]);
+
 
   // ユニークなステークホルダー一覧を取得
   const uniqueStakeholders = useMemo(() => {
@@ -97,7 +106,112 @@ export default function HistoryPage() {
     return result;
   }, [reports, stakeholderFilter, sortOrder]);
 
-  // 削除処理
+  const selectionState = useMemo(() => {
+    const filteredIds = new Set(filteredAndSortedReports.map(r => r.reportId));
+    const selectedInFiltered = [...selectedIds].filter(id => filteredIds.has(id));
+    
+    return {
+      // フィルター内での選択数
+      selectedInFilterCount: selectedInFiltered.length,
+      // 全体での選択数
+      totalSelectedCount: selectedIds.size,
+      // フィルター内の総数
+      totalFiltered: filteredAndSortedReports.length,
+      // フィルター内が全選択されているか
+      isAllSelected: selectedInFiltered.length === filteredAndSortedReports.length && filteredAndSortedReports.length > 0,
+      // フィルター内で一部選択されているか
+      isSomeSelected: selectedInFiltered.length > 0 && selectedInFiltered.length < filteredAndSortedReports.length,
+      // フィルター外にも選択があるか
+      hasSelectionsOutsideFilter: selectedIds.size > selectedInFiltered.length,
+    };
+  }, [selectedIds, filteredAndSortedReports]);
+
+  // 個別選択トグル
+  const handleToggleSelect = (reportId: string) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(reportId)) {
+        newSet.delete(reportId);
+      } else {
+        newSet.add(reportId);
+      }
+      return newSet;
+    });
+  };
+
+  // 全選択/全解除トグル（フィルター適用後のアイテムのみ）
+  const handleToggleSelectAll = () => {
+    if (selectionState.isAllSelected) {
+      // 全解除：フィルター内のアイテムのみ解除
+      const filteredIds = new Set(filteredAndSortedReports.map(r => r.reportId));
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        filteredIds.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+    } else {
+      // 全選択：フィルター内のアイテムを追加
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        filteredAndSortedReports.forEach(r => newSet.add(r.reportId));
+        return newSet;
+      });
+    }
+  };
+
+  // 選択モード終了
+  const handleExitSelectMode = () => {
+    setIsSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  // 一括削除処理（フィルターに関係なく全ての選択を削除）
+  const handleBulkDelete = async () => {
+    const selectedCount = selectionState.totalSelectedCount;
+    if (selectedCount === 0) return;
+
+    // フィルター外の選択がある場合は追加の警告
+    const warningMsg = selectionState.hasSelectionsOutsideFilter
+      ? (language === 'en'
+          ? `\n\nNote: This includes ${selectedCount - selectionState.selectedInFilterCount} report(s) not shown in current filter.`
+          : `\n\n※ 現在のフィルター外の ${selectedCount - selectionState.selectedInFilterCount} 件も含まれます。`)
+      : '';
+
+    const confirmMsg = language === 'en'
+      ? `Are you sure you want to delete ${selectedCount} selected report(s)?${warningMsg}\n\nThis action cannot be undone.`
+      : `選択した ${selectedCount} 件のレポートを削除しますか？${warningMsg}\n\nこの操作は取り消せません。`;
+    
+    if (!confirm(confirmMsg)) return;
+
+    // 全ての選択されたIDを削除対象にする
+    const idsToDelete = [...selectedIds];
+
+    const result = await deleteReports(idsToDelete);
+    
+    if (result.deletedCount > 0) {
+      // 削除成功したIDを選択から除去
+      setSelectedIds(prev => {
+        const newSet = new Set(prev);
+        idsToDelete.forEach(id => newSet.delete(id));
+        return newSet;
+      });
+    }
+
+    // 結果を通知
+    if (result.failedCount > 0) {
+      const msg = language === 'en'
+        ? `Deleted ${result.deletedCount} report(s). Failed to delete ${result.failedCount} report(s).`
+        : `${result.deletedCount} 件削除しました。${result.failedCount} 件の削除に失敗しました。`;
+      alert(msg);
+    } else if (result.deletedCount > 0) {
+      // 全て成功した場合は選択モードを終了
+      if (selectedIds.size === result.deletedCount) {
+        setIsSelectMode(false);
+      }
+    }
+  };
+
+  // 削除処理（単体）
   const handleDelete = async (report: ReportMetadata) => {
     const confirmMsg = language === 'en'
       ? `Are you sure you want to delete "${report.title}"?`
@@ -145,6 +259,17 @@ export default function HistoryPage() {
     syncingCloud: language === 'en' ? 'Syncing...' : '同期中...',
     storedInCloud: language === 'en' ? 'Cloud Storage' : 'クラウド保存',
     storedLocally: language === 'en' ? 'Local Storage' : 'ローカル保存',
+    // 一括削除関連
+    selectMode: language === 'en' ? 'Select' : '選択',
+    cancelSelect: language === 'en' ? 'Cancel' : 'キャンセル',
+    selectAll: language === 'en' ? 'Select All' : 'すべて選択',
+    deselectAll: language === 'en' ? 'Deselect All' : '選択解除',
+    deleteSelected: language === 'en' ? 'Delete Selected' : '選択を削除',
+    selected: language === 'en' ? 'selected' : '件選択中',
+    selectedInFilter: language === 'en' ? 'in filter' : 'フィルター内',
+    selectedTotal: language === 'en' ? 'total' : '合計',
+    deleting: language === 'en' ? 'Deleting...' : '削除中...',
+    clearSelection: language === 'en' ? 'Clear All' : '選択をクリア',
   };
 
   // 未ログイン時
@@ -200,8 +325,8 @@ export default function HistoryPage() {
           {/* ストレージ状態インジケーター */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             isAuthenticated 
-              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
           }`}>
             {isLoading ? (
               <>
@@ -222,17 +347,119 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        {/* ページタイトル */}
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+        {/* タイトル行 */}
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {texts.pageTitle}
-          </h2>
+          </h1>
+          
+          {/* 選択モードボタン */}
+          {reports.length > 0 && (
+            <div className="flex items-center gap-2">
+              {isSelectMode ? (
+                <button
+                  onClick={handleExitSelectMode}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                >
+                  {texts.cancelSelect}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsSelectMode(true)}
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {texts.selectMode}
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* ソート・フィルターコントロール */}
+        {/* 選択モード時の操作バー */}
+        {isSelectMode && filteredAndSortedReports.length > 0 && (
+          <div className="mb-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                {/* 全選択チェックボックス */}
+                <button
+                  onClick={handleToggleSelectAll}
+                  className="flex items-center gap-2 text-blue-700 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200"
+                >
+                  {selectionState.isAllSelected ? (
+                    <FiCheckSquare size={20} />
+                  ) : selectionState.isSomeSelected ? (
+                    <FiMinusSquare size={20} />
+                  ) : (
+                    <FiSquare size={20} />
+                  )}
+                  <span className="text-sm font-medium">
+                    {selectionState.isAllSelected ? texts.deselectAll : texts.selectAll}
+                  </span>
+                </button>
+                
+                {/* 選択件数表示（フィルター内と全体） */}
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-blue-600 dark:text-blue-400">
+                    {selectionState.selectedInFilterCount} / {selectionState.totalFiltered} {texts.selectedInFilter}
+                  </span>
+                  {selectionState.hasSelectionsOutsideFilter && (
+                    <>
+                      <span className="text-gray-400">|</span>
+                      <span className="text-blue-700 dark:text-blue-300 font-medium">
+                        {texts.selectedTotal}: {selectionState.totalSelectedCount}
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* 選択クリアボタン */}
+                {selectionState.totalSelectedCount > 0 && (
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 underline"
+                  >
+                    {texts.clearSelection}
+                  </button>
+                )}
+              </div>
+
+              {/* 一括削除ボタン */}
+              <button
+                onClick={handleBulkDelete}
+                disabled={selectionState.totalSelectedCount === 0 || isDeleting}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  selectionState.totalSelectedCount === 0 || isDeleting
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'bg-red-500 dark:bg-red-600 text-white hover:bg-red-600 dark:hover:bg-red-700'
+                }`}
+              >
+                {isDeleting ? (
+                  <FiLoader className="animate-spin" size={16} />
+                ) : (
+                  <FiTrash2 size={16} />
+                )}
+                {isDeleting ? texts.deleting : texts.deleteSelected}
+                {selectionState.totalSelectedCount > 0 && !isDeleting && ` (${selectionState.totalSelectedCount})`}
+              </button>
+            </div>
+            
+            {/* フィルター外の選択がある場合の通知 */}
+            {selectionState.hasSelectionsOutsideFilter && (
+              <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-700">
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  {language === 'en' 
+                    ? ` ${selectionState.totalSelectedCount - selectionState.selectedInFilterCount} report(s) selected in other filters will also be deleted.`
+                    : ` 他のフィルターで選択した ${selectionState.totalSelectedCount - selectionState.selectedInFilterCount} 件も削除対象に含まれます。`}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ソート・フィルターツールバー */}
         {reports.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 mb-6">
-            <div className="flex flex-wrap gap-4 items-center">
+          <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+            <div className="flex flex-wrap items-center gap-4">
               {/* ソート */}
               <div className="flex items-center gap-2">
                 <span className="text-base text-gray-500 dark:text-gray-400">
@@ -240,13 +467,7 @@ export default function HistoryPage() {
                 </span>
                 <button
                   onClick={() => setSortOrder(sortOrder === 'newest' ? 'oldest' : 'newest')}
-                  className={`
-                    flex items-center gap-1 px-3 py-1.5 rounded-md text-base font-medium transition-colors
-                    ${sortOrder === 'newest' 
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' 
-                      : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}
-                    hover:bg-blue-200 dark:hover:bg-blue-900/50
-                  `}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-md text-base bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   {sortOrder === 'newest' ? (
                     <>
@@ -262,7 +483,7 @@ export default function HistoryPage() {
                 </button>
               </div>
 
-              {/* ステークホルダーフィルター - カスタムドロップダウン */}
+              {/* フィルター */}
               {uniqueStakeholders.length > 1 && (
                 <div className="flex items-center gap-2">
                   <FiFilter className="text-gray-400" size={14} />
@@ -389,63 +610,85 @@ export default function HistoryPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredAndSortedReports.map((report) => (
-              <div
-                key={report.reportId}
-                className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="p-4 sm:p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      {/* タイトル */}
-                      <Link
-                        href={`/history/${report.reportId}`}
-                        className="block group"
-                      >
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
-                          {report.title}
-                        </h3>
-                      </Link>
+            {filteredAndSortedReports.map((report) => {
+              const isSelected = selectedIds.has(report.reportId);
+              
+              return (
+                <div
+                  key={report.reportId}
+                  className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-shadow ${
+                    isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''
+                  }`}
+                >
+                  <div className="p-4 sm:p-6">
+                    <div className="flex items-start justify-between">
+                      {/* チェックボックス */}
+                      {isSelectMode && (
+                        <button
+                          onClick={() => handleToggleSelect(report.reportId)}
+                          className="mr-4 mt-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+                        >
+                          {isSelected ? (
+                            <FiCheckSquare size={22} className="text-blue-600 dark:text-blue-400" />
+                          ) : (
+                            <FiSquare size={22} />
+                          )}
+                        </button>
+                      )}
+                      
+                      <div className="flex-1 min-w-0">
+                        {/* タイトル */}
+                        <Link
+                          href={`/history/${report.reportId}`}
+                          className="block group"
+                        >
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 truncate">
+                            {report.title}
+                          </h3>
+                        </Link>
 
-                      {/* メタ情報 */}
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base text-gray-500 dark:text-gray-400">
-                        <span className="flex items-center">
-                          <FiUser className="mr-1" />
-                          {report.stakeholder.role}
-                        </span>
-                        <span className="flex items-center">
-                          <FiClock className="mr-1" />
-                          {formatDate(report.createdAt)}
-                        </span>
-                        {report.fileCount > 0 && (
+                        {/* メタ情報 */}
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-base text-gray-500 dark:text-gray-400">
                           <span className="flex items-center">
-                            <FiFile className="mr-1" />
-                            {report.fileCount} {texts.files}
+                            <FiUser className="mr-1" />
+                            {report.stakeholder.role}
                           </span>
-                        )}
+                          <span className="flex items-center">
+                            <FiClock className="mr-1" />
+                            {formatDate(report.createdAt)}
+                          </span>
+                          {report.fileCount > 0 && (
+                            <span className="flex items-center">
+                              <FiFile className="mr-1" />
+                              {report.fileCount} {texts.files}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* アクションボタン */}
-                    <div className="flex items-center gap-2 ml-4">
-                      <Link
-                        href={`/history/${report.reportId}`}
-                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                      >
-                        <FiFileText size={20} />
-                      </Link>
-                      <button
-                        onClick={() => handleDelete(report)}
-                        disabled={isDeleting}
-                        className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50"
-                      >
-                        <FiTrash2 size={20} />
-                      </button>
+                      {/* アクションボタン（選択モードでない時のみ表示） */}
+                      {!isSelectMode && (
+                        <div className="flex items-center gap-2 ml-4">
+                          <Link
+                            href={`/history/${report.reportId}`}
+                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                          >
+                            <FiFileText size={20} />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(report)}
+                            disabled={isDeleting}
+                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded disabled:opacity-50"
+                          >
+                            <FiTrash2 size={20} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* もっと読み込むボタン */}
             {hasMore && (

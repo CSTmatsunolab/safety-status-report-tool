@@ -1,7 +1,4 @@
 // src/app/components/GenerationProgress.tsx
-// レポート生成の進捗表示コンポーネント
-// 【追加】中断ボタン機能
-
 'use client';
 
 import { FC } from 'react';
@@ -26,8 +23,8 @@ interface SectionProgress {
 interface GenerationProgressProps {
   progress: SectionProgress;
   language: 'ja' | 'en';
-  onCancel?: () => void;        // 【追加】中断ハンドラー
-  isCancelling?: boolean;       // 【追加】中断処理中フラグ
+  onCancel?: () => void;        // 中断ハンドラー
+  isCancelling?: boolean;       // 中断処理中フラグ
 }
 
 export const GenerationProgress: FC<GenerationProgressProps> = ({
@@ -72,7 +69,7 @@ export const GenerationProgress: FC<GenerationProgressProps> = ({
           </div>
         </div>
         
-        {/* 【追加】中断ボタン */}
+        {/* 中断ボタン */}
         {onCancel && (
           <button
             onClick={handleCancelClick}

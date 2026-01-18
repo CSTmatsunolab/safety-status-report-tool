@@ -57,6 +57,7 @@ interface UseReportHistoryReturn {
   
   // 削除
   deleteReport: (reportId: string) => Promise<boolean>;
+  deleteReports: (reportIds: string[]) => Promise<{ success: boolean; deletedCount: number; failedCount: number }>;
   isDeleting: boolean;
   
   // 認証状態
@@ -292,7 +293,7 @@ export function useReportHistory(): UseReportHistoryReturn {
     }
   }, [isAuthenticated, loadReports]);
 
-  // レポートを削除
+  // レポートを削除（単体）
   const deleteReport = useCallback(async (reportId: string): Promise<boolean> => {
     if (!isAuthenticated) return false;
 
@@ -327,6 +328,77 @@ export function useReportHistory(): UseReportHistoryReturn {
     }
   }, [isAuthenticated]);
 
+  // レポートを一括削除
+  const deleteReports = useCallback(async (reportIds: string[]): Promise<{ success: boolean; deletedCount: number; failedCount: number }> => {
+    if (!isAuthenticated || reportIds.length === 0) {
+      return { success: false, deletedCount: 0, failedCount: reportIds.length };
+    }
+
+    setIsDeleting(true);
+
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      // 並列で削除を実行（ただし同時実行数を制限）
+      const BATCH_SIZE = 5;
+      const deletedIds: string[] = [];
+
+      for (let i = 0; i < reportIds.length; i += BATCH_SIZE) {
+        const batch = reportIds.slice(i, i + BATCH_SIZE);
+        
+        const results = await Promise.allSettled(
+          batch.map(async (reportId) => {
+            const response = await fetch(`/api/reports/${reportId}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to delete report ${reportId}`);
+            }
+
+            return reportId;
+          })
+        );
+
+        // 結果を集計
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            deletedCount++;
+            deletedIds.push(batch[index]);
+          } else {
+            failedCount++;
+            console.error(`Failed to delete report ${batch[index]}:`, result.reason);
+          }
+        });
+      }
+
+      // 一覧から削除成功したものを除去
+      if (deletedIds.length > 0) {
+        setReports(prev => prev.filter(r => !deletedIds.includes(r.reportId)));
+      }
+
+      return { 
+        success: failedCount === 0, 
+        deletedCount, 
+        failedCount 
+      };
+    } catch (err) {
+      console.error('Delete reports error:', err);
+      return { success: false, deletedCount, failedCount: reportIds.length - deletedCount };
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [isAuthenticated]);
+
   return {
     reports,
     isLoading,
@@ -338,6 +410,7 @@ export function useReportHistory(): UseReportHistoryReturn {
     saveReport,
     isSaving,
     deleteReport,
+    deleteReports,
     isDeleting,
     isAuthenticated,
   };
