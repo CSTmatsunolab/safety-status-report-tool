@@ -453,11 +453,23 @@ function commandConvertAllChunks(
   inputPath: string,
   outputPath: string,
   uuid: string,
-  description: string = ''
+  description: string = '',
+  pattern: 1 | 2 = 2  // パターン1: >=1, パターン2: >=2
 ): void {
   console.log('\n📊 横並びCSV → Ground Truth JSON 変換を開始...\n');
   console.log(`📋 UUID: ${uuid}`);
-  convertAllChunksCSVToGroundTruth(inputPath, outputPath, uuid, description);
+  
+  const minRelevanceScore = pattern === 1 ? 1 : 2;
+  
+  if (pattern === 1) {
+    console.log('📋 パターン1: スコア1以上（◎○△）を正解として評価');
+    console.log('   → ノイズ文書が含まれないか評価');
+  } else {
+    console.log('📋 パターン2: スコア2以上（◎○）を正解として評価');
+    console.log('   → ステークホルダーに適合した文書か評価');
+  }
+  
+  convertAllChunksCSVToGroundTruth(inputPath, outputPath, uuid, description, minRelevanceScore);
 }
 
 // ============================================================
@@ -659,15 +671,16 @@ async function commandEvaluateRRF(
     kValues // 動的K値の配列を追加
   );
 
+  // 結果出力
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const timestampDir = path.join(outputDir, timestamp);
   
   if (!fs.existsSync(timestampDir)) {
     fs.mkdirSync(timestampDir, { recursive: true });
   }
-  
-  const jsonPath = path.join(timestampDir, `evaluation-rrf-result.json`);
-  const textPath = path.join(timestampDir, `evaluation-rrf-report.txt`);
+
+  const jsonPath = path.join(timestampDir, `evaluation-rrf-result-${timestamp}.json`);
+  const textPath = path.join(timestampDir, `evaluation-rrf-report-${timestamp}.txt`);
 
   // K値情報をレポートに追加
   const reportWithKInfo = {
@@ -818,6 +831,8 @@ async function main(): Promise<void> {
       const output = getArg('output') || './ground-truth-all.json';
       const uuid = getArg('uuid');
       const description = getArg('description') || '';
+      const patternStr = getArg('pattern') || '2';
+      const pattern = patternStr === '1' ? 1 : 2;
 
       if (!input) {
         console.error('❌ --input（ラベリング済みCSVファイル）が必要です');
@@ -829,7 +844,7 @@ async function main(): Promise<void> {
         process.exit(1);
       }
 
-      commandConvertAllChunks(input, output, uuid, description);
+      commandConvertAllChunks(input, output, uuid, description, pattern);
       break;
     }
 
@@ -936,6 +951,9 @@ async function main(): Promise<void> {
     --input         <file>    ラベリング済みCSVファイル（必須）
     --uuid          <string>  ユーザーUUID（必須）
     --output        <file>    出力JSONファイル
+    --pattern       <1|2>     評価パターン（デフォルト: 2）
+                              1: スコア1以上（◎○△）を正解 → ノイズ評価
+                              2: スコア2以上（◎○）を正解 → 適合性評価
     --description   <string>  説明文
 
   evaluate         クエリ単位での評価を実行

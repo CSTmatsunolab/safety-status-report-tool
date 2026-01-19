@@ -568,7 +568,8 @@ export function convertAllChunksCSVToGroundTruth(
   csvPath: string,
   outputPath: string,
   uuid: string,
-  description: string = ''
+  description: string = '',
+  minRelevanceScore: number = 2  // パターン1: 1, パターン2: 2
 ): void {
   let content = fs.readFileSync(csvPath, 'utf-8');
   
@@ -608,6 +609,7 @@ export function convertAllChunksCSVToGroundTruth(
 
   console.log(`📊 検出された行数: ${lines.length} 行（ヘッダー含む）`);
   console.log(`📊 ステークホルダー列: ${relevanceColumns.map(c => c.stakeholderId).join(', ')}`);
+  console.log(`📊 正解閾値: relevance >= ${minRelevanceScore}`);
 
   // ステークホルダーごとにエントリを作成
   const entriesMap = new Map<string, GroundTruthEntry>();
@@ -639,10 +641,10 @@ export function convertAllChunksCSVToGroundTruth(
         continue;
       }
 
-      // 関連度0-1は正解チャンクに含めない（2以上のみ正解）
-      // 0 = 無関係、1 = 背景情報程度（△）→ 除外
-      // 2 = 重要（○）、3 = 必須（◎）→ 正解
-      if (relevanceScore < 2) continue;
+      // minRelevanceScore未満は正解チャンクに含めない
+      // パターン1 (minRelevanceScore=1): 1以上（◎○△）が正解
+      // パターン2 (minRelevanceScore=2): 2以上（◎○）が正解
+      if (relevanceScore < minRelevanceScore) continue;
 
       // chunk_idをステークホルダー用に変換
       // baseChunkId: uuid_file.md_3
@@ -661,7 +663,7 @@ export function convertAllChunksCSVToGroundTruth(
   const groundTruth: GroundTruth = {
     version: '1.0',
     createdAt: new Date().toISOString(),
-    description: description || `Converted from ${csvPath} (all chunks)`,
+    description: description || `Converted from ${csvPath} (pattern: minScore>=${minRelevanceScore})`,
     entries: Array.from(entriesMap.values()),
   };
 
