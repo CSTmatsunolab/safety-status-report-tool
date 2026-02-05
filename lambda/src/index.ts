@@ -321,7 +321,7 @@ async function streamHandler(
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 20000,
-      temperature: 0.7,
+      temperature: 0.3,
       messages: [
         {
           role: 'user',

@@ -1,5 +1,11 @@
 // lamdba/src/lib/report-prompts-en.ts
-// v3: Markdown output support + Redundancy prevention
+// v5: Redundancy/duplication reduction refactoring
+//   - Consolidated hallucination prevention rules into single authoritative source
+//   - Merged term handling (old 7b) and plain language guide (old 7c)
+//   - Reduced format failure examples from 4 to 2
+//   - Merged generateCompletenessPrompt into generateDocumentUsagePrinciples
+//   - Added common GSN analysis notes as batch
+//   - Removed duplicated "causal relationships only when documented" etc. from individual functions
 
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
@@ -19,13 +25,54 @@ function isRegulatorRole(role: string): boolean {
 }
 
 function isArchitectRole(role: string): boolean {
-  const architectKeywords = ['architect', 'engineer', 'designer', 'developer', 'technical'];
+  const architectKeywords = ['architect', 'designer', 'developer', 'technical'];
   return architectKeywords.some(keyword => role.toLowerCase().includes(keyword));
 }
 
 function isBusinessRole(role: string): boolean {
   const businessKeywords = ['business', 'sales', 'marketing', 'planning', 'commercial'];
   return businessKeywords.some(keyword => role.toLowerCase().includes(keyword));
+}
+
+function isTechnicalExpertRole(role: string): boolean {
+  const technicalKeywords = [
+    'technical fellows', 'architect',
+    'engineer', 'developer', 'r&d',
+    'safety engineer', 'qa', 'quality'
+  ];
+  return technicalKeywords.some(keyword => role.toLowerCase().includes(keyword));
+}
+
+function isNonExpertRole(role: string): boolean {
+  return !isTechnicalExpertRole(role) && !isRegulatorRole(role);
+}
+
+/**
+ * Determines whether a stakeholder is an expert.
+ * Uses existing id and role for determination; no type changes required.
+ */
+function isExpertStakeholder(stakeholder?: Stakeholder): boolean {
+  if (!stakeholder) return false;
+  
+  // 1. Determination by preset ID
+  const EXPERT_IDS = ['technical-fellows', 'architect', 'r-and-d'];
+  const NON_EXPERT_IDS = ['cxo', 'business'];
+  // 'product' intentionally excluded from both → falls through to keyword check
+  
+  if (EXPERT_IDS.includes(stakeholder.id)) return true;
+  if (NON_EXPERT_IDS.includes(stakeholder.id)) return false;
+  
+  // 2. Custom stakeholders etc.: determine by role name keywords
+  const role = stakeholder.role.toLowerCase();
+  const expertKeywords = [
+    'engineer', 'architect', 'developer', 'technical', 'r&d', 'research',
+    'scientist'
+  ];
+  
+  if (expertKeywords.some(k => role.includes(k))) return true;
+  
+  // Default: lean toward non-expert (to avoid risk of omitting term explanations)
+  return false;
 }
 
 // ============================================================================
@@ -42,8 +89,12 @@ Language: Write the entire report in English, regardless of the input document l
 }
 
 // ============================================================================
-// 2. Anti-Hallucination (Critical - Reinforced v2)
+// 2. Anti-Hallucination + Fidelity/Consistency (Single Authoritative Source)
 // ============================================================================
+// [Design Policy]
+// Rules for causal relationship prohibition, unknown cause disclosure, document evidence
+// requirements, etc. are all consolidated in this function.
+// Other functions only reference: "※ Comply with Anti-Hallucination Rules (Section 2)"
 
 export function generateAntiHallucinationPromptEN(stakeholder?: Stakeholder): string {
   const role = stakeholder?.role || '';
@@ -53,66 +104,87 @@ export function generateAntiHallucinationPromptEN(stakeholder?: Stakeholder): st
 
 ### Fundamental Principle
 Information not explicitly stated in the provided documents MUST NEVER be generated, estimated, or fabricated.
-Creating "plausible-sounding stories" is a distortion of facts and is STRICTLY PROHIBITED.
 
-### PROHIBITED Information Categories
+### Prohibited Information Categories
 
-1. Costs / Budget / Investment Amounts
-   PROHIBITED: "approximately $200K", "investment of $450K", "cost of $100K", "losses in millions"
-   REQUIRED: "[ESTIMATE NEEDED] Cost not documented in provided materials"
+The following categories of information are prohibited unless documented.
+When information is insufficient, use the standard phrases shown in the "Response" column.
 
-2. Specific Durations / Delay Predictions
-   PROHIBITED: "2-4 weeks delay", "expected completion in 3 months"
-   REQUIRED: Use only documented dates, or "[TO BE CONFIRMED] Duration not documented"
+| # | Category | Prohibited Example | Response |
+|---|----------|-------------------|----------|
+| 1 | Costs / Budget / Investment | "approximately $200K", "cost of $100K" | "[ESTIMATE NEEDED] Cost not documented in provided materials" |
+| 2 | Specific Durations / Delay Predictions | "2-4 weeks delay" | Use only documented dates, or "[TO BE CONFIRMED]" |
+| 3 | Headcount / Resource Numbers | "5 engineers required" | "[TO BE CALCULATED]" |
+| 4 | ROI / Return on Investment | "ROI: High" | "[OUT OF SCOPE] ROI evaluation is outside the scope of this report" |
+| 5 | Self-calculated Values | Unfounded "achievement rate 73.3%" | Quote documented values directly; show calculation formula if deriving |
+| 6 | Market Predictions / Business Impact | "market share will decrease by X%" | Document stated facts only |
+| 7 | Figure/Table Data | Creating figures with undocumented values | State "Cannot illustrate due to insufficient information" |
 
-3. Headcount / Resource Numbers
-   PROHIBITED: "5 engineers required" (when not documented)
-   REQUIRED: Use only documented information, or "[TO BE CALCULATED]"
+### Table (Markdown Table) Transcription Rules [All Stakeholders]
 
-4. ROI / Return on Investment
-   PROHIBITED: "ROI: High", "opportunity cost of $X million"
-   REQUIRED: "[OUT OF SCOPE] ROI evaluation is outside the scope of this report"
+Tables are "transcription tables" — filling cells with supplemented or guessed content is strictly prohibited.
 
-5. Self-calculated Values / Percentages
-   PROHIBITED: Unfounded values like "achievement rate 73.3%"
-   REQUIRED: Quote documented values directly; show calculation formula if deriving
+**Prohibited:**
+- Filling cells with undocumented values ("plausible-looking values")
+- Auto-correcting notation variations in dates, names, IDs, numbers, or pass/fail status
+- Generating undocumented IDs, rows, or columns by guessing
 
-6. Market Predictions / Business Impact
-   PROHIBITED: "market share will decrease by X%", "competitive advantage will be lost"
-   REQUIRED: Document only stated facts
+**Required:**
+- Transcribe dates, names, IDs, numbers, and pass/fail status exactly as written in provided documents
+- For unknown cells, do not leave blank — use "[NOT DOCUMENTED]", "[TO BE CONFIRMED]", or "—" consistently
+- Before output, verify that dates, names, and IDs in tables match document records; replace mismatches with "[TO BE CONFIRMED]"
 
-7. Figure/Table Data
-   PROHIBITED: Creating figures with undocumented values
-   REQUIRED: State "Cannot illustrate due to insufficient information"
+### Causal Relationship / Root Cause Analysis Rules [CRITICAL]
 
-8. Causal Analysis / Root Cause Stories [CRITICAL]
-   PROHIBITED: Fabricating answers to "why" questions not documented
-   PROHIBITED: Creating 5 Whys analysis or root cause analysis without documented records
-   PROHIBITED: Connecting fragmented information with fabricated causal relationships
-   PROHIBITED: Using causal expressions like "because of", "due to", "caused by" without documented evidence
-   
-   Specific prohibited examples:
-   - "Tool selection decision was delayed because..." (not documented)
-   - "Evaluation criteria were not established in advance because..." (not documented)
-   - "Resource was allocated to other tasks because..." (not documented)
-   - "Past project data was not utilized because..." (not documented)
-   
-   REQUIRED:
-   - State only the status: "H-104 countermeasure is currently planned" (documented fact)
-   - Indicate unknown cause: "[CAUSE UNKNOWN] Specific cause of delay is not documented"
-   - When analysis is needed: "[INVESTIGATION REQUIRED] Root cause identification requires additional investigation"
+**Prohibited:**
+- Fabricating answers to "why" questions not in documents
+- Creating 5 Whys analysis or root cause analysis without documented records
+- Using causal expressions like "because of", "due to", "caused by" without documented evidence
+- Fabricating structural problems or organizational issues based on speculation (e.g., "decision-making process delay", "budget allocation rigidity")
 
-9. Structural Problems / Organizational Issues Based on Speculation
-   PROHIBITED: "Decision-making process delay", "Budget allocation rigidity", "Immature estimation methods"
-   (Do not fabricate organizational/structural problems not explicitly stated in documents)
-   REQUIRED: Describe only issues documented in provided materials
+**Required:**
+- State only the status: "The countermeasure for H-104 is currently planned" (documented fact)
+- Indicate unknown cause: "[CAUSE UNKNOWN] The specific cause of the delay is not documented"
+- When analysis is needed: "[INVESTIGATION REQUIRED] Root cause identification requires additional investigation"
+
+### Evidence Strength-Based Expression Rules
+
+Use different levels of confidence based on the strength of evidence.
+
+**Level 1: Clear statement in document (assertion permitted)**
+- Expressions: "is", "is stated as", "is documented as"
+- Example: "The countermeasure for H-001 has been implemented (Document X)"
+
+**Level 2: Logically derivable from document statements (use qualified expressions)**
+- Expressions: "Based on document statements, it can be determined that...", "It can be interpreted as..."
+- Required: Always cite the supporting document statement
+
+**Level 3: Not stated in document (description prohibited)**
+- Response: Use "[NOT DOCUMENTED]" or "[TO BE CONFIRMED]" tags
+- Speculative expressions such as "it is presumed that..." or "probably..." are also prohibited
+
+**Dangerous expressions suggesting certainty (verify evidence before use):**
+- "Clearly..." "Obviously..." → Is there Level 1 evidence?
+- "Must be..." "Should be..." → Speculation presented as assertion. Prohibited.
+- "Judging comprehensively..." → Can the basis for judgment be individually specified?
+- "Is required" "Is essential" → Is it documented as a requirement?
+
+### Cross-Section Consistency Rules
+
+**Consistency of identical facts:**
+- Use the same expression for the same hazard/risk evaluation across all sections
+- Ensure numerical values (pass rates, counts, etc.) are consistent across all sections
+
+**Consistency of evaluations:**
+- Do not describe something as "minor" in one section if it was characterized as "critical risk" in another
+- Ensure overall evaluations and individual section evaluations do not contradict each other
 
 ### Permitted Statements
-Direct quotation of documented values (with source citation)
-Calculations derivable from documented values (show calculation process)
-Quotation of causal relationships explicitly stated in documents
-General industry knowledge with "[REFERENCE]" tag
-Explicit statements of "Not documented", "To be confirmed", "Cause unknown"
+- Direct quotation of documented values (with source citation)
+- Calculations derivable from documented values (show calculation process)
+- Quotation of causal relationships explicitly stated in documents
+- General industry knowledge with "[REFERENCE]" tag
+- Explicit statements of "Not documented", "To be confirmed", "Cause unknown"
 
 ### Standard Phrases for Information Gaps
 - Cost: "[ESTIMATE NEEDED] Cost is not documented; separate estimation required"
@@ -123,41 +195,67 @@ Explicit statements of "Not documented", "To be confirmed", "Cause unknown"
 - Investigation: "[INVESTIGATION REQUIRED] Identification of XX requires additional investigation"
 
 ### Pre-Output Checklist
-□ Costs/expenses → Is there documented evidence?
-□ Duration/delay predictions → Is there documented evidence?
-□ ROI/investment returns → Is there documented evidence?
-□ Calculated values → Are formula and source data documented?
-□ Headcount/resources → Is it explicitly documented?
+□ Costs/expenses/durations/ROI/calculated values/headcount → Is there documented evidence?
 □ Figure/table values → All from documented sources?
+□ Table cells → Accurately transcribed from documents?
 □ "because of", "due to" → Is this causal relationship explicitly documented?
-□ 5 Whys / Root cause analysis → Is there documented analysis record?
-□ Structural/organizational problems → Are they explicitly documented?`;
+□ Assertive expressions → Is there Level 1 evidence?
+□ Does the Executive Summary conclusion match the analysis results in the main body?
+□ Are risk severity ratings and cited numbers consistent across all sections?`;
 
-  // Additional warning for Business/Executive roles
+  // Business/Executive additional warning
   if (isBusinessRole(role) || isExecutiveRole(role)) {
     basePrompt += `
 
-### SPECIAL WARNING FOR ${role}
+### Special Warning for ${role}
 The following information affecting business/executive decisions must be handled with extra rigor:
 - NEVER generate specific cost/expense figures
 - Do NOT evaluate ROI/investment returns (state "separate calculation required")
 - Do NOT predict specific delay durations for market launch
 - Do NOT estimate opportunity costs or risk amounts
-- Do NOT fabricate causal analysis or root causes without documented evidence
 - When needed, list items only with "[TO BE CALCULATED]", "[ESTIMATE NEEDED]", or "[INVESTIGATION REQUIRED]"`;
+  }
+
+  // Architect/Technical expert additional warning
+  if (isArchitectRole(role) || isTechnicalExpertRole(role)) {
+    basePrompt += `
+
+### Special Warning for ${role}: Accurate Table Data Transcription [CRITICAL]
+
+Architect/technical reports include detailed tables (test result lists, traceability matrices, etc.),
+and data within tables MUST be transcribed verbatim from provided documents.
+
+**Test Result Table Creation Rules (Strictly Enforced):**
+1. Transcribe test IDs (TR-XXX), execution dates, executors, and results (PASS/FAIL/PENDING) exactly as documented
+2. Filling dates with "plausible values" is STRICTLY PROHIBITED
+3. Do NOT alter or fabricate executor names
+4. When failure reasons/corrective actions are documented, transcribe them accurately without omission
+5. Writing "[DETAILS UNKNOWN]" when failure reasons ARE documented is STRICTLY PROHIBITED
+
+**Procedure for filling each table cell:**
+1. Search for the corresponding test ID / hazard ID / requirement ID in provided documents
+2. Copy the documented value exactly
+3. Use "—" or "[NOT DOCUMENTED]" ONLY when the information is genuinely not found in documents
+4. NEVER fill values from guessing or memory
+
+**Conditions for using "[DETAILS UNKNOWN]" tag:**
+- May be used ONLY when the information cannot be found after searching provided documents
+- Must re-check the full text of provided documents before use
+- Labeling as "details unknown" when the information exists in documents constitutes concealment of facts and is prohibited`;
   }
 
   return basePrompt;
 }
 
 // ============================================================================
-// 3. Output Constraints (Format, Style, Volume - Consolidated)
+// 3. Output Constraints (Format, Style, Volume)
 // ============================================================================
 
 export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
   const role = stakeholder?.role || 'Safety Engineer';
+  const expert = isExpertStakeholder(stakeholder);
   
-  // Common format rules (Changed to Markdown recommended)
+  // Common format rules
   const formatRules = `
 ## OUTPUT CONSTRAINTS (MANDATORY)
 
@@ -175,7 +273,7 @@ Use Markdown notation to structure the report.
 
 ---
 
-### 【CRITICAL RULE】## with numbers is ONLY for chapter headings
+### [CRITICAL RULE] ## with numbers is ONLY for chapter headings
 
 **Absolute Rule:**
 - The \`## 1.\` format is used ONLY for **chapter titles** like "## 1. Executive Summary"
@@ -187,60 +285,18 @@ Use Markdown notation to structure the report.
 
 ---
 
-### FORBIDDEN Patterns (Output = Failure)
+### Prohibited and Correct Patterns
 
 \`\`\`
-[FAILURE 1] Listing rationale or criteria
+[FAILURE] Using ## for item enumeration
 **Safety Status Criteria:**
 ## 1. High-risk items are under mitigation
 ## 2. Medium-risk items are planned
-## 3. Test pass rate is below target
 
-[FAILURE 2] Listing executive decision items
-**Executive Decisions Required:**
-## 1. **Resource allocation decision**
-## 2. **Schedule risk response**
-## 3. **Quality target achievement**
-
-[FAILURE 3] Listing weekly tasks
-**Week 1 Activities:**
-## 1. Complete resource adjustment
-## 2. Deploy test environment
-## 3. Finalize implementation schedule
-
-[FAILURE 4] Listing delay factors
-**Delay Factors:**
-## 1. Self-diagnostic test failure
-## 2. Test environment preparation delay
-\`\`\`
-
----
-
-### CORRECT Patterns (Output these)
-
-\`\`\`
-[CORRECT 1] Listing rationale or criteria
+[CORRECT] Using numbers only for item enumeration
 **Safety Status Criteria:**
 1. High-risk items are under mitigation
 2. Medium-risk items are planned
-3. Test pass rate is below target
-
-[CORRECT 2] Listing executive decision items
-**Executive Decisions Required:**
-1. **Resource allocation decision**
-2. **Schedule risk response**
-3. **Quality target achievement**
-
-[CORRECT 3] Listing weekly tasks
-**Week 1 Activities:**
-1. Complete resource adjustment
-2. Deploy test environment
-3. Finalize implementation schedule
-
-[CORRECT 4] Listing delay factors
-**Delay Factors:**
-1. Self-diagnostic test failure
-2. Test environment preparation delay
 \`\`\`
 
 ---
@@ -259,9 +315,32 @@ When about to write \`## number.\`:
 ### Style
 - Use formal writing style consistently throughout`;
 
+  // Non-expert: plain language priority hook (detailed rules defined in Section 7)
+  const accessibilityHook = isNonExpertRole(role)
+    ? `\n- For non-expert audience: Prioritize plain language over technical jargon; aim for sentences of 20 words or fewer (details in Section 7)`
+    : '';
+
+  // ★ Appendix rules
+  const appendixRules = expert
+    ? `
+
+### Appendix Rules
+- Do NOT include a Glossary (readers are experts; definition explanations are unnecessary)
+- A minimal abbreviation list table may be included in the appendix ONLY when there are many project-specific abbreviations
+- Appendices are limited to reference data and supplementary figures/tables that would otherwise bloat the main text`
+    : `
+
+### Appendix Rules
+- If technical terms or abbreviations are used in the report body, include a Glossary as an appendix
+- The Glossary should include:
+  - Technical terms used in the body with plain language explanations
+  - Abbreviations with their full forms
+- The Glossary does NOT count toward the main text volume constraints (page/word count)
+- In the body, add brief annotations at first occurrence and direct readers to "See Appendix: Glossary" for details`;
+
   // Volume constraints by stakeholder
   if (isExecutiveRole(role)) {
-    return formatRules + `
+    return formatRules + appendixRules + `
 
 ### Volume (Executive Audience)
 - Total pages: 8-12 pages maximum (strictly enforced)
@@ -272,11 +351,10 @@ When about to write \`## number.\`:
   - Technical Overview: 1 page
   - Risks and Countermeasures: 2-3 pages
   - Recommendations: 1-2 pages
-- Avoid redundant explanations and repetition
-- MUST complete report through final section`;
+- MUST complete report through final section${accessibilityHook}`;
   }
   
-  return formatRules + `
+  return formatRules + appendixRules + `
 
 ### Volume
 - Total pages: 12-15 pages maximum (strictly enforced)
@@ -288,55 +366,85 @@ When about to write \`## number.\`:
   - Risks and Countermeasures: 2-3 pages
   - Test Results: 2-3 pages
   - Improvement Proposals: 1-2 pages
-- Avoid redundant explanations and repetition
-- MUST complete report through final section`;
+- MUST complete report through final section${accessibilityHook}`;
 }
 
 // ============================================================================
-// 4. Redundancy Prevention Rules
+// 4. Redundancy Prevention Rules + Information Density Optimization
 // ============================================================================
 
-export function generateRedundancyPreventionPromptEN(): string {
-  return `
+export function generateRedundancyPreventionPromptEN(stakeholder?: Stakeholder): string {
+  const expert = isExpertStakeholder(stakeholder);
+
+  const basePart = `
 ## REDUNDANCY PREVENTION RULES (MANDATORY)
 
 ### Fundamental Principle
 Describing the same information multiple times is PROHIBITED. State information once, then reference from other sections.
 
+### Information Density
+
+**Per-paragraph rule:**
+- Each paragraph must contain at least one "new piece of information, analysis, or insight"
+- Delete paragraphs that contain no new information
+
+**Prohibited filler expressions:**
+- Meta-references: "This section discusses...", "The following explains..."
+- Unnecessary preambles: "Importantly, ...", "It is noteworthy that...", "A notable point is..."
+- Re-summarizing prior content: "Based on the above...", "As mentioned above...", "As previously stated..." (replace with reference format: "See Section X")
+- Self-evident generalities: "Safety is important", "Risk management is essential", etc.
+
+**Section opening rule:**
+- Do NOT begin with a summary of the previous section (replace with reference: "Based on the analysis in Section X, ...")
+- Keep introductory sentences to one sentence or fewer; proceed immediately to the main content
+
 ### Cross-Reference Usage
-Use the following patterns to reference other sections and figures/tables:
 - Section reference: "As shown in Section 1", "See Section 2.3"
 - Figure/Table reference: "As shown in Table 1", "See Figure 2"
 - Forward/backward reference: "The aforementioned XX (Section X)", "XX discussed later (Section Y)"
 
 ### Prohibited Patterns
-1. **Duplicate Data Entries**
-   PROHIBITED: Re-listing numbers detailed in Executive Summary within main body
-   REQUIRED: "As the key metrics in Section 1 indicate, ..."
+1. **Duplicate data entries** → "As the key metrics in Section 1 indicate, ..." (use reference)
+2. **Duplicate risk descriptions** → "For H-001 (see Table X), the countermeasure is..."
+3. **Duplicate conclusions** → Consolidate conclusions in "Recommendations" or "Summary" section
+4. **Duplicate GSN information** → "See Table X: GSN Achievement Status (Section Y)"
+5. **Duplicating figure/table content in text** → "See Table X for details" and state only key points in text`;
 
-2. **Duplicate Risk Descriptions**
-   PROHIBITED: Repeating same risk explanations in both risk list and countermeasures section
-   REQUIRED: Detail in "Table X: Risk List", then in countermeasures: "For H-001 (see Table X), the countermeasure is..."
-
-3. **Duplicate Conclusions**
-   PROHIBITED: Repeating same conclusions at the end of each section
-   REQUIRED: Consolidate conclusions in "Recommendations" or "Summary" section
-
-4. **Duplicate GSN Information**
-   PROHIBITED: Re-explaining GSN analysis section content in other sections
-   REQUIRED: "See Table X: GSN Achievement Status (Section Y)"
-
-5. **Duplicating Figure/Table Content in Text**
-   PROHIBITED: Listing all data from a figure/table in the main text
-   REQUIRED: "See Table X for details" and state only key points in text
+  // ★ Section role distribution by expertise level
+  const sectionRoles = expert
+    ? `
 
 ### Role Distribution Between Sections
-| Section | Role | Relationship with Other Sections |
-|---------|------|----------------------------------|
-| Executive Summary | Conclusions and key metrics only | State "see main body for details" |
-| GSN Analysis | GSN structure and achievement status | Do not re-explain elsewhere |
-| Risk Analysis | Risk details | Countermeasures section references only |
-| Countermeasures/Recommendations | Specific actions | Reference risks by ID number |
+| Section | Content to Include | Content to Omit |
+|---------|-------------------|-----------------|
+| Executive Summary | Technical conclusions, key metrics | Detailed analysis (defer to main body) |
+| Technical Overview | Design decisions, technology selection rationale | Basic concept explanations |
+| GSN Analysis | Per-node achievement status, evidence evaluation | Explanation of GSN methodology itself |
+| Risks and Countermeasures | Technical risk details, countermeasure adequacy | General risk management theory |
+| Test Results | Data, pass/fail determinations, coverage | Textbook-style test methodology explanations |
+| Improvement Proposals | Implementable improvements with priorities | Repeated summaries of other sections |
+
+#### Expert Reader Focus Rules
+- Do NOT include concept definitions in the form "XX is a method that..." (readers have equivalent expertise)
+- Explanations of industry-standard terms (FMEA, FTA, ASIL, CI/CD, etc.) are unnecessary
+- Expand project-specific abbreviations only once at first occurrence`
+
+    : `
+
+### Role Distribution Between Sections
+| Section | Content to Include | Content to Omit |
+|---------|-------------------|-----------------|
+| Executive Summary | Conclusions, metrics needed for decisions, recommended actions | Detailed technical mechanisms |
+| Current Status/Technical Overview | Only key points affecting the reader's decisions | Implementation methods, algorithm details |
+| GSN Analysis | Achievement/non-achievement ratios and impact | Detailed technical evaluation of individual nodes |
+| Risks and Countermeasures | High-impact risks and specific responses | Implementation procedures for countermeasures |
+| Recommendations | Prioritized actions, items requiring decisions | Repeated summaries of other sections |
+
+#### Non-Expert Reader Focus Rules
+- Convert technical terms to impacts/outcomes (e.g., ✗ "Latency exceeds threshold" → ✓ "Response time does not meet requirements")
+- Each section should provide unique decision-making material; do not repeat the same fact from different angles`;
+
+  return basePart + sectionRoles + `
 
 ### Word Count Reduction Target
 - Cross-referencing and figure/table numbering can reduce total word count by 20-30%
@@ -344,7 +452,7 @@ Use the following patterns to reference other sections and figures/tables:
 }
 
 // ============================================================================
-// 5. Document Usage Principles
+// 5. Document Usage Principles (Merged from old "Completeness and Accuracy")
 // ============================================================================
 
 export function generateDocumentUsagePrinciplesEN(): string {
@@ -364,12 +472,26 @@ Extract the following elements without omission and reflect in the report:
 - Cite source for all numbers and facts: "XX (from Document ID: XXX-001)"
 - Record sources for information from multiple documents
 - Quote important numbers accurately from original text
-- When describing causal relationships, cite the supporting document
 
-### Priority Order
+### Information Priority Order
 1. Explicit statements in provided documents
 2. Information derivable from documents (show calculation process)
-3. Explicit statements of "Not documented", "Cause unknown", "Investigation required"`;
+3. Explicit statements of "Not documented", "Cause unknown", "Investigation required"
+
+### Comprehensiveness
+The report must include the following:
+- Safety assessment results and rationale
+- Unresolved issues and limitations
+- Improvement proposals and future directions
+
+### Prioritize Quantitative Information
+- Use specific numbers rather than "many" or "few" (documented values only)
+- Clearly describe trends in time-series data
+
+### Pre-Output Comprehensiveness Check
+□ Are "rationale (why it is safe)", "unresolved issues", and "next actions" each described at least once in the report?
+
+※ Causal relationship description rules comply with Anti-Hallucination Rules (Section 2).`;
 }
 
 // ============================================================================
@@ -385,8 +507,11 @@ export function generateStakeholderSectionEN(stakeholder: Stakeholder, strategy:
 }
 
 // ============================================================================
-// 7. Report Creation Guidelines (By Stakeholder)
+// 7. Report Creation Guidelines (By Stakeholder) + Terms/Plain Language (Merged)
 // ============================================================================
+// [Design Policy]
+// Merged old 7b (term handling) and old 7c (plain language guide).
+// Causal relationship rules are unified as Section 2 reference.
 
 export function generateReportGuidelinesEN(stakeholder: Stakeholder): string {
   const role = stakeholder.role;
@@ -397,7 +522,10 @@ export function generateReportGuidelinesEN(stakeholder: Stakeholder): string {
 - Present information needed for executive decisions concisely
 - Minimize technical details, emphasize conclusions and impacts
 - Include specific, actionable recommendations
-- Include causal analysis only when documented`;
+
+※ Causal relationship/root cause descriptions must comply with Anti-Hallucination Rules (Section 2).
+
+${generateTermAndAccessibilityRulesEN(role)}`;
   }
   
   if (isBusinessRole(role)) {
@@ -406,21 +534,156 @@ export function generateReportGuidelinesEN(stakeholder: Stakeholder): string {
 - Clearly present business impacts and countermeasures
 - State "[TO BE CALCULATED]" for investment/ROI unless documented
 - Use only documented dates for schedule impacts
-- State "[INVESTIGATION REQUIRED]" for root causes unless documented`;
+
+※ Causal relationship/root cause descriptions must comply with Anti-Hallucination Rules (Section 2).
+
+${generateTermAndAccessibilityRulesEN(role)}`;
+  }
+
+  if (isTechnicalExpertRole(role)) {
+    return `
+## REPORT GUIDELINES (Technical Expert Audience)
+- Focus on ${role}'s perspective and concerns
+- Prioritize technical accuracy above all
+- Provide objective analysis based on data and facts
+- Include specific, actionable recommendations
+- When creating test result/verification tables, transcribe accurately from documents (see Section 2 transcription rules)
+
+${generateTermAndAccessibilityRulesEN(role)}`;
   }
   
+  // ★ Expert / Non-expert branching
+  if (isExpertStakeholder(stakeholder)) {
+    return `
+## REPORT GUIDELINES
+- Provide technical analysis from ${role}'s expert perspective
+- Use technical terms directly (readers have equivalent expertise; definition explanations are unnecessary)
+- Expand project-specific abbreviations with their full form only once at first occurrence
+- Provide objective technical evaluation based on data and facts
+- Include specific, implementable improvement proposals
+- Describe causal relationships only when documented evidence exists
+- Do NOT include general concept explanations (in the form "XX is a method that...")
+
+${generateTermAndAccessibilityRulesEN(role)}`;
+  }
+  
+  // Non-expert default (Product, custom non-experts, etc.)
   return `
 ## REPORT GUIDELINES
 - Focus on ${role}'s perspective and concerns
-- Use technical terms as needed but explain clearly
+- Replace technical terms with plain language where possible, or add brief annotations at first occurrence
+- Convert technical content to "what is happening" and "how it impacts" descriptions
 - Provide objective analysis based on data and facts
 - Include specific, actionable recommendations
-- Describe causal relationships only when documented`;
+- Describe causal relationships only when documented evidence exists
+
+※ Causal relationship/root cause descriptions must comply with Anti-Hallucination Rules (Section 2).
+
+${generateTermAndAccessibilityRulesEN(role)}`;
+}
+
+// ============================================================================
+// 7b. Term Handling + Plain Language Guide (Merged)
+// ============================================================================
+// [Design Policy]
+// Merged old 7b (generateTermHandlingRules) and old 7c (generateAccessibilityPrompt).
+// Non-expert rewriting example table unified into one, duplicates removed.
+
+function generateTermAndAccessibilityRulesEN(role: string): string {
+  if (isTechnicalExpertRole(role)) {
+    return `### Term Usage (Technical Expert Audience)
+- Standard safety engineering terms (GSN, ASIL, FMEA, FTA, HAZOP, etc.) need no definition
+- Expand only project-specific abbreviations and proper nouns at first occurrence
+- Example: "SCS (Safety Critical System)" expanded only at first occurrence; use "SCS" thereafter`;
+  }
+
+  if (isRegulatorRole(role)) {
+    return `### Term Usage (Regulatory Authority)
+- Write full formal names of standards/regulations at first occurrence: "ISO 26262 (Road vehicles — Functional safety)"
+- Use abbreviations only thereafter
+- Use regulatory/standard-specific terms as-is (to prevent meaning changes from simplification)`;
+  }
+
+  // Non-expert (executives, business divisions, others): merged term definitions + plain language
+  return `### Term and Expression Usage (Non-Expert Audience)
+
+**First-occurrence definition rule:**
+- Add a plain language definition in parentheses at first occurrence of technical terms
+- From the second occurrence onward, use the term only without re-defining
+- Definitions should be short annotations within parentheses (one line or less)
+
+**Term rewriting examples:**
+| Technical Expression | Plain Language Expression |
+|---------------------|-------------------------|
+| GSN (Goal Structuring Notation) | Safety argumentation structure diagram (GSN) |
+| Goal Node (G) | Safety objective (Goal: G) |
+| Strategy Node (S) | Argumentation approach (Strategy: S) |
+| Evidence Node (Sn) | Evidence supporting safety (Evidence: Sn) |
+| Context Node (C) | Precondition (Context: C) |
+| Undeveloped Node (U) | Part where evidence is not yet prepared (Undeveloped: U) |
+| Argumentation gap | Remaining hole in the safety explanation (argumentation gap) |
+| Fault-tolerant design | Design that continues operating even when a part fails (fault-tolerant design) |
+| Verification compliant with ASIL-D | Verification based on the strictest safety standard (ASIL-D) |
+| Conducted hazard analysis | Identification of risk factors (hazard analysis) conducted |
+| Acceptability of residual risk | Whether risk remaining after countermeasures is within acceptable range |
+| Insufficient evidence coverage | Some evidence supporting safety (test results, etc.) is not yet available |
+| Safety argumentation completeness not ensured | There are gaps in the explanation of why the system is safe |
+
+**Sentence structure:**
+- Aim for sentences of 20 words or fewer; split longer sentences
+- Keep subjects and verbs close together
+- Avoid double negatives ("It cannot be said that it is not..." → "It is possible that...")
+
+**Conveying numbers:**
+- Add meaning beyond raw data: "Pass rate 85% (5 percentage points below the 90% target)"
+- Supplement ratios with concrete examples: "3 out of 10 (30%) are incomplete"
+
+**Conveying technical concepts:**
+- Explain in order of "what" then "why it matters (so what)"
+- Avoid abstract expressions; state specific impacts and outcomes
+
+**Prohibited:**
+- Do not include 3 or more undefined technical terms in a single sentence
+- Do not re-explain terms that have already been defined (causes redundancy)
+- Do not write definitions spanning more than 2 lines within parentheses`;
 }
 
 // ============================================================================
 // 8. GSN Analysis Prompt (By Stakeholder)
 // ============================================================================
+
+// GSN Primer (for non-experts)
+function generateGSNPrimerForNonExperts(): string {
+  return `
+### GSN Reading Guide (For Non-Expert Readers — Insert at Report Beginning)
+
+For readers unfamiliar with GSN, insert a **short note** at the beginning of the report (before the Executive Summary).
+Do not make it a standalone section; write it as a brief introductory note of a few lines.
+
+**Content to include in the note (all of the following elements):**
+1. This report uses a method called GSN (Goal Structuring Notation) to organize safety claims and evidence
+2. Meaning of symbols appearing in the text:
+   - G1–G10, etc. = Safety objectives (Goals)
+   - S1–S4, etc. = Argumentation approaches (Strategies)
+   - Sn1–Sn6, etc. = Evidence supporting safety (Evidence)
+   - C1–C6, etc. = Preconditions (Contexts)
+   - U1, etc. = Items not yet completed (Undeveloped)
+3. These are reference numbers used in GSN
+4. The report is structured so that readers can understand the content by following the explanations, even without GSN knowledge
+
+**Writing rules:**
+- Keep to approximately 3-5 sentences (within half a page)
+- Do NOT make it a standalone section (no ## heading)
+- Present as a note/supplement (e.g., prefix with "About reading this report:" or similar)
+- Use symbols (G1, Sn1, etc.) that match the GSN structure in the provided documents`;
+}
+
+// Common GSN analysis note (all stakeholders)
+function appendGSNCommonNote(prompt: string): string {
+  return prompt + `
+
+※ Gap causes and reasons for non-achievement must comply with Anti-Hallucination Rules (Section 2); describe only when documented. If not documented, state "[CAUSE UNKNOWN]" or "[INVESTIGATION REQUIRED]".`;
+}
 
 export function generateGSNAnalysisPromptEN(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
   if (!hasGSNFile) {
@@ -428,11 +691,13 @@ export function generateGSNAnalysisPromptEN(hasGSNFile: boolean, stakeholder?: S
   }
 
   const role = stakeholder?.role || 'Safety Engineer';
+  const gsnPrimer = isNonExpertRole(role) ? generateGSNPrimerForNonExperts() : '';
   
   // Executive version (concise)
   if (isExecutiveRole(role)) {
-    return `
-## GSN ANALYSIS (Executive - Within 1 Page)
+    return appendGSNCommonNote(`
+${gsnPrimer}
+## GSN ANALYSIS (Executive — Within 1 Page)
 
 Consolidate into one section as follows. Do NOT create separate subsections for each node.
 
@@ -447,13 +712,12 @@ Consolidate into one section as follows. Do NOT create separate subsections for 
 
 4. Recommended Actions (2-3 items)
 
-PROHIBITED: Do not create separate subsections for each node; do not use more than 1 page per node
-PROHIBITED: Do not fabricate causes for non-achievement without documented evidence`;
+PROHIBITED: Do not create separate subsections for each node; do not use more than 1 page per node`);
   }
   
   // Regulator version
   if (isRegulatorRole(role)) {
-    return `
+    return appendGSNCommonNote(`
 ## GSN ANALYSIS (Regulatory Authority)
 
 1. GSN Structure and Standards Compliance
@@ -465,13 +729,12 @@ PROHIBITED: Do not fabricate causes for non-achievement without documented evide
 3. Evidence Auditability
    [Figure: Evidence List and Verification Status]
 
-4. Argumentation Gaps and Corrective Plans
-   Note: Describe gap causes only when documented`;
+4. Argumentation Gaps and Corrective Plans`);
   }
   
   // Architect version (detailed)
   if (isArchitectRole(role)) {
-    return `
+    return appendGSNCommonNote(`
 ## GSN DETAILED ANALYSIS (For Designers)
 
 1. GSN Structure Visualization
@@ -491,12 +754,42 @@ PROHIBITED: Do not fabricate causes for non-achievement without documented evide
 5. GSN-Architecture Mapping Analysis
    [Figure: GSN Node × Component Mapping Table]
 
-6. Argumentation Gap Technical Analysis
-   Note: Describe gap causes only when documented; otherwise state "[INVESTIGATION REQUIRED]"`;
+6. Argumentation Gap Technical Analysis`);
+  }
+
+  // Non-expert audience (business divisions, other general)
+  if (isNonExpertRole(role)) {
+    return appendGSNCommonNote(`
+${gsnPrimer}
+## GSN ANALYSIS (For ${role})
+
+Using the symbols (G, S, Sn, etc.) introduced in the reading guide above, structure the analysis as follows.
+At the first occurrence of each symbol, pair it with a plain language name as in the reading guide (e.g., "Safety objective G7", "Evidence Sn1").
+
+1. Overview of the Safety Argumentation
+   - Outline the structure of the project's safety argumentation (number of nodes, key branching points)
+   - [Figure: Safety Argumentation Hierarchy Diagram]
+
+2. Safety Objective (Goal) Achievement Status
+   [Figure: Safety Objective Achievement Status Table]
+   - Organize the achievement status of each objective in table format
+   - Clearly define the categories "Achieved", "In Progress", and "Not Achieved" and their meanings
+
+3. Evidence Readiness Status
+   - Organize completed evidence and outstanding evidence
+   - Explain in plain language how outstanding evidence affects the safety assessment
+
+4. Safety Argumentation Gaps and Impact
+   - Explain where incomplete items and outstanding evidence create holes in the "safety explanation"
+   - Impact level of each gap (High/Medium/Low)
+
+5. Recommended Actions (2-4 items)
+
+Note: Do not use GSN jargon; consistently use the plain language expressions defined in the reading guide above`);
   }
   
   // Default (Safety Engineer)
-  return `
+  return appendGSNCommonNote(`
 ## GSN DETAILED ANALYSIS
 
 1. GSN Structure Visualization
@@ -515,8 +808,7 @@ PROHIBITED: Do not fabricate causes for non-achievement without documented evide
    Argumentation completeness, logical consistency, unresolved/information-insufficient nodes
 
 6. Argumentation Gap Analysis
-   [Figure: Argumentation Gap List Table]
-   Note: Describe gap causes only when documented; otherwise state "[CAUSE UNKNOWN]"`;
+   [Figure: Argumentation Gap List Table]`);
 }
 
 // ============================================================================
@@ -587,7 +879,7 @@ Assign sequential numbers and titles to all figures and tables.
 - Assign number and title at first appearance
 - Subsequent references use number only (re-explanation of content prohibited)
 - State "Cannot illustrate due to insufficient information" when data is lacking
-- All figure/table data must be from documents (fabrication prohibited)`;
+- All figure/table data must be from documents (see Anti-Hallucination Rules, Section 2)`;
 
   return prompt;
 }
@@ -610,39 +902,15 @@ export function generateRiskAnalysisPromptEN(): string {
 ## RISK ANALYSIS
 Organize identified risks from these perspectives:
 - Risk content and occurrence mechanism (only those documented)
-- Probability and impact (only if documented - estimation prohibited)
+- Probability and impact (only if documented)
 - Implemented/planned countermeasures
 - Residual risks and acceptability
 
-Note:
-- Do NOT estimate probability or impact not documented
-- Describe risk causes/root causes only when documented
-- When cause is unknown, state "[CAUSE UNKNOWN]"`;
+※ Estimation of probability/impact and fabrication of causal analysis are prohibited per Anti-Hallucination Rules (Section 2).`;
 }
 
 // ============================================================================
-// 11. Completeness and Accuracy
-// ============================================================================
-
-export function generateCompletenessPromptEN(): string {
-  return `
-## COMPLETENESS AND ACCURACY
-Comprehensively utilize important information from documents and always include:
-- Safety assessment results and rationale
-- Unresolved issues and limitations
-- Improvement proposals and future directions
-
-Prioritize Quantitative Information:
-- Use specific numbers rather than "many" or "few" (documented values only)
-- Clearly describe trends in time-series data
-
-Causal Relationship Descriptions:
-- Use "because of", "due to" only when documented evidence exists
-- Do NOT describe causal relationships without documented basis`;
-}
-
-// ============================================================================
-// 12. Invalid File Guidelines
+// 11. Invalid File Guidelines
 // ============================================================================
 
 export function generateInvalidFileGuidelinesEN(): string {
@@ -659,7 +927,7 @@ Valid document criteria:
 }
 
 // ============================================================================
-// 13. Rhetoric Strategy Guidelines
+// 12. Rhetoric Strategy Guidelines
 // ============================================================================
 
 export function getStrategyGuidelinesEN(strategy: RhetoricStrategy): string {
@@ -702,7 +970,7 @@ export function getStrategyGuidelinesEN(strategy: RhetoricStrategy): string {
 }
 
 // ============================================================================
-// 14. Report Structure Prompt
+// 13. Report Structure Prompt
 // ============================================================================
 
 export function generateStructurePromptEN(
@@ -734,14 +1002,13 @@ ${sectionsFormatted}`;
   prompt += `
 
 ### CRITICAL NOTES
-- Include "Root Cause Analysis", "5 Whys Analysis" sections ONLY when documented analysis records exist in source materials
-- When no documented causal analysis exists, do NOT create analysis section; instead state "[INVESTIGATION REQUIRED] Root cause identification requires additional investigation"`;
+- Include "Root Cause Analysis", "5 Whys Analysis" sections ONLY when documented analysis records exist in source materials (see Anti-Hallucination Rules, Section 2)`;
 
   return prompt;
 }
 
 // ============================================================================
-// 15. Build Complete User Prompt
+// 14. Build Complete User Prompt (v5 Update)
 // ============================================================================
 
 export function buildCompleteUserPromptEN(params: {
@@ -754,43 +1021,45 @@ export function buildCompleteUserPromptEN(params: {
 }): string {
   const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
 
-  // Prompt assembly order (by importance - no duplicates)
+  // Prompt assembly order (by importance — no duplicates)
   const parts = [
     // 1. Role definition
     generateSystemPromptEN(),
     
-    // 2. Anti-hallucination (Critical - Top priority)
+    // 2. Anti-hallucination + fidelity/consistency (single authoritative source)
     generateAntiHallucinationPromptEN(stakeholder),
     
-    // 3. Output constraints (Format, Style, Volume consolidated)
+    // 3. Output constraints (format, style, volume)
     generateOutputConstraintsEN(stakeholder),
     
-    // 4. Redundancy prevention rules (NEW)
-    generateRedundancyPreventionPromptEN(),
+    // 4. Redundancy prevention + information density optimization
+    generateRedundancyPreventionPromptEN(stakeholder),
     
-    // 5. Document usage principles (including citation rules)
+    // 5. Document usage principles (citation rules, comprehensiveness, quantification merged)
     generateDocumentUsagePrinciplesEN(),
     
     // 6. Stakeholder-specific settings
     generateStakeholderSectionEN(stakeholder, strategy),
+    
+    // 7. Report guidelines + terms/plain language (merged)
     generateReportGuidelinesEN(stakeholder),
     
-    // 7. Content generation guides
+    // 8. Content generation guides
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
     generateRiskAnalysisPromptEN(),
-    generateCompletenessPromptEN(),
     
-    // 8. Invalid file handling (reference)
+    // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),
     
-    // 9. Rhetoric strategy
-    `\nApply the characteristics of ${strategy}:${getStrategyGuidelinesEN(strategy)}`,
+    // 10. Rhetoric strategy
+    `\n※ Apply the following strategy while complying with Anti-Hallucination Rules (Section 2).
+${strategy} characteristics:${getStrategyGuidelinesEN(strategy)}`,
     
-    // 10. Provided documents
+    // 11. Provided documents
     `\n## PROVIDED DOCUMENT CONTENT\n${contextContent}`,
     
-    // 11. Structure instruction
+    // 12. Structure instruction
     generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription)
   ];
 
