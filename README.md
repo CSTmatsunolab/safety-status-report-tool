@@ -633,7 +633,6 @@ safety-status-report-tool/
 │   │   ├── table-aware-chunking.ts     # 表認識チャンキング
 │   │   ├── max-min-chunking.ts         # Max-Min Semanticチャンキング
 │   │   ├── sparse-vector-utils.ts      # 疎ベクトル生成
-│   │   ├── rrf-fusion.ts               # RRF融合アルゴリズム
 │   │   ├── stakeholders.ts             # ステークホルダー管理
 │   │   ├── vector-store.ts             # ベクトルストア
 │   │   ├── embeddings.ts               # エンベディング設定
@@ -644,21 +643,6 @@ safety-status-report-tool/
 │   │   ├── markdown-parser.ts          # Markdownパーサー（エクスポート共通）
 │   │   ├── html-exporter.ts            # HTML出力処理
 │   │   ├── docx-exporter.ts            # DOCX出力処理
-│   │   ├── report-prompts.ts           # 日本語プロンプトテンプレート
-│   │   ├── report-prompts-en.ts        # 英語プロンプトテンプレート
-│   │   ├── rag-utils.ts                # 検索ユーティリティ
-│   │   ├── rhetoric-strategies.ts      # レトリック戦略
-│   │   ├── query-enhancer/
-│   │   │   ├── index.ts                     # 全エクスポート + debugQueryEnhancement
-│   │   │   ├── QueryEnhancer.ts             # 基本クラス
-│   │   │   ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
-│   │   │   ├── dictionaries/
-│   │   │   │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
-│   │   │   │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
-│   │   │   │   └── field-terms.ts           # 分野別キーワード・判定用辞書
-│   │   │   └── utils/
-│   │   │       ├── language-detection.ts    # detectLanguage + ヘルパー関数
-│   │   │       └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
 │   │   ├── report-structures.ts        # レポート構成管理
 │   │   ├── s3-utils.ts                 # S3ユーティリティ
 │   │   └── date-utils.ts               # 日付ユーティリティ
