@@ -65,13 +65,9 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 
-# rag-evaluation/.gitignore
-node_modules/
-evaluation-results/
-ground-*.json
-*.csv
-rag-evaluation/*.xlsx
-
 #testfile
 test-chunks.ts
 docs/
+
+# .vscode/.gitignore
+.vscode/
