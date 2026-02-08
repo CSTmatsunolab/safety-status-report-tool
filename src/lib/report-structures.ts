@@ -74,15 +74,14 @@ export const DEFAULT_REPORT_STRUCTURES_JA: ReportStructureTemplate[] = [
     description: '課題の根本原因と解決策',
     sections: [
       'エグゼクティブサマリー',
-      '問題の定義',
+      '未達成状態の整理',
+      '問題と影響の整理',
       '根本原因分析',
-      '解決策の提案',
-      '実装ロードマップ',
-      '期待される成果'
+      '現在実施中の対応と残課題',
+      '今後の見通しと制約条件'
     ],
     gsnSections: [
-      '未達成Goal分析',
-      '対策Strategy提案'
+      '未達成Goal分析'
     ],
     recommendedFor: ['product', 'risk-manager', 'qa', 'operations']
   },
@@ -187,15 +186,14 @@ export const DEFAULT_REPORT_STRUCTURES_EN: ReportStructureTemplate[] = [
     description: 'Root cause analysis and solutions',
     sections: [
       'Executive Summary',
-      'Problem Definition',
+      'Assessment of Unachieved State',
+      'Problem and Impact Assessment',
       'Root Cause Analysis',
-      'Proposed Solutions',
-      'Implementation Roadmap',
-      'Expected Outcomes'
+      'Current Countermeasures and Remaining Issues',
+      'Future Outlook and Constraints'
     ],
     gsnSections: [
-      'Unmet Goal Analysis',
-      'Mitigation Strategy Proposals'
+      'GSN: Unmet Goal Analysis'
     ],
     recommendedFor: ['product', 'risk-manager', 'qa', 'operations']
   },

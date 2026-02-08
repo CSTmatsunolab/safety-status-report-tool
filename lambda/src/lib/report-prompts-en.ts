@@ -1001,7 +1001,14 @@ ${sectionsFormatted}`;
 
   prompt += `
 
-### CRITICAL NOTES
+### STRUCTURE COMPLIANCE RULES (MANDATORY)
+- **Create ONLY the sections listed above**
+- Do NOT add any sections not listed above (e.g., Traceability Analysis, Glossary, References, etc.)
+- Chapter numbers must strictly follow the numbering above
+- Do NOT reorder the sections
+- Exception: An "Appendix" may be added after the final chapter ONLY if supplementary information (e.g., abbreviation list, referenced documents list) would aid reader comprehension
+
+### ADDITIONAL NOTES
 - Include "Root Cause Analysis", "5 Whys Analysis" sections ONLY when documented analysis records exist in source materials (see Anti-Hallucination Rules, Section 2)`;
 
   return prompt;

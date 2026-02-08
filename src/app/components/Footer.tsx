@@ -79,7 +79,7 @@ export function Footer() {
               </p>
               <p>
                 <a 
-                  href="https://cst.nihon-u.ac.jp/laboratory/applied_computer_science/matsuno/" 
+                  href="https://www.matsulab.org/" 
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-blue-400 transition-colors"
