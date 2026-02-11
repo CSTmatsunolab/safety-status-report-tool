@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Stakeholder } from '@/types';
 import { getPredefinedStakeholders } from '@/lib/stakeholders';
+import { RhetoricStrategy } from '@/lib/report-structures';
+import { determineAdvancedRhetoricStrategy, getRhetoricStrategyDisplayName } from '@/lib/rhetoric-strategies';
 import { FiPlus, FiTrash2, FiX, FiCloud, FiHardDrive, FiArrowLeft, FiLoader } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useUserSettings } from '@/hooks/useUserSettings';
@@ -25,7 +27,8 @@ export default function StakeholderSettings() {
   const [newStakeholder, setNewStakeholder] = useState({
     id: '',
     role: '',
-    concerns: ['']
+    concerns: [''],
+    rhetoricStrategy: ''  // 空文字 = 自動判定
   });
   const [idError, setIdError] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -39,6 +42,17 @@ export default function StakeholderSettings() {
       setActionError(settingsError);
     }
   }, [settingsError]);
+
+  // レトリック戦略の選択肢
+  const rhetoricOptions = [
+    { value: '', label: language === 'en' ? 'Auto (determine by role/concerns)' : '自動判定（役職・関心事から判定）' },
+    { value: RhetoricStrategy.DATA_DRIVEN, label: language === 'en' ? 'Data-Driven' : 'データ駆動型説得法' },
+    { value: RhetoricStrategy.LOGICAL_REASONING, label: language === 'en' ? 'Logical Reasoning' : '論理的推論型' },
+    { value: RhetoricStrategy.PROBLEM_SOLUTION, label: language === 'en' ? 'Problem-Solution' : '問題解決型' },
+    { value: RhetoricStrategy.AUTHORITY_BASED, label: language === 'en' ? 'Authority-Based' : '権威依拠型' },
+    { value: RhetoricStrategy.EMOTIONAL_APPEAL, label: language === 'en' ? 'Emotional Appeal' : '感情訴求型' },
+    { value: RhetoricStrategy.NARRATIVE, label: language === 'en' ? 'Narrative' : 'ナラティブ型' },
+  ];
 
   // ID検証関数（大文字小文字を区別）
   const validateId = (id: string): string => {
@@ -97,13 +111,17 @@ export default function StakeholderSettings() {
       const stakeholder: Stakeholder = {
         id: `custom_${newStakeholder.id}`,
         role: newStakeholder.role,
-        concerns: validConcerns
+        concerns: validConcerns,
+        // 空文字でなければレトリック戦略を設定
+        ...(newStakeholder.rhetoricStrategy
+          ? { rhetoricStrategy: newStakeholder.rhetoricStrategy }
+          : {})
       };
       
       try {
         setActionError(null);
         await addCustomStakeholder(stakeholder);
-        setNewStakeholder({ id: '', role: '', concerns: [''] });
+        setNewStakeholder({ id: '', role: '', concerns: [''], rhetoricStrategy: '' });
         setIdError('');
         setConcernsError('');
       } catch {
@@ -180,6 +198,11 @@ export default function StakeholderSettings() {
     concernsHelp: language === 'en'
       ? 'Affects search accuracy during report generation. Be specific.\nWe recommend entering 3 or more for better accuracy.'
       : 'レポート生成時の検索精度に影響します。具体的に記入してください。\n精度向上のため、3つ以上の入力をおすすめします。',
+    rhetoricStrategy: language === 'en' ? 'Rhetoric Strategy' : 'レトリック戦略',
+    rhetoricStrategyHelp: language === 'en'
+      ? 'Determines the persuasion approach and recommended report structure. If set to "Auto", it will be determined based on the role and concerns.'
+      : 'レポートの説得アプローチと推奨構成に影響します。「自動判定」の場合、役職・関心事から自動で決定されます。',
+    optional: language === 'en' ? '(optional)' : '（任意）',
     add: language === 'en' ? 'Add' : '追加',
     registeredStakeholders: language === 'en' ? 'Registered Stakeholders' : '登録済みステークホルダー',
     defaultStakeholders: language === 'en' ? 'Default Stakeholders' : 'デフォルトステークホルダー',
@@ -192,15 +215,16 @@ export default function StakeholderSettings() {
     storedInCloud: language === 'en' ? 'Stored in cloud (synced across devices)' : 'クラウドに保存（デバイス間で同期）',
     storedLocally: language === 'en' ? 'Stored locally (this browser only)' : 'ローカルに保存（このブラウザのみ）',
     noCustomStakeholders: language === 'en' ? 'No custom stakeholders registered' : 'カスタムステークホルダーは登録されていません',
+    strategyLabel: language === 'en' ? 'Strategy' : '戦略',
+    strategyAuto: language === 'en' ? 'Auto' : '自動判定',
   };
 
-  // ローディング中の表示
   if (isLoading) {
     return (
       <div className="bg-gray-50 dark:bg-gray-900 p-8">
         <div className="max-w-4xl mx-auto flex items-center justify-center h-64">
           <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
-            <FiLoader className="animate-spin" size={24} />
+          <FiLoader className="animate-spin" size={24} />
             <span>{t.loading}</span>
           </div>
         </div>
@@ -213,35 +237,35 @@ export default function StakeholderSettings() {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
-            <Link
-              href="/"
+          <Link 
+            href="/"
               className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            >
-              <FiArrowLeft className="mr-2" />
-              {t.backToReport}
-            </Link>
-          </div>
-          
+          >
+            <FiArrowLeft className="mr-2" />
+            {t.backToReport}
+          </Link>
+        </div>
+
           {/* ストレージ状態インジケーター */}
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
             isAuthenticated 
               ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300'
               : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
           }`}>
-            {isSyncing ? (
+          {isSyncing ? (
               <>
                 <FiLoader className="animate-spin" size={14} />
-                <span>{t.syncingCloud}</span>
+              <span>{t.syncingCloud}</span>
               </>
-            ) : isAuthenticated ? (
+          ) : isAuthenticated ? (
               <>
                 <FiCloud size={14} />
-                <span>{t.storedInCloud}</span>
+              <span>{t.storedInCloud}</span>
               </>
-            ) : (
+          ) : (
               <>
                 <FiHardDrive size={14} />
-                <span>{t.storedLocally}</span>
+              <span>{t.storedLocally}</span>
               </>
             )}
           </div>
@@ -257,12 +281,12 @@ export default function StakeholderSettings() {
           <div className="mb-6 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-4">
             <div className="flex justify-between items-center">
               <p className="text-red-700 dark:text-red-300">{actionError}</p>
-              <button
-                onClick={() => setActionError(null)}
+            <button
+              onClick={() => setActionError(null)}
                 className="text-red-500 hover:text-red-700"
-              >
+            >
                 <FiX />
-              </button>
+            </button>
             </div>
           </div>
         )}
@@ -354,6 +378,29 @@ export default function StakeholderSettings() {
               </p>
             </div>
 
+            {/* レトリック戦略選択 */}
+            <div>
+              <label className="block text-base font-medium text-gray-900 dark:text-gray-100 mb-2">
+                {t.rhetoricStrategy}
+                <span className="text-gray-400 dark:text-gray-500 ml-1 font-normal">{t.optional}</span>
+              </label>
+              <select
+                value={newStakeholder.rhetoricStrategy}
+                onChange={(e) => setNewStakeholder({ ...newStakeholder, rhetoricStrategy: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500"
+                disabled={isSyncing}
+              >
+                {rhetoricOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {t.rhetoricStrategyHelp}
+              </p>
+            </div>
+
             <button
               onClick={addStakeholder}
               disabled={
@@ -386,12 +433,19 @@ export default function StakeholderSettings() {
                 {t.defaultStakeholders}
               </h3>
               <div className="space-y-3">
-                {predefinedStakeholders.map((stakeholder) => (
+                {predefinedStakeholders.map((stakeholder) => {
+                  const strategy = determineAdvancedRhetoricStrategy(stakeholder);
+                  const strategyDisplayName = getRhetoricStrategyDisplayName(strategy, stakeholder, language);
+                  
+                  return (
                   <div key={stakeholder.id} className="border dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-700/50">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{stakeholder.role}</h3>
                         <p className="text-base text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
+                        <p className="text-sm text-blue-600 dark:text-blue-400 mb-2">
+                          {t.strategyLabel}: {strategyDisplayName}
+                        </p>
                         <ul className="mt-2 text-base text-gray-600 dark:text-gray-300 list-disc list-inside">
                           {stakeholder.concerns.map((concern, index) => (
                             <li key={index}>{concern}</li>
@@ -403,7 +457,8 @@ export default function StakeholderSettings() {
                       </span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -414,12 +469,23 @@ export default function StakeholderSettings() {
               </h3>
               {customStakeholders.length > 0 ? (
                 <div className="space-y-3">
-                  {customStakeholders.map((stakeholder) => (
+                  {customStakeholders.map((stakeholder) => {
+                    const strategy = determineAdvancedRhetoricStrategy(stakeholder);
+                    const strategyDisplayName = getRhetoricStrategyDisplayName(strategy, stakeholder, language);
+                    
+                    return (
                     <div key={stakeholder.id} className="border dark:border-gray-700 rounded-lg p-4">
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900 dark:text-white text-lg">{stakeholder.role}</h3>
                           <p className="text-base text-gray-500 dark:text-gray-400 mb-2">ID: {stakeholder.id}</p>
+                          {/* レトリック戦略の表示 */}
+                          <p className="text-sm text-blue-600 dark:text-blue-400 mb-2">
+                            {t.strategyLabel}: {strategyDisplayName}
+                            {!stakeholder.rhetoricStrategy && (
+                              <span className="text-gray-400 dark:text-gray-500 ml-1">({t.strategyAuto})</span>
+                            )}
+                          </p>
                           <ul className="mt-2 text-base text-gray-600 dark:text-gray-300 list-disc list-inside">
                             {stakeholder.concerns.map((concern, index) => (
                               <li key={index}>{concern}</li>
@@ -435,7 +501,8 @@ export default function StakeholderSettings() {
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-4">

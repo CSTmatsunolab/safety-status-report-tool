@@ -18,6 +18,7 @@ export interface Stakeholder {
   id: string;
   role: string;
   concerns: string[];
+  rhetoricStrategy?: string; 
 }
 
 export interface AnalysisResult {

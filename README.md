@@ -564,16 +564,16 @@ safety-status-report-tool/
 │   │   │           └── route.ts      # レポート詳細・削除API
 │   │   │
 │   │   ├── components/
-│   │   │   └── FileUpload/
-│   │   │       ├── index.tsx              # メインコンポーネント
-│   │   │       ├── FileValidation.ts      # validateFile, マジックバイト検証
-│   │   │       ├── FileProcessor.ts       # S3/PDF/Excel/DOCX/画像処理
-│   │   │       ├── hooks/
-│   │   │       │   └── useFileUpload.ts   # 状態管理ロジック
-│   │   │       └── components/
-│   │   │           ├── FileList.tsx       # ファイル一覧表示
-│   │   │           ├── UploadZone.tsx     # ドロップゾーン
-│   │   │           └── FileWarnings.tsx   # 警告メッセージ
+│   │   │   ├── FileUpload/
+│   │   │   │   ├── index.tsx              # メインコンポーネント
+│   │   │   │   ├── FileValidation.ts      # validateFile, マジックバイト検証
+│   │   │   │   ├── FileProcessor.ts       # S3/PDF/Excel/DOCX/画像処理
+│   │   │   │   ├── hooks/
+│   │   │   │   │   └── useFileUpload.ts   # 状態管理ロジック
+│   │   │   │   └── components/
+│   │   │   │       ├── FileList.tsx       # ファイル一覧表示
+│   │   │   │       ├── UploadZone.tsx     # ドロップゾーン
+│   │   │   │       └── FileWarnings.tsx   # 警告メッセージ
 │   │   │   ├── KnowledgeBaseManager.tsx     # 知識ベース管理UI
 │   │   │   ├── StakeholderSelect.tsx        # ステークホルダー選択UI
 │   │   │   ├── ReportPreview.tsx            # レポートプレビュー・編集
@@ -644,6 +644,7 @@ safety-status-report-tool/
 │   │   ├── html-exporter.ts            # HTML出力処理
 │   │   ├── docx-exporter.ts            # DOCX出力処理
 │   │   ├── report-structures.ts        # レポート構成管理
+│   │   ├── rhetoric-strategies.ts      # レトリック戦略
 │   │   ├── s3-utils.ts                 # S3ユーティリティ
 │   │   └── date-utils.ts               # 日付ユーティリティ
 │   │

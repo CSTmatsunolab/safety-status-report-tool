@@ -1,15 +1,11 @@
 // src/lib/rhetoric-strategies.ts
+// フロントエンド用のレトリック戦略判定ロジック
 
-import { Stakeholder } from '../types';
+import { Stakeholder } from '@/types';
+import { RhetoricStrategy } from './report-structures';
 
-export enum RhetoricStrategy {
-  DATA_DRIVEN = 'データ駆動型説得法',
-  EMOTIONAL_APPEAL = '感情訴求型',
-  LOGICAL_REASONING = '論理的推論型',
-  AUTHORITY_BASED = '権威依拠型',
-  PROBLEM_SOLUTION = '問題解決型',
-  NARRATIVE = 'ナラティブ型'
-}
+// re-export for convenience
+export { RhetoricStrategy };
 
 /**
  * RhetoricStrategy enum の全値リスト（バリデーション用）
