@@ -42,18 +42,57 @@ export function determineAdvancedRhetoricStrategy(stakeholder: Stakeholder): Rhe
   }
   
   // カスタムステークホルダー用の判定
-  if (role.includes('技術') || role.includes('エンジニア') || role.includes('開発') ||
-      role.includes('technical') || role.includes('engineer') || role.includes('development')) {
-    return RhetoricStrategy.LOGICAL_REASONING;
-  } else if (role.includes('営業') || role.includes('マーケティング') ||
-             role.includes('sales') || role.includes('marketing')) {
-    return RhetoricStrategy.EMOTIONAL_APPEAL;
-  } else if (concerns.includes('リスク') || concerns.includes('安全') ||
-             concerns.includes('risk') || concerns.includes('safety')) {
-    return RhetoricStrategy.PROBLEM_SOLUTION;
-  } else if (role.includes('プロジェクト') || role.includes('pm') ||
-             role.includes('project')) {
+  
+  // 一般向け・非専門家 → ナラティブ型（平易でわかりやすい）
+  if (role.includes('一般') || role.includes('全ステークホルダー') || role.includes('非専門') ||
+      role.includes('市民') || role.includes('住民') || role.includes('利用者') ||
+      role.includes('general') || role.includes('public') || role.includes('non-expert') ||
+      role.includes('citizen') || role.includes('resident') || role.includes('user') ||
+      role.includes('全員') || role.includes('everyone') || role.includes('all stakeholder')) {
     return RhetoricStrategy.NARRATIVE;
+  }
+  
+  // 技術系 → 論理的推論型
+  if (role.includes('技術') || role.includes('エンジニア') || role.includes('開発') ||
+      role.includes('technical') || role.includes('engineer') || role.includes('development') ||
+      role.includes('アーキテクト') || role.includes('architect') || role.includes('設計')) {
+    return RhetoricStrategy.LOGICAL_REASONING;
+  }
+  
+  // 研究・学術系 → 権威依拠型
+  if (role.includes('研究') || role.includes('r&d') || role.includes('research') ||
+      role.includes('学術') || role.includes('academic') || role.includes('博士') ||
+      role.includes('scientist') || role.includes('researcher')) {
+    return RhetoricStrategy.AUTHORITY_BASED;
+  }
+  
+  // 営業・マーケティング系 → 感情訴求型
+  if (role.includes('営業') || role.includes('マーケティング') ||
+      role.includes('sales') || role.includes('marketing') ||
+      role.includes('広報') || role.includes('pr') || role.includes('ブランド')) {
+    return RhetoricStrategy.EMOTIONAL_APPEAL;
+  }
+  
+  // リスク・品質・セキュリティ系 → 問題解決型
+  if (concerns.includes('リスク') || concerns.includes('安全') ||
+      concerns.includes('risk') || concerns.includes('safety') ||
+      role.includes('品質') || role.includes('qa') || role.includes('quality') ||
+      role.includes('セキュリティ') || role.includes('security') ||
+      role.includes('監査') || role.includes('audit') || role.includes('コンプライアンス')) {
+    return RhetoricStrategy.PROBLEM_SOLUTION;
+  }
+  
+  // プロジェクト管理系 → ナラティブ型
+  if (role.includes('プロジェクト') || role.includes('pm') || role.includes('project') ||
+      role.includes('企画') || role.includes('planning') || role.includes('調整')) {
+    return RhetoricStrategy.NARRATIVE;
+  }
+  
+  // 経営・財務系 → データ駆動型
+  if (role.includes('経営') || role.includes('executive') || role.includes('経理') ||
+      role.includes('財務') || role.includes('finance') || role.includes('分析') ||
+      role.includes('analytics') || role.includes('ceo') || role.includes('cfo')) {
+    return RhetoricStrategy.DATA_DRIVEN;
   }
   
   // デフォルトはデータ駆動型
@@ -62,6 +101,7 @@ export function determineAdvancedRhetoricStrategy(stakeholder: Stakeholder): Rhe
 
 /**
  * レトリック戦略の表示名を取得（言語対応）
+ * 論文で定義した6種のレトリック戦略名に統一
  */
 export function getRhetoricStrategyDisplayName(
   strategy: RhetoricStrategy, 
@@ -70,68 +110,37 @@ export function getRhetoricStrategyDisplayName(
 ): string {
   // 日本語の表示名
   const displayNameMapJA: { [key: string]: string } = {
-    'technical-fellows': '技術的卓越性重視型',
-    'architect': 'システム設計重視型',
-    'r-and-d': '技術的詳細重視型',
-    'cxo': '戦略的価値重視型',
-    'business': 'ビジネスインパクト重視型',
-    'product': '製品価値訴求型'
+    'technical-fellows': '論理的推論型',
+    'architect': '論理的推論型',
+    'r-and-d': '権威依拠型',
+    'cxo': 'データ駆動型',
+    'business': 'データ駆動型',
+    'product': 'データ駆動型'
   };
 
   // 英語の表示名
   const displayNameMapEN: { [key: string]: string } = {
-    'technical-fellows': 'Technical Excellence Focus',
-    'architect': 'System Design Focus',
-    'r-and-d': 'Technical Detail Focus',
-    'cxo': 'Strategic Value Focus',
-    'business': 'Business Impact Focus',
-    'product': 'Product Value Appeal'
+    'technical-fellows': 'Logical Reasoning',
+    'architect': 'Logical Reasoning',
+    'r-and-d': 'Authority-Based',
+    'cxo': 'Data-Driven',
+    'business': 'Data-Driven',
+    'product': 'Data-Driven'
   };
 
   const displayNameMap = language === 'en' ? displayNameMapEN : displayNameMapJA;
   
-  // カスタムステークホルダー用の細かい戦略名
-  if (stakeholder.id.startsWith('custom_')) {
-    // ユーザーが明示的に戦略を設定している場合は、そのEnum値を表示
-    if (stakeholder.rhetoricStrategy && VALID_RHETORIC_STRATEGIES.includes(stakeholder.rhetoricStrategy)) {
-      const strategyNameMapEN: { [key in RhetoricStrategy]: string } = {
-        [RhetoricStrategy.DATA_DRIVEN]: 'Data-Driven',
-        [RhetoricStrategy.EMOTIONAL_APPEAL]: 'Emotional Appeal',
-        [RhetoricStrategy.LOGICAL_REASONING]: 'Logical Reasoning',
-        [RhetoricStrategy.AUTHORITY_BASED]: 'Authority-Based',
-        [RhetoricStrategy.PROBLEM_SOLUTION]: 'Problem-Solution',
-        [RhetoricStrategy.NARRATIVE]: 'Narrative'
-      };
-      
-      if (language === 'en') {
-        return strategyNameMapEN[stakeholder.rhetoricStrategy as RhetoricStrategy] || stakeholder.rhetoricStrategy;
-      }
-      return stakeholder.rhetoricStrategy;
-    }
+  // 戦略名のマッピング（日本語）
+  const strategyNameMapJA: { [key in RhetoricStrategy]: string } = {
+    [RhetoricStrategy.DATA_DRIVEN]: 'データ駆動型',
+    [RhetoricStrategy.EMOTIONAL_APPEAL]: '感情訴求型',
+    [RhetoricStrategy.LOGICAL_REASONING]: '論理的推論型',
+    [RhetoricStrategy.AUTHORITY_BASED]: '権威依拠型',
+    [RhetoricStrategy.PROBLEM_SOLUTION]: '問題解決型',
+    [RhetoricStrategy.NARRATIVE]: 'ナラティブ型'
+  };
 
-    const role = stakeholder.role.toLowerCase();
-    
-    if (language === 'en') {
-      if (role.includes('品質') || role.includes('qa') || role.includes('quality')) return 'Quality Focus';
-      if (role.includes('財務') || role.includes('経理') || role.includes('finance')) return 'Financial Impact Focus';
-      if (role.includes('法務') || role.includes('コンプライアンス') || role.includes('legal') || role.includes('compliance')) return 'Regulatory Compliance Focus';
-      if (role.includes('人事') || role.includes('hr') || role.includes('human')) return 'HR & Organization Focus';
-      if (role.includes('顧客') || role.includes('カスタマー') || role.includes('customer')) return 'Customer Value Focus';
-    } else {
-      if (role.includes('品質') || role.includes('qa') || role.includes('quality')) return '品質重視型';
-      if (role.includes('財務') || role.includes('経理') || role.includes('finance')) return '財務インパクト重視型';
-      if (role.includes('法務') || role.includes('コンプライアンス') || role.includes('legal') || role.includes('compliance')) return '規制・法令遵守重視型';
-      if (role.includes('人事') || role.includes('hr') || role.includes('human')) return '人材・組織重視型';
-      if (role.includes('顧客') || role.includes('カスタマー') || role.includes('customer')) return '顧客価値重視型';
-    }
-  }
-  
-  // デフォルトステークホルダーの場合は事前定義された名前を返す
-  if (displayNameMap[stakeholder.id]) {
-    return displayNameMap[stakeholder.id];
-  }
-  
-  // それ以外はEnum値の言語対応版を返す
+  // 戦略名のマッピング（英語）
   const strategyNameMapEN: { [key in RhetoricStrategy]: string } = {
     [RhetoricStrategy.DATA_DRIVEN]: 'Data-Driven',
     [RhetoricStrategy.EMOTIONAL_APPEAL]: 'Emotional Appeal',
@@ -141,9 +150,23 @@ export function getRhetoricStrategyDisplayName(
     [RhetoricStrategy.NARRATIVE]: 'Narrative'
   };
 
-  if (language === 'en') {
-    return strategyNameMapEN[strategy] || strategy;
+  const strategyNameMap = language === 'en' ? strategyNameMapEN : strategyNameMapJA;
+
+  // カスタムステークホルダー用の判定
+  if (stakeholder.id.startsWith('custom_')) {
+    // ユーザーが明示的に戦略を設定している場合
+    if (stakeholder.rhetoricStrategy && VALID_RHETORIC_STRATEGIES.includes(stakeholder.rhetoricStrategy)) {
+      return strategyNameMap[stakeholder.rhetoricStrategy as RhetoricStrategy] || stakeholder.rhetoricStrategy;
+    }
+    // 自動判定された戦略名を返す
+    return strategyNameMap[strategy] || strategy;
   }
   
-  return strategy;
+  // デフォルトステークホルダーの場合は事前定義された名前を返す
+  if (displayNameMap[stakeholder.id]) {
+    return displayNameMap[stakeholder.id];
+  }
+  
+  // それ以外はEnum値の言語対応版を返す
+  return strategyNameMap[strategy] || strategy;
 }
