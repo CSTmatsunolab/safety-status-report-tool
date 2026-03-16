@@ -1,0 +1,799 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-02-28T03:23:05.335Z",
+  "description": "Converted from ./all-chunks-all.csv (pattern: minScore>=1)",
+  "entries": [
+    {
+      "queryId": "rrf_cxo",
+      "query": "[RRF] cxo",
+      "stakeholderId": "cxo",
+      "relevantChunks": [
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        }
+      ]
+    },
+    {
+      "queryId": "rrf_technical-fellows",
+      "query": "[RRF] technical-fellows",
+      "stakeholderId": "technical-fellows",
+      "relevantChunks": [
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        }
+      ]
+    },
+    {
+      "queryId": "rrf_architect",
+      "query": "[RRF] architect",
+      "stakeholderId": "architect",
+      "relevantChunks": [
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 2
+        }
+      ]
+    },
+    {
+      "queryId": "rrf_product",
+      "query": "[RRF] product",
+      "stakeholderId": "product",
+      "relevantChunks": [
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        }
+      ]
+    },
+    {
+      "queryId": "rrf_business",
+      "query": "[RRF] business",
+      "stakeholderId": "business",
+      "relevantChunks": [
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 2
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 1
+        }
+      ]
+    },
+    {
+      "queryId": "rrf_r-and-d",
+      "query": "[RRF] r-and-d",
+      "stakeholderId": "r-and-d",
+      "relevantChunks": [
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4",
+          "fileName": "TEST_Hazard_Analysis.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5",
+          "fileName": "TEST_Project_Status.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4",
+          "fileName": "TEST_Risk_Summary.md",
+          "relevanceScore": 1
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4",
+          "fileName": "TEST_Safety_Requirements.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        },
+        {
+          "chunkId": "r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4",
+          "fileName": "TEST_Verification_Results.md",
+          "relevanceScore": 3
+        }
+      ]
+    }
+  ]
+}

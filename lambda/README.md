@@ -1,116 +1,116 @@
 # Lambda SSR Reporter
 
-Safety Status Report を生成する AWS Lambda Function です。ストリーミングレスポンスに対応しています。
+An AWS Lambda Function that generates Safety Status Reports with streaming response support.
 
-## クイックスタート
+## Quick Start
 
-### 初回デプロイ
+### First Deployment
 
 ```bash
 cd lambda
 
-# 依存関係をインストール
+# Install dependencies
 npm install
 
-# ビルド & デプロイ（初回は --guided で対話形式）
+# Build & deploy (use --guided for interactive setup on first run)
 sam build
 sam deploy --guided
 ```
 
-### 2回目以降のデプロイ
+### Subsequent Deployments
 
 ```bash
 cd lambda
 
-# コード変更時は必ず sam build が必要
+# Always run sam build before deploy when code changes
 sam build
 sam deploy
 ```
 
-> **重要**: `sam deploy` だけではダメです。TypeScriptのコードを変更した場合は、必ず `sam build` を先に実行してください。
+> **Important**: `sam deploy` alone is not enough. If you have changed TypeScript source files, you must run `sam build` first.
 
-## デプロイ後の設定
+## Post-Deployment Configuration
 
-デプロイ完了後、出力される **Lambda Function URL** をコピーして、Next.jsアプリの環境変数に設定します：
+After deployment, copy the output **Lambda Function URL** and set it in the Next.js application's environment variables:
 
 ```bash
-# .env.local または Amplify環境変数
+# .env.local or Amplify environment variables
 NEXT_PUBLIC_LAMBDA_FUNCTION_URL=https://xxxxxxxx.lambda-url.ap-northeast-1.on.aws/
 ```
 
-## 環境変数（SAMパラメータ）
+## Environment Variables (SAM Parameters)
 
-| パラメータ | 説明 | 必須 |
-|-----------|------|------|
-| AnthropicApiKey | Anthropic API キー（Claude用） | ✅ |
-| OpenAIApiKey | OpenAI API キー（エンベディング用） | ✅ |
-| PineconeApiKey | Pinecone API キー | ✅ |
-| PineconeIndexName | Pinecone インデックス名 | デフォルト: `safety-status-report-tool` |
-| S3BucketName | S3 バケット名 | ✅ |
+| Parameter | Description | Required |
+|-----------|-------------|----------|
+| AnthropicApiKey | Anthropic API key (for Claude) | ✅ |
+| OpenAIApiKey | OpenAI API key (for embeddings) | ✅ |
+| PineconeApiKey | Pinecone API key | ✅ |
+| PineconeIndexName | Pinecone index name | Default: `safety-status-report-tool` |
+| S3BucketName | S3 bucket name | ✅ |
 
-## プロジェクト構成
+## Project Structure
 
 ```
 lambda/
 ├── src/
-│   ├── index.ts                 # メインハンドラー（ストリーミング）
-│   ├── types.ts                 # 型定義
-│   ├── wink-tokenizer.d.ts      # WinkTokenizer型定義
+│   ├── index.ts                 # Main handler (streaming)
+│   ├── types.ts                 # Type definitions
+│   ├── wink-tokenizer.d.ts      # WinkTokenizer type definitions
 │   └── lib/
 │       ├── rag/
-│       │   ├── index.ts             # RAGモジュールエクスポート
-│       │   ├── types.ts             # RAG型定義
+│       │   ├── index.ts             # RAG module exports
+│       │   ├── types.ts             # RAG type definitions
 │       │   ├── query-enhancer/
-│       │   │       ├── index.ts                     # 全エクスポート + debugQueryEnhancement
-│       │   │       ├── QueryEnhancer.ts             # 基本クラス
-│       │   │       ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
-│       │   │       ├── dictionaries/
-│       │   │       │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
-│       │   │       │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
-│       │   │       │   └── field-terms.ts           # 分野別キーワード・判定用辞書
-│       │   │       └── utils/
-│       │   │           ├── language-detection.ts    # detectLanguage + ヘルパー関数
-│       │   │           └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
-│       │   ├── rag-utils.ts         # RAGユーティリティ
-│       │   ├── rrf-fusion.ts        # RRF検索・動的K値計算
-│       │   └── sparse-vector-utils.ts # 疎ベクトル生成（Kuromoji/Wink）
-│       ├── report-prompts.ts        # 日本語プロンプト
-│       ├── report-prompts-en.ts     # 英語プロンプト
-│       └── rhetoric-strategies.ts   # レトリック戦略
+│       │   │   ├── index.ts                          # Exports + debugQueryEnhancement
+│       │   │   ├── QueryEnhancer.ts                  # Base class
+│       │   │   ├── CustomStakeholderQueryEnhancer.ts  # Extended class
+│       │   │   ├── dictionaries/
+│       │   │   │   ├── role-translations.ts     # Role translations, synonyms, templates
+│       │   │   │   ├── concern-synonyms.ts      # Concern concretization, synonyms, translations
+│       │   │   │   └── field-terms.ts           # Domain-specific keywords
+│       │   │   └── utils/
+│       │   │       ├── language-detection.ts    # detectLanguage + helpers
+│       │   │       └── concern-prioritizer.ts   # prioritizeConcerns + scoring
+│       │   ├── rag-utils.ts         # RAG utilities
+│       │   ├── rrf-fusion.ts        # RRF search & dynamic K-value computation
+│       │   └── sparse-vector-utils.ts # Sparse vector generation (Kuromoji/Wink)
+│       ├── report-prompts.ts        # Japanese prompts
+│       ├── report-prompts-en.ts     # English prompts
+│       └── rhetoric-strategies.ts   # Rhetorical strategies
 │
 ├── package.json
 ├── tsconfig.json
-├── template.yaml                # SAMテンプレート
-├── samconfig.toml               # SAM設定（デプロイ後に生成）
+├── template.yaml                # SAM template
+├── samconfig.toml               # SAM config (generated after first deploy)
 └── README.md
 ```
 
-## 処理フロー
+## Processing Flow
 
 ```
-リクエスト受信
+Request received
     ↓
-1. RRF検索（5クエリ自動生成 + 動的K値）
+1. RRF search (5 auto-generated queries + dynamic K-value)
     ↓
-2. コンテキスト準備
-   - S3からファイル取得(18MB以上の場合)
-   - XLSX → シート別テキスト
-   - DOCX → テキスト抽出
-   - PDF → ページ数付きテキスト
+2. Context preparation
+   - Fetch files from S3 (if over 18 MB)
+   - XLSX → per-sheet text
+   - DOCX → text extraction
+   - PDF → text with page counts
     ↓
-3. プロンプト構築
+3. Prompt construction
     ↓
-4. Claude API（ストリーミング）
+4. Claude API (streaming)
     ↓
-5. SSEでリアルタイム送信
+5. Real-time delivery via SSE
 ```
 
-## ストリームイベント形式
+## Stream Event Format
 
-Server-Sent Events (SSE) 形式でレスポンスを返します：
+Responses are sent as Server-Sent Events (SSE):
 
 ```typescript
-// 進捗イベント
+// Progress event
 {
   type: 'progress',
   status: 'searching' | 'preparing' | 'building' | 'generating' | 'finalizing',
@@ -118,13 +118,13 @@ Server-Sent Events (SSE) 形式でレスポンスを返します：
   percent: number
 }
 
-// テキストストリーミングイベント
+// Text streaming event
 {
   type: 'text',
-  content: string  // 生成されたテキストの断片
+  content: string  // Fragment of generated text
 }
 
-// 完了イベント
+// Completion event
 {
   type: 'complete',
   report: {
@@ -135,7 +135,7 @@ Server-Sent Events (SSE) 形式でレスポンスを返します：
   }
 }
 
-// エラーイベント
+// Error event
 {
   type: 'error',
   message: string,
@@ -143,16 +143,16 @@ Server-Sent Events (SSE) 形式でレスポンスを返します：
 }
 ```
 
-## フロントエンド連携
+## Frontend Integration
 
-`src/hooks/useSectionGeneration.ts` を使用してLambda Functionを呼び出します：
+Use `src/hooks/useSectionGeneration.ts` to call the Lambda Function:
 
 ```typescript
-const { 
-  generateReport, 
-  isGenerating, 
+const {
+  generateReport,
+  isGenerating,
   progress,
-  streamingContent 
+  streamingContent
 } = useSectionGeneration();
 
 await generateReport({
@@ -164,53 +164,53 @@ await generateReport({
 });
 ```
 
-## トラブルシューティング
+## Troubleshooting
 
-### ビルドエラー
+### Build Errors
 
 ```bash
-# node_modules を削除して再インストール
+# Remove node_modules and reinstall
 rm -rf node_modules
 npm install
 sam build
 ```
 
-### デプロイエラー
+### Deployment Errors
 
 ```bash
-# キャッシュをクリア
+# Clear cache
 rm -rf .aws-sam
 sam build
 sam deploy
 ```
 
-### 依存関係の追加
+### Adding Dependencies
 
-新しいnpmパッケージを追加した場合：
+When adding a new npm package:
 
 ```bash
 npm install <package-name>
-sam build   # 必須！
+sam build   # Required!
 sam deploy
 ```
 
-## ローカルテスト
+## Local Testing
 
 ```bash
-# SAMローカル実行（Docker必要）
+# Run locally with SAM (requires Docker)
 sam local invoke SSRGeneratorFunction -e events/test-event.json
 ```
 
-## 主要な依存関係
+## Key Dependencies
 
-| パッケージ | 用途 |
-|-----------|------|
+| Package | Purpose |
+|---------|---------|
 | @anthropic-ai/sdk | Claude API |
-| @pinecone-database/pinecone | ベクトル検索 |
-| @aws-sdk/client-s3 | S3ファイル取得 |
-| openai | エンベディング生成 |
-| kuromoji | 日本語トークナイザー |
-| wink-tokenizer | 英語トークナイザー |
-| xlsx | Excelファイル処理 |
-| mammoth | Wordファイル処理 |
-| pdf-parse | PDFファイル処理 |
+| @pinecone-database/pinecone | Vector search |
+| @aws-sdk/client-s3 | S3 file retrieval |
+| openai | Embedding generation |
+| kuromoji | Japanese tokenizer |
+| wink-tokenizer | English tokenizer |
+| xlsx | Excel file processing |
+| mammoth | Word file processing |
+| pdf-parse | PDF file processing |

@@ -1,0 +1,111 @@
+{
+  "stakeholders": [
+    {
+      "id": "cxo",
+      "name": "CxO / 経営層",
+      "role": "経営層（CEO、CTO、COO等）",
+      "concerns": [
+        "戦略的整合性",
+        "企業価値への影響",
+        "リスク管理",
+        "投資対効果（ROI）",
+        "コンプライアンス"
+      ],
+      "expertise_level": "経営視点。技術詳細よりもビジネスインパクトと意思決定に必要な情報を重視。専門用語は簡潔な説明が必要。",
+      "ssr_filename": "CxO _ 経営層向け Safety Status Report.md"
+    },
+    {
+      "id": "technical_fellows",
+      "name": "Technical Fellows / 技術フェロー",
+      "role": "技術最高責任者・技術アドバイザー",
+      "concerns": [
+        "技術的妥当性",
+        "アーキテクチャの健全性",
+        "技術的リスク評価",
+        "品質基準の遵守",
+        "技術方針との整合性"
+      ],
+      "expertise_level": "高度な技術知識を持つ。詳細な技術情報と根拠データを重視。専門用語の説明は不要。",
+      "ssr_filename": "Technical Fellows _ 技術専門家向け Safety Status Report.md"
+    },
+    {
+      "id": "architect",
+      "name": "Architect / アーキテクト",
+      "role": "システムアーキテクト・設計責任者",
+      "concerns": [
+        "設計整合性",
+        "アーキテクチャ決定（ADR）",
+        "技術的負債",
+        "スケーラビリティ",
+        "コンポーネント間インターフェース"
+      ],
+      "expertise_level": "システム設計の専門家。アーキテクチャ図、コンポーネント構成、設計判断の根拠を重視。",
+      "ssr_filename": "Architect _ アーキテクト向け Safety Status Report.md"
+    },
+    {
+      "id": "business",
+      "name": "Business / 事業部門",
+      "role": "事業部門責任者・ビジネス開発",
+      "concerns": [
+        "ビジネスリスク",
+        "コスト・予算",
+        "市場への影響",
+        "収益性",
+        "スケジュール遵守"
+      ],
+      "expertise_level": "ビジネス視点。技術詳細よりも事業への影響、コスト、スケジュールを重視。技術用語には説明が必要。",
+      "ssr_filename": "Business Division _ 事業部門向け Safety Status Report.md"
+    },
+    {
+      "id": "product",
+      "name": "Product / 製品部門",
+      "role": "プロダクトマネージャー・製品責任者",
+      "concerns": [
+        "製品の品質",
+        "安全性要件の充足",
+        "リリース判断",
+        "顧客への影響",
+        "検証・テスト状況"
+      ],
+      "expertise_level": "製品視点。品質指標、テスト結果、リリース判定に必要な情報を重視。技術詳細は概要レベルで十分。",
+      "ssr_filename": "Product Division _ 製品部門向け Safety Status Report.md"
+    },
+    {
+      "id": "rd",
+      "name": "R&D Division / 研究開発部門",
+      "role": "研究開発部門エンジニア・開発責任者",
+      "concerns": [
+        "技術的な実現可能性",
+        "開発リソースの効率性",
+        "技術的リスクと課題",
+        "実装詳細",
+        "技術改善・新技術"
+      ],
+      "expertise_level": "技術的な専門知識を持つ。実装詳細、技術的課題、コード品質指標を重視。専門用語の説明は不要。",
+      "ssr_filename": "R&D Division _ 研究開発部門向け Safety Status Report.md"
+    }
+  ],
+  "input_files": [
+    "TEST_GSN_Structure.md",
+    "TEST_Hazard_Analysis.md",
+    "TEST_Project_Status.md",
+    "TEST_Risk_Summary.md",
+    "TEST_Safety_Requirements.md",
+    "TEST_Verification_Results.md"
+  ],
+  "evaluation_config": {
+    "metrics": [
+      {"id": "faithfulness", "name_ja": "忠実性", "description": "検索情報のみに基づいているか"},
+      {"id": "consistency", "name_ja": "整合性", "description": "SSR内で自己矛盾がないか"},
+      {"id": "coherence", "name_ja": "一貫性", "description": "文章全体の構成が論理的か"},
+      {"id": "answer_relevance", "name_ja": "回答関連性", "description": "ユーザーの指示に適しているか"},
+      {"id": "fluency", "name_ja": "流暢性", "description": "日本語として自然で正しいか"},
+      {"id": "relevance", "name_ja": "関連性", "description": "入力文書の要点・重要情報を落としていないか"},
+      {"id": "informativeness", "name_ja": "情報性", "description": "意思決定に必要な情報が網羅されているか"},
+      {"id": "simplification", "name_ja": "単純化", "description": "専門知識レベルに合わせて記述が調整されているか"},
+      {"id": "gsn_alignment", "name_ja": "GSN対応度", "description": "GSNの構造要件を満たすか"}
+    ],
+    "scale": {"min": 1, "max": 5},
+    "temperature": 0
+  }
+}

@@ -65,6 +65,9 @@ amplifytools.xcconfig
 .secret-*
 **.sample
 
+# AWS SAM
+lambda/.aws-sam/
+
 #testfile
 test-chunks.ts
 docs/

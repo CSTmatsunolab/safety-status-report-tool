@@ -1,1174 +1,328 @@
-# Safety Status Report (SSR) 自動生成ツール
+# Safety Status Report (SSR) Generation Tool
 
-GSNファイルや議事録などのドキュメントから、AIを活用してステークホルダー別のSafety Status Report（安全性状況報告書）を自動生成するNext.jsアプリケーションです。
+A web application that leverages AI to automatically generate stakeholder-specific Safety Status Reports from GSN files and safety-related documents.
 
-## 主な機能
+By introducing the sociolinguistic concept of "Audience Design" into RAG and LLM pipelines, the system dynamically optimizes information granularity and presentation style according to the reader's role.
 
-- **ファイルアップロード**: PDF、テキスト、CSV、Excel、Word、HTML、Markdown、画像ファイル（JPG, PNG等）など多様な形式に対応
-- **推奨ファイル形式ガイド**: アップロードセクションからアクセス可能な品質向上ガイド
-- **PDF変換推奨**: PDF形式の構造情報損失を警告し、DOCX/Markdown変換を案内
-- **OCR機能**: Google Cloud Vision APIを使用した画像・画像ベースPDFからのテキスト抽出
-- **大容量ファイル対応**: 4MBを超えるファイルも安全に処理
-- **構造認識型チャンキング**: 見出し・表・セクションを認識した高精度な文書分割
-- **Markdown統一変換**: DOCX/HTML/TXTをMarkdown形式に変換し、構造を保持
-- **表の自動検出**: Markdownテーブル、タブ区切り表、HTMLテーブルを自動認識・保護
-- **安全性ID強調**: H-001、SR-101、R-001などの安全性IDを太字で強調表示
-- **知識ベース機能**: ハイブリッド検索（密ベクトル+疎ベクトル）による高精度な情報抽出
-- **認証機能**: メールアドレスベースのユーザー認証（オプション）
-- **ユーザー分離機能**: 認証ユーザーと未認証ユーザーで独立したデータ空間を提供
-- **知識ベース管理**: UIから知識ベースの構築・削除が可能
-- **登録済みファイル一覧**: 知識ベースに登録されているファイルとアップロード日時を表示
-- **ファイル自動上書き**: 同じファイル名を再アップロードすると、古いデータを自動削除して更新
-- **動的な情報抽出**: ドキュメント量とステークホルダーに応じた最適な情報量の調整
-- **全文使用機能**: 重要なファイルを確実にAIに渡すための全文コンテキスト使用オプション
-- **コスト保護機能**: 全文使用ファイルの文字数制限・ファイル数制限による自動コスト管理
-- **ステークホルダー別レポート**: カスタマイズ可能なステークホルダーグループ向けのレポート生成
-- **ステークホルダー管理**: ステークホルダーの追加・編集・削除機能
-- **構成カスタマイズ機能**: レポート構成の追加・編集・削除機能
-- **レトリック戦略**: ステークホルダーに応じた説得手法（データ駆動型、論理的推論型など）の自動選択
-- **AI活用**: Claude APIを使用した高品質なレポート作成
-- **ストリーミング生成**: リアルタイムでレポート生成状況を表示
-- **読了時間最適化**: ステークホルダーに応じた適切なレポート分量の自動調整
-- **Markdown対応エクスポート**: 見出し・リスト・テーブル構造を保持した高品質なエクスポート
-- **多様な出力形式**: PDF、HTML、Word（docx）、Markdown形式でのダウンロード
-- **大容量PDF対応**: 5MB以上のPDFはS3経由でダウンロード（API制限回避）
-- **PDF日本語対応**: Google Fontsを使用した日本語ヘッダー/フッターの正確なレンダリング
-- **ReactMarkdownプレビュー**: リアルタイムでMarkdownをレンダリングしたプレビュー表示
-- **レポート履歴機能**: 生成したレポートをクラウドに保存し、いつでも閲覧・エクスポート可能（ログイン必要）
-- **履歴管理機能**: 日時でのソート、ステークホルダーでの絞り込みフィルター
-- **編集機能**: 生成後のレポートを手動で編集可能
-- **多言語対応 (i18n)**: 日本語と英語のUI・レポート出力に対応
-- **ダークモード機能**: ダークモードに切り替え可能
-- **設定メニュー**: 右上固定のハンバーガーメニューから各種設定にアクセス
+## Key Features
 
-## 始め方
+### Document Processing
+- Multiple file formats supported (PDF, DOCX, Markdown, CSV, Excel, HTML, text, images)
+- OCR via Google Cloud Vision API (images and image-based PDFs)
+- Structure-aware chunking (preserves headings, tables, and section boundaries)
+- Unified Markdown conversion (DOCX/HTML/TXT → Markdown)
+- Automatic detection and highlighting of safety IDs (H-001, SR-101, etc.)
 
-### 前提条件
+### Knowledge Base & RAG Search
+- Hybrid search (dense vectors + BM25 sparse vectors)
+- Stakeholder-specific query expansion (6 queries auto-generated from role concerns)
+- Reciprocal Rank Fusion (RRF) for ranking integration
+- Dynamic K-value computation (automatic retrieval scope adjustment per role)
+- Full-text inclusion option (pass important files directly to the LLM)
 
-- Node.js 18.0.0以上
-- npm または yarn
-- Anthropic Claude APIキー
-- OpenAI APIキー（エンベディング用）
-- Google Cloud Vision APIキー（OCR用）
-- **AWS S3バケット**（大容量ファイル処理用）
-- **AWS Cognito User Pool**（認証機能用、オプション）
-- **AWS SAM CLI**（Lambda Function デプロイ用）
-- Pinecone APIキー
+### Report Generation
+- Stakeholder-specific reports (6 presets + custom stakeholders)
+- Automatic rhetorical strategy selection (data-driven, logical reasoning, authority-based)
+- GSN-aware report structure (automatic GSN analysis sections)
+- Customizable report structures
+- Streaming generation (real-time preview)
 
-### インストール手順
+### Output & Management
+- Multiple export formats (PDF, HTML, Word, Markdown)
+- Japanese font support for PDF (Google Fonts)
+- Report history (cloud storage, browsing, and re-export; login required)
+- Bilingual support (Japanese / English)
+- Dark mode
 
-#### 1. リポジトリのクローン
-```bash
-git clone https://github.com/CSTmatsunolab/safety-status-report-tool.git
-cd safety-status-report-tool
+## Project Structure
+
+```
+safety-status-report-tool/
+├── src/                        # Next.js frontend
+│   ├── app/
+│   │   ├── api/                #   API Routes (knowledge base, export, etc.)
+│   │   ├── components/         #   UI components
+│   │   ├── history/            #   Report history page
+│   │   ├── stakeholder-settings/  # Stakeholder settings page
+│   │   └── report-structure-settings/  # Report structure settings page
+│   ├── hooks/                  # Custom hooks
+│   ├── lib/                    # Business logic
+│   │   ├── config/             #   Application settings
+│   │   └── md-converter/       #   Markdown conversion module
+│   ├── locales/                # i18n resources (ja.json, en.json)
+│   └── types/                  # TypeScript type definitions
+│
+├── lambda/                     # AWS Lambda (report generation)
+│   ├── src/
+│   │   ├── index.ts            #   Main handler (streaming)
+│   │   └── lib/
+│   │       ├── rag/            #     RAG search, query expansion, RRF
+│   │       ├── report-prompts.ts  #  Prompt templates
+│   │       └── rhetoric-strategies.ts
+│   ├── template.yaml           #   SAM template
+│   └── README.md               #   Lambda-specific documentation
+│
+├── evaluation/                 # Evaluation scripts & data
+│   ├── rag-evaluation/         #   RAG retrieval quality evaluation
+│   ├── ssr-quality-eval/       #   SSR generation quality (LLM-as-a-Judge)
+│   └── README.md               #   Full evaluation guide
+│
+├── docs/                       # Design documents
+├── public/                     # Static files (help pages, etc.)
+└── credentials/                # Credentials (.gitignore target)
 ```
 
-#### 2. 依存関係のインストール
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18.0.0 or higher
+- npm
+- API keys:
+  - Anthropic Claude API (report generation)
+  - OpenAI API (embeddings)
+  - Pinecone (vector store)
+  - Google Cloud Vision API (OCR, optional)
+- AWS account:
+  - AWS SAM CLI (Lambda deployment)
+  - S3 bucket (large file handling)
+  - Cognito User Pool (authentication, optional)
+
+### Installation
+
 ```bash
-# Next.js (フロントエンド)
+# 1. Clone the repository
+git clone https://github.com/CSTmatsunolab/safety-status-report-tool.git
+cd safety-status-report-tool
+
+# 2. Install dependencies
 npm install
 
-# Lambda Function
+# Lambda
 cd lambda
 npm install
 cd ..
 ```
 
-#### 3. 環境変数の設定
+### Environment Variables
 
-##### Next.js用 (.env.local)
-プロジェクトルートに`.env.local`ファイルを作成：
+Create `.env.local` in the project root:
+
 ```bash
-# 必須
-ANTHROPIC_API_KEY=your_claude_api_key_here
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Lambda Function URL（レポート生成用）
-NEXT_PUBLIC_LAMBDA_FUNCTION_URL=https://xxxxxxxx.lambda-url.ap-northeast-1.on.aws/
-
-# OCR機能用（画像/画像ベースPDF処理に必要）
-GOOGLE_CLOUD_VISION_KEY='{ "type": "service_account", ... }'
-
-# チャンキング戦略設定
-USE_ADVANCED_CHUNKING=true
-
-# ベクトルストア設定
-VECTOR_STORE=pinecone
+# Required
+ANTHROPIC_API_KEY=your_claude_api_key
+OPENAI_API_KEY=your_openai_api_key
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=ssr-index
-CLEAR_NAMESPACE_BEFORE_INSERT=false
 
-# AWS S3設定
-APP_AWS_REGION=your_s3_bucket_region
-APP_AWS_ACCESS_KEY_ID=your_aws_access_key_id
-APP_AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
-APP_AWS_S3_BUCKET_NAME=your_s3_bucket_name
+# Lambda Function URL (set after deployment)
+NEXT_PUBLIC_LAMBDA_FUNCTION_URL=https://xxxxxxxx.lambda-url.ap-northeast-1.on.aws/
 
-# S3クリーンアップAPI用
+# OCR (optional)
+GOOGLE_CLOUD_VISION_KEY='{ "type": "service_account", ... }'
+
+# Chunking settings
+USE_ADVANCED_CHUNKING=true
+VECTOR_STORE=pinecone
+
+# AWS S3
+APP_AWS_REGION=your_region
+APP_AWS_ACCESS_KEY_ID=your_access_key
+APP_AWS_SECRET_ACCESS_KEY=your_secret_key
+APP_AWS_S3_BUCKET_NAME=your_bucket_name
+
+# S3 cleanup
 CLEANUP_AUTH_TOKEN=your_secure_random_token
 ```
 
-##### Lambda用 (template.yaml)
-Lambda Function の環境変数は`lambda/template.yaml`で設定：
-```yaml
-Environment:
-  Variables:
-    ANTHROPIC_API_KEY: !Ref AnthropicApiKey
-    OPENAI_API_KEY: !Ref OpenAIApiKey
-    PINECONE_API_KEY: !Ref PineconeApiKey
-    PINECONE_INDEX_NAME: safety-status-report-tool
-    S3_BUCKET_NAME: your-s3-bucket-name
-    ENABLE_HYBRID_SEARCH: 'true'
-```
+Lambda environment variables are configured in `lambda/template.yaml`. See [lambda/README.md](lambda/README.md) for details.
 
-#### 4. Lambda Function のデプロイ
+### Deploying the Lambda Function
 
 ```bash
 cd lambda
-
-# ビルド
 sam build
-
-# デプロイ（初回は --guided オプション推奨）
-sam deploy --guided
-
-# 2回目以降
-sam deploy
+sam deploy --guided   # first time
+sam deploy            # subsequent deployments
 ```
 
-デプロイ後、出力される Lambda Function URL を `.env.local` の `NEXT_PUBLIC_LAMBDA_FUNCTION_URL` に設定します。
+Copy the output Function URL to `NEXT_PUBLIC_LAMBDA_FUNCTION_URL` in `.env.local`.
 
-#### 5. Google Cloud Vision APIのセットアップ
+### Starting the Development Server
 
-- Google Cloud Consoleでプロジェクトを作成し、Vision APIを有効化します
-- サービスアカウントキー（JSON）を作成し、`GOOGLE_CLOUD_VISION_KEY`環境変数に設定します
-
-#### 6. AWS S3のセットアップ
-
-- AWSコンソールでS3バケットを作成します
-- IAMユーザーを作成し、S3バケットへの `PutObject`, `GetObject`, `DeleteObject`, `ListBucket` 権限を付与します
-- バケットのCORS設定を行い、アプリケーションのドメインからの `PUT` リクエストを許可します
-- IAMユーザーのアクセス情報を `.env.local` に設定します
-
-#### 7. 開発サーバーの起動
 ```bash
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 を開く
+Open http://localhost:3000
 
-### ビルドと本番環境
+### Production Build
 
 ```bash
-# プロダクションビルド
 npm run build
-
-# 本番サーバーの起動
 npm start
 ```
 
-## 使い方
+## Usage
 
-### 基本的な使用フロー
+### Basic Workflow
 
-1. **ドキュメントのアップロード**: GSNファイル、議事録、仕様書などをアップロードします
-2. **ステークホルダーの選択**: デフォルトまたはカスタムステークホルダーから対象を選択します
-3. **構成の選択**: 推奨構成、またはカスタム構成を選択します
-4. **ナレッジベース構築**: 「知識ベースを構築」ボタンをクリック（知識ベース使用時）
-5. **レポート生成**: 「レポートを生成」ボタンをクリックします
-6. **レポートの編集・出力**: 生成されたレポートを編集、またはPDF、HTML、Word形式でダウンロードします
-7. **履歴に保存**: 「履歴に保存」ボタンをクリックして、レポートをクラウドに保存します（ログイン必要）
+1. **Upload documents** — GSN files, safety requirements, hazard analyses, etc.
+2. **Select a stakeholder** — Choose a preset (CxO, Technical Fellows, etc.) or custom role
+3. **Choose a report structure** — Recommended or custom structure
+4. **Build knowledge base** — Click "Build Knowledge Base"
+5. **Generate report** — Click "Generate Report"
+6. **Export** — Download as PDF / HTML / Word / Markdown
+7. **Save to history** — After logging in, click "Save to History" for cloud storage
 
-### 推奨ファイル形式
+### Recommended File Formats
 
-ファイル形式によって、AIがドキュメントの構造（表・見出し・リスト）をどれだけ正確に理解できるかが変わります。
+| Format | Structure Preservation | Recommendation | Notes |
+|--------|----------------------|----------------|-------|
+| Markdown (.md) | ◎ Excellent | ⭐⭐⭐ | Best choice; clear structure |
+| Word (.docx) | ◎ Excellent | ⭐⭐⭐ | Tables and headings accurately recognized |
+| CSV / Excel | ◎ Excellent | ⭐⭐⭐ | Ideal for tabular data |
+| HTML (.html) | ○ Good | ⭐⭐ | For web page conversions |
+| Text (.txt) | △ Partial | ⭐ | Tab-separated tables recognized |
+| PDF (.pdf) | × Lost | Not recommended | Convert to DOCX/Markdown first |
 
-| 形式 | 構造保持 | 推奨度 | 備考 |
-|------|----------|--------|------|
-| **Markdown (.md)** | ◎ 完全 | ⭐⭐⭐ | 最も推奨。構造が明確 |
-| **Word (.docx)** | ◎ 完全 | ⭐⭐⭐ | 表・見出しを正確に認識 |
-| **HTML (.html)** | ○ 良好 | ⭐⭐ | Webページからの変換に |
-| **テキスト (.txt)** | △ 部分的 | ⭐ | タブ区切り表は認識可能 |
-| **CSV / Excel** | ◎ 完全 | ⭐⭐⭐ | 表データに最適 |
-| **PDF (.pdf)** | × 失われる | 非推奨 | 変換を推奨 |
+### GSN Files
 
-PDFファイルをアップロードすると、ファイル名の横に警告アイコン（⚠️）が表示されます。クリックすると変換方法の案内が表示されます。
+We recommend using text files exported via "Export LLM Input Text" in [D-Case Communicator](https://www.matsulab.org/dcase/login.html). When uploading, enable the following:
+- **"GSN" checkbox ON** — Adds GSN analysis sections to the report structure
+- **"Full Text" ON** — Recommended to preserve GSN structural relationships for the LLM
 
-詳細は「アップロードガイド」（❓アイコンからアクセス）を参照してください。
+### Full-Text Inclusion
 
-### 知識ベース管理機能
+Each file has a "Full Text" toggle. When enabled, the entire file content is passed directly to the LLM, bypassing the knowledge base.
 
-#### 登録済みファイル一覧
-ステークホルダーを選択すると、知識ベース管理エリアに「登録済みファイル」セクションが表示されます。
-
-- **ファイル名とアップロード日時**: 知識ベースに登録されている全ファイルを確認可能
-- **折りたたみ表示**: クリックで展開/折りたたみ
-- **ファイル数表示**: 登録ファイル数がリアルタイムで表示
-
-#### ファイル自動上書き機能
-同じファイル名のドキュメントを再アップロードすると、古いデータが自動的に削除され、新しいデータで上書きされます。
-
-- **重複防止**: 同名ファイルのベクトルデータが重複しない
-- **最新データ維持**: 常に最新のファイル内容が知識ベースに反映
-- **手動削除不要**: 更新時に古いデータの削除を意識する必要なし
-
-#### 知識ベースの削除
-「リセット」ボタンで、選択中のステークホルダーの知識ベースを削除できます。
-
-- **削除確認**: 登録ファイル数を確認した上で削除を実行
-- **ステークホルダー別管理**: 各ステークホルダーの知識ベースは独立して管理
-
-### レポート履歴機能
-
-#### 概要
-生成したレポートをクラウド（AWS DynamoDB + S3）に保存し、いつでも閲覧・エクスポートできる機能です。ログインが必要です。
-
-#### 保存される情報
-- **レポート本文**: Markdownテキスト（S3に保存）
-- **メタデータ**: タイトル、ステークホルダー、レトリック戦略、作成日時
-- **入力ファイル情報**: アップロードしたファイル名 + 知識ベースに登録されたファイル名
-
-#### 履歴の保存方法
-1. レポート生成後、プレビューセクション右上の「履歴に保存」ボタンをクリック
-2. 保存完了すると「保存完了」と表示されます
-
-#### 履歴一覧ページ
-設定メニュー（≡）から「レポート履歴」をクリックすると、保存済みレポートの一覧が表示されます。
-
-##### 機能
-- **日時ソート**: 「新しい順」「古い順」でソート切り替え
-- **ステークホルダーフィルター**: 特定のステークホルダーで絞り込み
-- **レポート詳細**: タイトルをクリックして詳細ページへ
-- **削除**: 不要なレポートを削除
-
-#### 履歴詳細ページ
-各レポートの詳細ページでは以下の操作が可能です：
-
-- **エクスポート**: Markdown、Word、HTML、PDF形式でダウンロード
-- **印刷**: ブラウザの印刷機能でプリント
-- **入力ファイル確認**: 折りたたみ式でファイル一覧を表示
-  - 「全文使用」バッジ: 全文使用で処理されたファイル
-  - 「RAG」バッジ: 知識ベースから検索されたファイル
-
-### 全文使用機能について
-
-#### 概要
-アップロードした各ファイルに対して「全文使用」トグルスイッチを提供。これにより、特定のファイルの全内容を確実にAIのコンテキストに含めることができます。
-
-#### GSNファイルの推奨設定
-GSNファイルがアップロードされると、以下の推奨設定が表示されます：
-- **GSNにチェック**: レポート構成にGSN分析セクションが追加されます
-- **全文使用ON**: GSNは構造が重要なため、全文使用を推奨
-- **D-Case Communicator**: GSNファイルは[D-Case Communicator](https://www.matsulab.org/dcase/login.html)で作成し、「Export LLM Input Text」機能で出力されるテキストファイルを使用することをお勧めします
-
-#### 使用推奨ケース
-- **GSNファイル**: 構造的な関係性が重要な文書（**特に推奨**）
-- **数値データ**: CSV、Excelファイルなど数値が重要なファイル
-- **小容量ファイル**: 5,000文字以下のファイル
-- **重要な仕様書**: 詳細な技術仕様が記載された文書
-
-#### 動作の仕組み
-- **全文使用ON**: ファイルの全内容をそのままAIに渡す（知識ベースを経由しない）
-- **全文使用OFF**: 知識ベースから関連部分のみを抽出してAIに渡す（デフォルト）
-
-#### 対応ファイル形式
-| 形式 | AIへの出力フォーマット |
-|------|----------------------|
-| txt | そのままテキスト |
-| xlsx/xls | `=== Sheet 1: シート名 ===`（シート別） |
-| docx | 抽出テキスト |
-| pdf | `=== PDF Document: ファイル名 ===`<br>`(Total pages: N)`（ページ数付き） |
-
-#### コンテキスト制限とコスト保護
-
-##### 文字数制限
-| 項目 | 制限値 |
-|------|--------|
-| 1ファイルあたり最大文字数 | 50,000文字 |
-| 全体最大文字数 | 150,000文字 |
-| 「大きいファイル」の閾値 | 50,000文字以上 |
-
-##### ファイル数制限
-- **大きいファイル（5万文字以上）の全文使用**: 最大2個まで
-- 3個以上選択すると、最初の2個のみが全文使用され、残りは知識ベースから関連部分を抽出
-
-##### 事前警告ダイアログ
-レポート生成前に以下の確認が表示されます：
-
-1. **切り詰め警告**: 5万文字を超えるファイルがある場合
-   ```
-   【確認】以下の全文使用ファイルは5万文字を超えています：
-   ・data.csv（120,000文字）
-   これらのファイルは5万文字まで切り詰められます。
-   続行しますか？
-   ```
-
-2. **大きいファイル数の警告**: 大きいファイルが3個以上の場合
-   ```
-   【警告】大きなファイル（5万文字以上）の全文使用が3個選択されています。
-   処理負荷を軽減するため、最初の2個のみが全文使用されます。
-   残りのファイルは関連部分のみ抽出されます。
-   続行しますか？
-   ```
-
-##### コスト目安
-| 設定 | 1回あたりコスト目安 |
-|------|---------------------|
-| 標準設定（RAGのみ） | 約 $0.20〜0.40 |
-| 全文使用1ファイル + RAG | 約 $0.50〜0.70 |
-| 最大設定（15万文字） | 約 $0.80〜0.90 |
-
-#### 全文使用機能の注意点
-
-##### メモリ不足エラー
-大量のファイルで全文使用を有効にすると、コンテキスト制限を超える可能性があります。
-- エラーメッセージが表示された場合は、一部のファイルの全文使用を無効にしてください
-- 優先度の高いファイルのみ全文使用を有効にすることを推奨
-
-##### パフォーマンス
-- 全文使用を有効にしたファイルが多いと、レポート生成に時間がかかる場合があります
-- 知識ベースを使用する方が、大量の文書から効率的に情報を抽出できます
-
-### GSNファイルの明示的な指定
-
-#### GSNチェックボックス
-各アップロードファイルに「GSN」チェックボックスが追加され、GSNファイルを明示的に指定できます。
-
-#### 使用方法
-1. ファイルをアップロード
-2. GSNファイルの横にある「GSN」チェックボックスにチェック
-3. レポート構成にGSN専用セクションが自動追加される
-
-#### GSNファイル形式の作成方法
-
-##### D-Case Communicator（推奨）
-1. [D-Case Communicator](https://www.matsulab.org/dcase/login.html)でGSNを作成
-2. 「Export LLM Input Text」機能でテキストファイルを出力
-3. 出力されたテキストファイルをアップロード
-
-##### 手動でGSNテキストを作成
-以下のフォーマットで記述：
-```
-G1: システムは安全に運用できる
-→ S1
-
-S1: システム安全と運用リスク制御に分けた議論
-→ G2, G3
-
-G2: システムは設計上安全である
-→ Sn1
-
-Sn1: 設計レビュー完了報告書
-```
-
-要素タイプ：
-- `G`: Goal（ゴール）
-- `S`: Strategy（戦略）
-- `C`: Context（コンテキスト）
-- `Sn`: Solution（ソリューション/エビデンス）
-- `→`: 接続（親から子への関係）
-
-### 構造認識型チャンキング
-
-ドキュメントを効率的に処理するための高度なチャンキング（分割）戦略を採用しています。
-
-#### 処理フロー
-1. **Markdown変換**: DOCX/HTML/TXT → Markdown形式に統一
-2. **構造抽出**: 見出し（#, ##, ###）でセクション分割
-3. **表の保護**: Markdownテーブルは分割せず1チャンクとして保持
-4. **Max-Min チャンキング**: 大きなセクションは意味的境界で分割
-
-#### チャンキング設定
-| パラメータ | 値 | 説明 |
-|-----------|-----|------|
-| MIN_SECTION_SIZE | 300文字 | これ以下のセクションは次と結合 |
-| MAX_SECTION_SIZE | 1,200文字 | これを超えたらMax-Minで分割 |
-
-#### 保護される構造
-- **Markdownテーブル**: `| ... | ... |` 形式
-- **図表番号**: 「表1」「Figure 2」などのキャプション
-- **安全性ID**: H-001, SR-101, R-001 などは**太字**で強調
-
-### カスタムステークホルダー機能
-
-#### 概要
-ユーザーがカスタムステークホルダーを作成・編集・削除できる機能です。
-
-#### 設定項目
-| 項目 | 説明 | 例 |
-|------|------|-----|
-| 名前 | ステークホルダーの表示名 | 経営幹部 |
-| 視点キーワード | 関心のあるキーワード（カンマ区切り） | コスト、リスク、ROI |
-| 専門レベル | 専門的な知識の有無 | 専門家 / 非専門家 |
-| 読了時間 | レポートの分量（分） | 3 / 5 / 10 |
-| 主要関心事 | 優先的に報告すべき内容 | コスト削減効果とリスク評価 |
-
-#### 使用方法
-1. 設定メニュー（≡）から「ステークホルダー設定」を選択
-2. 「新規ステークホルダー」または編集したいステークホルダーを選択
-3. 各項目を設定して「保存」
-
-### レポート構成のカスタマイズ機能
-
-#### 概要
-プリセットの構成に加えて、独自のレポート構成を作成・編集・削除できます。
-
-#### 設定方法
-1. 構成選択の「カスタム構成を作成」をクリック
-2. 構成名を入力
-3. セクションを追加・編集・削除・並び替え
-4. 「構成を保存」をクリック
-
-#### セクション設定項目
-| 項目 | 説明 |
-|------|------|
-| セクション名 | レポートに表示される見出し |
-| 検索クエリ | 知識ベースから情報を取得するためのクエリ |
-| 説明 | セクションの目的・内容の説明 |
-
-### 動的な情報抽出（Dynamic K値計算）
-
-#### 概要
-ドキュメント量とステークホルダーに応じて、最適な情報量を自動調整します。ステークホルダー別の比率・最小値・最大値で制御することで、少ないチャンク数でも差がつき、技術系には十分な情報量を確保します。
-
-#### 設計思想
-- **経営層（CxO, Business）**: 要点を絞った簡潔な情報（25-30%）
-- **技術系（Technical Fellows, Architect, R&D）**: 詳細な技術情報（55-60%）
-- **中間層（Product）**: バランスの取れた情報量（40%）
-
-#### ステークホルダー別K値設定
-
-| ステークホルダー | 比率 | 最小K | 最大K | 70チャンク時 |
-|-----------------|------|-------|-------|--------------|
-| CxO | 25% | 15 | 50 | 18 |
-| Business | 30% | 15 | 60 | 21 |
-| Product | 40% | 18 | 80 | 28 |
-| Technical Fellows | 55% | 22 | 120 | 39 |
-| Architect | 55% | 22 | 120 | 39 |
-| R&D | 60% | 25 | 120 | 42 |
-
-#### カスタムステークホルダーの自動判定
-
-カスタムステークホルダーは、ロール名に含まれるキーワードで自動的に設定が決定されます：
-
-| キーワード | 比率 | 最小K | 最大K |
-|-----------|------|-------|-------|
-| 技術, 開発, エンジニア, アーキテクト, engineer, developer, architect, technical, 研究, research | 55% | 22 | 120 |
-| 経営, 社長, cxo, 役員, executive, director, ceo, cto, cfo | 25% | 15 | 50 |
-| リスク, セキュリティ, 品質, qa, risk, security, quality | 45% | 20 | 100 |
-| その他（デフォルト） | 40% | 18 | 80 |
-
-#### K値計算式
-
-```
-1. config = ステークホルダー設定を取得 { ratio, minK, maxK }
-2. effectiveMaxK = storeType === 'memory' ? maxK × 0.4 : maxK
-3. targetK = totalChunks × config.ratio
-4. finalK = min(effectiveMaxK, max(config.minK, targetK))
-```
-
-#### 計算例
-
-**70チャンクの場合:**
-```
-CxO:      min(50, max(15, 70×0.25)) = min(50, max(15, 18)) = 18 (25.7%)
-Product:  min(80, max(18, 70×0.40)) = min(80, max(18, 28)) = 28 (40.0%)
-Architect: min(120, max(22, 70×0.55)) = min(120, max(22, 39)) = 39 (55.7%)
-R&D:      min(120, max(25, 70×0.60)) = min(120, max(25, 42)) = 42 (60.0%)
-```
-
-**30チャンクの場合（小規模）:**
-```
-CxO:      min(50, max(15, 30×0.25)) = min(50, max(15, 8)) = 15 (50.0%)
-Product:  min(80, max(18, 30×0.40)) = min(80, max(18, 12)) = 18 (60.0%)
-Architect: min(120, max(22, 30×0.55)) = min(120, max(22, 17)) = 22 (73.3%)
-R&D:      min(120, max(25, 30×0.60)) = min(120, max(25, 18)) = 25 (83.3%)
-```
-
-→ 少ないチャンク数でも最小値により差がつきます。
-
-**300チャンクの場合（大規模）:**
-```
-CxO:      min(50, max(15, 300×0.25)) = min(50, 75) = 50 (16.7%)
-Product:  min(80, max(18, 300×0.40)) = min(80, 120) = 80 (26.7%)
-Architect: min(120, max(22, 300×0.55)) = min(120, 165) = 120 (40.0%)
-R&D:      min(120, max(25, 300×0.60)) = min(120, 180) = 120 (40.0%)
-```
-
-→ 大規模時は最大値で制御されます。
-
-### 多言語対応
-
-#### 対応言語
-- 日本語（デフォルト）
-- English
-
-#### 切り替え方法
-設定メニュー（≡）から「Language: 日本語/English」を選択
-
-#### 対応範囲
-- UI全体（ボタン、ラベル、メッセージ）
-- 生成されるレポート
-- エラーメッセージ
-
-### PDF出力機能
-
-#### 日本語対応
-Google Fontsを使用することで、日本語フォントの正確なレンダリングを実現：
-- **ヘッダー**: ドキュメントタイトルと日付
-- **フッター**: ページ番号
-- **本文**: 日本語テキストの正確な表示
-
-#### 出力形式
-- **PDF**: @react-pdf/rendererで生成
-- **HTML**: シンタックスハイライト付き
-- **Word (docx)**: docxライブラリで生成
-- **Markdown**: 生テキスト
-
-## プロジェクト構成
-
-```
-safety-status-report-tool/
-├── src/
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── build-knowledge-base/
-│   │   │   │   └── route.ts          # ナレッジベース構築API
-│   │   │   ├── delete-knowledge-base/
-│   │   │   │   └── route.ts          # ナレッジベース削除API
-│   │   │   ├── list-knowledge-files/
-│   │   │   │   └── route.ts          # 登録済みファイル一覧API
-│   │   │   ├── export-html/
-│   │   │   │   └── route.ts          # HTML出力API
-│   │   │   ├── export-docx/
-│   │   │   │   └── route.ts          # Word出力API
-│   │   │   ├── export-pdf/
-│   │   │   │   └── route.ts          # PDF出力API
-│   │   │   ├── pdf-extract/
-│   │   │   │   └── route.ts          # PDFテキスト抽出API
-│   │   │   ├── google-vision-ocr/
-│   │   │   │   └── route.ts          # 画像OCR API
-│   │   │   ├── excel-extract/
-│   │   │   │   └── route.ts          # Excelテキスト抽出API
-│   │   │   ├── docx-extract/
-│   │   │   │   └── route.ts          # Wordテキスト抽出API
-│   │   │   ├── s3-upload/
-│   │   │   │   └── route.ts          # S3アップロードAPI
-│   │   │   ├── s3-process/
-│   │   │   │   └── route.ts          # S3ファイル処理API
-│   │   │   ├── s3-cleanup/
-│   │   │   │   └── route.ts          # S3クリーンアップAPI
-│   │   │   └── reports/
-│   │   │       ├── route.ts          # レポート履歴一覧・保存API
-│   │   │       └── [reportId]/
-│   │   │           └── route.ts      # レポート詳細・削除API
-│   │   │
-│   │   ├── components/
-│   │   │   ├── FileUpload/
-│   │   │   │   ├── index.tsx              # メインコンポーネント
-│   │   │   │   ├── FileValidation.ts      # validateFile, マジックバイト検証
-│   │   │   │   ├── FileProcessor.ts       # S3/PDF/Excel/DOCX/画像処理
-│   │   │   │   ├── hooks/
-│   │   │   │   │   └── useFileUpload.ts   # 状態管理ロジック
-│   │   │   │   └── components/
-│   │   │   │       ├── FileList.tsx       # ファイル一覧表示
-│   │   │   │       ├── UploadZone.tsx     # ドロップゾーン
-│   │   │   │       └── FileWarnings.tsx   # 警告メッセージ
-│   │   │   ├── KnowledgeBaseManager.tsx     # 知識ベース管理UI
-│   │   │   ├── StakeholderSelect.tsx        # ステークホルダー選択UI
-│   │   │   ├── ReportPreview.tsx            # レポートプレビュー・編集
-│   │   │   ├── ReportStructureSelector.tsx  # カスタム構成機能
-│   │   │   ├── GenerationProgress.tsx       # 生成進捗表示
-│   │   │   ├── StreamingPreview.tsx         # ストリーミングプレビュー
-│   │   │   ├── ThemeProvider.tsx            # テーマ管理
-│   │   │   ├── ThemeToggle.tsx              # ダークモード切り替え
-│   │   │   ├── I18nProvider.tsx             # 多言語対応コンテキスト
-│   │   │   ├── AuthProvider.tsx             # 認証コンテキスト
-│   │   │   ├── AuthModal.tsx                # ログイン/サインアップモーダル
-│   │   │   ├── AuthStatus.tsx               # 認証状態表示（※現在未使用）
-│   │   │   └── SettingsMenu.tsx             # 設定メニュー（右上固定）
-│   │   │   # ※ ReportEditor.tsx は ReportPreview.tsx に統合済み
-│   │   │
-│   │   ├── stakeholder-settings/
-│   │   │   └── page.tsx             # ステークホルダー設定ページ
-│   │   │
-│   │   ├── history/
-│   │   │   ├── page.tsx             # レポート履歴一覧ページ
-│   │   │   └── [reportId]/
-│   │   │       └── page.tsx         # レポート詳細ページ
-│   │   │
-│   │   ├── favicon.ico
-│   │   ├── icon.png
-│   │   ├── layout.tsx
-│   │   ├── page.tsx                 # メインページ
-│   │   ├── not-found.tsx
-│   │   └── globals.css
-│   │
-│   ├── hooks/
-│   │   ├── useSectionGeneration.ts  # レポート生成カスタムフック
-│   │   └── useReportHistory.ts      # レポート履歴カスタムフック
-│   │
-│   ├── lib/
-│   │   ├── config/
-│   │   │   └── constants.ts            # アプリケーション設定値
-│   │   ├── amplify-config.ts           # 認証設定
-│   │   ├── browser-id.ts               # ブラウザID管理
-│   │   ├── chunking-strategies.ts      # チャンキング戦略セレクタ
-│   │   ├── md-converter/
-│   │   │   ├── index.ts              (154行) - メインエントリーポイント
-│   │   │   ├── types.ts              (32行)  - 型定義
-│   │   │   ├── converters/
-│   │   │   │   ├── docx.ts           (63行)  - DOCX変換
-│   │   │   │   ├── excel.ts          (116行) - Excel/CSV変換
-│   │   │   │   ├── text.ts           (221行) - TXT/JSON/XML/HTML変換
-│   │   │   │   └── pdf.ts            (80行)  - PDF警告ハンドラ
-│   │   │   ├── utils/
-│   │   │   │   ├── file-detection.ts (81行)  - ファイル形式判定
-│   │   │   │   ├── html-to-md.ts     (115行) - HTML→MD変換
-│   │   │   │   ├── table-utils.ts    (304行) - テーブル処理
-│   │   │   │   └── text-utils.ts     (44行)  - テキストユーティリティ
-│   │   │   └── safety/
-│   │   │       ├── normalizer.ts     (33行)  - 安全性文書正規化
-│   │   │       └── preserve-markers.ts(247行) - 保護マーカー・ID抽出
-│   │   ├── table-aware-chunking.ts     # 表認識チャンキング
-│   │   ├── max-min-chunking.ts         # Max-Min Semanticチャンキング
-│   │   ├── sparse-vector-utils.ts      # 疎ベクトル生成
-│   │   ├── stakeholders.ts             # ステークホルダー管理
-│   │   ├── vector-store.ts             # ベクトルストア
-│   │   ├── embeddings.ts               # エンベディング設定
-│   │   ├── google-cloud-auth.ts        # Google Cloud認証
-│   │   ├── text-processing.ts          # テキスト処理ユーティリティ
-│   │   ├── vision-api-utils.ts         # Vision APIエラーハンドリング
-│   │   ├── pdf-exporter.ts             # PDF出力処理
-│   │   ├── markdown-parser.ts          # Markdownパーサー（エクスポート共通）
-│   │   ├── html-exporter.ts            # HTML出力処理
-│   │   ├── docx-exporter.ts            # DOCX出力処理
-│   │   ├── report-structures.ts        # レポート構成管理
-│   │   ├── rhetoric-strategies.ts      # レトリック戦略
-│   │   ├── s3-utils.ts                 # S3ユーティリティ
-│   │   └── date-utils.ts               # 日付ユーティリティ
-│   │
-│   ├── locales/
-│   │   ├── ja.json                  # 日本語翻訳
-│   │   └── en.json                  # 英語翻訳
-│   │
-│   └── types/
-│       ├── index.ts                 # TypeScript型定義
-│       └── wink-tokenizer.d.ts      # Winkトークナイザー型定義
-│
-├── lambda/                          # Lambda Function
-│   ├── src/
-│   │   ├── index.ts                 # メインハンドラー（ストリーミング）
-│   │   ├── types.ts                 # 型定義
-│   │   ├── wink-tokenizer.d.ts      # Winkトークナイザー型定義
-│   │   └── lib/
-│   │       ├── rag/
-│   │       │   ├── index.ts             # RAGモジュールエクスポート
-│   │       │   ├── types.ts             # RAG型定義
-│   │       │   ├── query-enhancer/
-│   │       │   │   ├── index.ts                     # 全エクスポート + debugQueryEnhancement
-│   │       │   │   ├── QueryEnhancer.ts             # 基本クラス
-│   │       │   │   ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス
-│   │       │   │   ├── dictionaries/
-│   │       │   │   │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
-│   │       │   │   │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
-│   │       │   │   │   └── field-terms.ts           # 分野別キーワード・判定用辞書
-│   │       │   │   └── utils/
-│   │       │   │       ├── language-detection.ts    # detectLanguage + ヘルパー関数
-│   │       │   │       └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
-│   │       │   ├── rag-utils.ts         # RAGユーティリティ
-│   │       │   ├── rrf-fusion.ts        # RRF検索
-│   │       │   └── sparse-vector-utils.ts # 疎ベクトル生成
-│   │       ├── report-prompts.ts        # 日本語プロンプト
-│   │       ├── report-prompts-en.ts     # 英語プロンプト
-│   │       └── rhetoric-strategies.ts   # レトリック戦略
-│   │
-│   ├── template.yaml                # SAMテンプレート
-│   ├── samconfig.toml               # SAM設定
-│   └── package.json                 # Lambda依存関係
-│
-├── public/
-│   ├── help.html                    # ヘルプページ
-│   └── upload-guide.html            # アップロードガイド（品質向上のヒント）
-├── .env.local                       # 環境変数（Gitには含めない）
-├── .gitignore
-├── next.config.js
-├── package.json
-├── tsconfig.json
-├── next.config.ts
-├── tailwind.config.ts
-└── README.md
-```
-
-
----
-
-## レポート出力機能
-
-### 概要
-
-生成されたレポートはMarkdown形式で出力され、PDF、HTML、Word（DOCX）形式にエクスポートできます。Markdown構造（見出し、リスト、テーブル、太字など）を維持したまま各形式に変換されます。
-
-### 対応フォーマット
-
-| 形式 | 拡張子 | 特徴 |
-|------|--------|------|
-| Markdown | .md | 生のMarkdownテキスト（編集可能） |
-| PDF | .pdf | 日本語フォント対応、印刷用スタイル |
-| HTML | .html | 印刷用スタイル付き、ブラウザで閲覧可能 |
-| Word | .docx | 見出しスタイル適用、編集可能 |
-
-### Markdown対応
-
-レポートコンテンツは以下のMarkdown要素を認識してエクスポートします：
-
-- **見出し**: `#`, `##`, `###`, `####`（H1〜H4）
-- **箇条書き**: `-` または `*`
-- **番号付きリスト**: `1.`, `2.`, `3.`
-- **テーブル**: Markdownテーブル形式
-- **太字**: `**text**`
-- **イタリック**: `*text*`
-- **インラインコード**: `` `code` ``
-- **引用**: `>`
-- **水平線**: `---`
-
-### 番号付きリストの後処理
-
-AIが `## 1. 項目名` のような形式で番号付きリストを出力する場合があります。これをセクション見出しと番号付きリストで区別するため、以下のルールで後処理を行います：
-
-- **セクション見出し**: `## 1. エグゼクティブサマリー` → そのまま維持
-- **番号付きリスト**: `## 1. **重要なポイント**` → `1. **重要なポイント**` に変換
-
-判定基準：
-- 数字が10以下
-- セクション名キーワード（エグゼクティブサマリー、現状分析、リスク評価など）を含む
-- 30文字以下で太字でない
-
-### 大容量PDFのS3経由出力
-
-PDFファイルが **5MB (API_PAYLOAD_THRESHOLD)** を超える場合、Next.js APIのレスポンスサイズ制限を回避するため、S3を経由してダウンロードします。
-
-```
-PDF生成
-    ↓
-サイズ確認（5MB以上？）
-    ↓
-[Yes] → S3にアップロード → 署名付きURL生成 → クライアントにURLを返す
-[No]  → 直接Bufferを返す
-```
-
-#### 設定
-
-`src/lib/config/constants.ts`:
-```typescript
-// APIペイロードサイズ制限（5MB）
-export const API_PAYLOAD_THRESHOLD = 5 * 1024 * 1024;
-```
-
-### エクスポートAPI
-
-| エンドポイント | メソッド | 説明 |
-|----------------|----------|------|
-| `/api/export-pdf` | POST | PDF形式でエクスポート |
-| `/api/export-html` | POST | HTML形式でエクスポート |
-| `/api/export-docx` | POST | Word形式でエクスポート |
-
-### エクスポートモジュール構成
-
-```
-src/lib/
-├── markdown-parser.ts   # Markdown→構造化データ変換（共通）
-├── pdf-exporter.ts      # PDF生成（@react-pdf/renderer）
-├── html-exporter.ts     # HTML生成
-└── docx-exporter.ts     # DOCX生成（docx）
-```
-
-## トラブルシューティング
-
-### レポート生成関連
-
-#### Lambda Function URLが設定されていないエラー
-- **症状**: 「Lambda Function URLが設定されていません」エラー
-- **対処法**:
-  1. `sam deploy` でLambda Functionをデプロイ
-  2. 出力されたFunction URLを`.env.local`に設定
-  3. 本番環境の場合は環境変数に`NEXT_PUBLIC_LAMBDA_FUNCTION_URL`を設定
-
-### 知識ベース関連
-
-#### リクエストサイズエラー（2MB超過）
-- **症状**: "Request size exceeds 2MB"エラー
-- **対処法**: バッチサイズを小さくする（vector-store.tsでbatchSize=30に設定）
-
-### 検索精度の向上
-
-#### 症状
-- 重要な情報が検索されない
-- 関連性の低い文書が多く含まれる
-
-#### 対処法
-1. **ハイブリッド検索の有効化**: GSN要素の検索精度が向上
-2. **全文使用オプションの活用**: 確実に含めたい重要文書は「全文使用」を有効化
-3. **ファイル形式の最適化**: PDFよりDOCXやMarkdownを使用
-
-### 全文使用関連
-
-#### レポート生成が途中で止まる
-- **症状**: ストリーミング中に接続が切れる
-- **対処法**:
-  1. 全文使用ファイル数を2個以下に減らす
-  2. 大きいファイルはRAG（全文使用OFF）で処理する
-  3. 警告ダイアログで「キャンセル」を選択し、設定を見直す
-
-#### APIコストが高い
-- **対処法**:
-  1. 全文使用ファイル数を最小限に抑える
-  2. 5万文字以上のファイルは自動的に切り詰められるため、過度な心配は不要
-  3. RAGを活用して関連部分のみを抽出する
-
-### セクション分割生成関連
-
-#### コンテキスト準備でエラーが発生
-- **症状**: 「文書コンテンツがありません」エラー
-- **対処法**:
-  1. ファイルをアップロードしているか確認
-  2. 「全文使用」を有効にしたファイルがあるか確認
-  3. 知識ベースが構築されているか確認
-
-#### 一部のセクションが生成されない
-- **症状**: セクション生成が途中で停止
-- **対処法**:
-  1. ネットワーク接続を確認
-  2. ページをリロードして再試行
-
-### 多言語対応関連
-
-#### 言語が切り替わらない
-- **対処法**:
-  1. ブラウザのlocalStorageをクリア
-  2. ページをリロード
-  3. 再度言語を選択
-
-### PDF出力関連
-
-#### PDFがダウンロードできない
-- **症状**: PDFダウンロードボタンを押しても反応がない
-- **対処法**:
-  1. ブラウザのコンソールでエラーを確認
-  2. S3の設定を確認（大容量PDFの場合）
-  3. APIルートのログを確認
-
-#### PDFの日本語が文字化けする
-- **症状**: PDF内の日本語が正しく表示されない
-- **対処法**:
-  1. Noto Sans JPフォントがCDNから正しく読み込まれているか確認
-  2. ネットワーク接続を確認
-
-## 技術スタック
-
-- **フレームワーク**: Next.js 15 (App Router)
-- **言語**: TypeScript
-- **スタイリング**: Tailwind CSS v4
-- **認証**: AWS Cognito
-- **AI/LLM**: 
-  - Anthropic Claude API (Claude Sonnet) - レポート生成
-  - OpenAI API (text-embedding-3-small) - エンベディング
-  - Google Cloud Vision API - OCR処理
-- **ベクトルストア**:
-  - Pinecone（ハイブリッド検索対応）
-  - LangChain - ベクトルストア抽象化
-  - Kuromoji - 日本語トークナイザー
-  - WinkTokenizer - 英語トークナイザー
-- **サーバーレス**:
-  - AWS Lambda (Function URL, ストリーミング対応)
-  - AWS SAM (デプロイ管理)
-- **ファイル処理**:
-  - AWS S3 - 大容量ファイル処理・PDFエクスポート
-  - PDF生成: @react-pdf/renderer
-  - PDF抽出: pdf-parse
-  - OCR: @google-cloud/vision
-  - Excel処理: xlsx
-  - Word抽出: mammoth
-  - Word生成: docx
-  - HTML→Markdown: turndown
-  - Markdownパーサー: markdown-parser（カスタム）
-  - Markdownレンダリング: react-markdown + remark-gfm
-- **UI**: React 19
-- **多言語対応**: カスタムi18nプロバイダー（React Context）
-- **データ永続化**: 
-  - ローカルストレージ（カスタムステークホルダー用、ブラウザID、言語設定）
-  - Pineconeベクトルストア（ドキュメント用）
-- **ホスティング**: AWS Amplify
-
-## セキュリティ考慮事項
-
-- **認証**: セキュアな認証。パスワードは認証サービス側で管理され、アプリケーションには保存されません
-- **ユーザー分離**: 認証済みユーザーと未認証ユーザーで完全に分離
-- **データアクセス**: 各ユーザーは自身のネームスペースのデータにのみアクセス可能
-- **APIキー管理**: 環境変数で管理し、フロントエンドには露出させない
-
----
-
-## クエリ拡張機能
-
-### 概要
-
-RAG検索の精度を向上させるため、ステークホルダーの関心事（concerns）から自動的に複数の検索クエリを生成します。各ステークホルダーに対して**6つのクエリ**（日本語5つ + 英語1つ）が生成され、RRF（Reciprocal Rank Fusion）で統合されます。
-
-### クエリ生成の仕組み
-
-```
-ステークホルダー情報
-    ↓
-1. Concernsの具体化（抽象的な表現を具体的なキーワードに変換）
-    ↓
-2. 日本語クエリ生成（5つ）
-   - ロール + 具体化されたconcerns
-   - Concernsの組み合わせ
-   - 同義語展開
-   - ロール特化用語
-    ↓
-3. 英語クエリ生成（1つ）
-   - ステークホルダー別の英語キーワード
-    ↓
-4. RRF検索で統合
-```
-
-### Concernsの具体化
-
-抽象的なconcernsを、実際のドキュメントに出現しやすい具体的なキーワードに自動変換します。
-
-| 元のConcern | 具体化後 |
-|-------------|----------|
-| 技術的な実現可能性 | 技術検証 実装可能性 |
-| 開発リソースの効率性 | 開発工数 リソース配分 |
-| 技術的リスクと課題 | 技術課題 技術リスク |
-| 戦略的整合性 | 経営方針 事業戦略 |
-| 企業価値への影響 | コスト ROI 投資対効果 |
-| 製品の品質と安全性 | 製品品質 安全性 品質保証 |
-
-### ステークホルダー別クエリ例
-
-#### R&D（研究開発部門）
-```
-1. 研究開発部門 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術
-2. 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術
-3. 技術検証 実装可能性 技術課題 技術リスク
-4. R&D 技術検証 実装可能性
-5. 研究開発部門 テスト
-6. technical verification implementation development issue risk
-```
-
-#### CxO（経営層）
-```
-1. 経営層 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理
-2. 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理
-3. 経営方針 事業戦略 コスト ROI 投資対効果
-4. 経営 経営方針 事業戦略
-5. 経営層 費用
-6. risk management cost ROI governance strategy
-```
-
-#### Architect（アーキテクト）
-```
-1. アーキテクト 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ
-2. 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ
-3. 設計整合性 アーキテクチャ 技術的負債
-4. 設計者 設計整合性 アーキテクチャ
-5. アーキテクト アーキテクチャ
-6. system architecture design ADR component interface
-```
-
-### 同義語展開
-
-検索の網羅性を高めるため、主要なキーワードに対して同義語を展開します。
-
-| キーワード | 同義語 |
-|-----------|--------|
-| リスク | ハザード, 危険, 脅威, 課題 |
-| 安全 | セーフティ, 安全性, 安全要件, ASIL |
-| 品質 | クオリティ, QA, 品質保証, 検証 |
-| 設計 | アーキテクチャ, 構成, 構造, ADR |
-| 課題 | 問題, イシュー, オープンイシュー, ブロッカー |
-| コスト | 費用, 予算, 見積, 工数 |
-
-### ロール特化用語
-
-各ステークホルダーの実務に即したキーワードを追加します。
-
-| ステークホルダー | ロール特化用語 |
-|-----------------|---------------|
-| CxO | 経営判断, コスト, 予算, 進捗, 承認, マイルストーン |
-| Technical Fellows | 技術評価, 設計判断, 技術レビュー, 品質基準, 技術方針 |
-| Architect | 設計, 構成, モジュール, インターフェース, ADR, 依存関係 |
-| Business | 収益, コスト削減, 市場影響, ビジネスリスク, 投資, 予算 |
-| Product | 品質, 安全性, 要件, 機能, リリース, 検証, テスト |
-| R&D | 技術検証, 実装, 開発課題, 技術評価, 検証結果, 課題 |
-
-### 英語クエリ
-
-英語ドキュメントへの対応として、6番目のクエリとして英語キーワードを生成します。
-
-| ステークホルダー | 英語クエリ |
-|-----------------|-----------|
-| CxO | risk management cost ROI governance strategy |
-| Technical Fellows | technical quality architecture design review standard |
-| Architect | system architecture design ADR component interface |
-| Business | business risk cost revenue ROI budget |
-| Product | product quality safety requirements verification test |
-| R&D | technical verification implementation development issue risk |
-
-### クエリ確認コマンド
-
-生成されるクエリを確認するには、以下のコマンドを使用します：
-
-```bash
-cd rag-evaluation
-npx ts-node rag-evaluator.ts show-queries --stakeholders ./stakeholders-all.json
-```
-
----
-
-## RAG 評価スクリプト
-
-`rag-evaluation/` ディレクトリには、RAG（Retrieval-Augmented Generation）システムの検索品質を評価するためのスクリプトが含まれています。
-
-### 概要
-
-SSRツールと同じRRF検索方式・動的K値計算を使用して、ステークホルダー別の検索精度を評価します。
-
-### ディレクトリ構成
-
-```
-rag-evaluation/
-├── rag-evaluator.ts             # メイン評価スクリプト（CLI）
-├── csv-exporter.ts              # CSV入出力・Ground Truth変換
-├── metrics.ts                   # 評価指標計算（Precision, Recall, nDCG等）
-├── types.ts                     # 型定義
-├── lib/
-│   └── query-enhancer/
-│       ├── index.ts                     # 全エクスポート + debugQueryEnhancement
-│       ├── QueryEnhancer.ts             # 基本クラス (約250行)
-│       ├── CustomStakeholderQueryEnhancer.ts  # 拡張クラス (約180行)
-│       ├── dictionaries/
-│       │   ├── role-translations.ts     # 役職翻訳・同義語・テンプレート
-│       │   ├── concern-synonyms.ts      # 懸念事項の具体化・同義語・翻訳
-│       │   └── field-terms.ts           # 分野別キーワード・判定用辞書
-│       └── utils/
-│           ├── language-detection.ts    # detectLanguage + ヘルパー関数
-│           └── concern-prioritizer.ts   # prioritizeConcerns + スコア計算
-├── rag-utils-copy.ts            # RAGユーティリティ（本体からコピー）
-│
-├── stakeholders.json            # 評価用ステークホルダー（CxO + TFの2種）
-├── stakeholders-all.json        # 全6ステークホルダー
-├── rag-priority-mapping.xlsx      # 優先度マッピング（オプション）
-│
-├── package.json
-├── tsconfig.json
-├── README.md                    # 詳細なドキュメント
-│
-└── evaluation-results/          # 評価結果出力（.gitignore対象）
-    ├── evaluation-rrf-result-*.json
-    └── evaluation-rrf-report-*.txt
-```
-
-### 評価フロー【推奨：完全評価方式】
-
-```
-1. ナレッジベース構築
-   SSRツール側で各ステークホルダーにPDFをアップロード
-       ↓
-2. 全チャンクCSV出力（優先度自動設定）
-   npx ts-node rag-evaluator.ts export-all-csv \
-     --uuid <your-uuid> \
-     --output ./all-chunks.csv
-   ※ rag-priority-mapping.xlsx があれば優先度を自動設定
-       ↓
-3. Excelで確認・調整（手作業）
-   - 自動設定された優先度を確認
-   - 必要に応じて無関係なチャンクを 0 に変更
-       ↓
-4. Ground Truth JSON 変換
-   npx ts-node rag-evaluator.ts convert-all-csv \
-     --input ./all-chunks.csv \
-     --uuid <your-uuid> \
-     --output ./ground-truth-all.json
-   ※ relevance >= 2 のみを正解として変換
-       ↓
-5. 評価実行
-   npx ts-node rag-evaluator.ts evaluate-rrf \
-     --uuid <your-uuid> \
-     --stakeholders ./stakeholders.json \
-     --ground-truth ./ground-truth-all.json
-```
-
-### 主要コマンド
-
-| コマンド | 説明 |
-|---------|------|
-| `export-all-csv` | 全チャンクをCSV出力（完全評価用・推奨） |
-| `convert-all-csv` | 横並びCSVをGround Truth JSONに変換 |
-| `evaluate-rrf` | RRF方式での評価（本番と同じ動作） |
-| `export-csv` | 検索結果のみCSV出力（部分評価用） |
-| `convert-csv` | 部分評価用CSVをGround Truth JSONに変換 |
-| `show-queries` | ステークホルダーから生成されるクエリを確認 |
-
-### 評価指標
-
-| 指標 | 説明 |
-|------|------|
-| Precision@K | 取得したK件中の正解率 |
-| Recall@K | 全正解中の取得率 |
-| F1@K | PrecisionとRecallの調和平均 |
-| MRR | 最初の正解が出現する順位の逆数 |
-| nDCG@K | 順位を考慮した正解品質スコア（1-3スコアを活用） |
-| Coverage | ファイルの網羅率 |
-| K値達成率 | 目標K件取得の成功率 |
-
-### 関連度スコア基準
-
-| スコア | 記号 | 意味 | Ground Truth |
-|--------|------|------|--------------|
-| 3 | ◎ | 必須（高優先度） | ✅ 正解 |
-| 2 | ○ | 重要（中優先度） | ✅ 正解 |
-| 1 | △ | 背景情報程度 | ❌ 除外 |
-| 0 | - | 無関係 | ❌ 除外 |
-
-### セットアップ
-
-```bash
-cd rag-evaluation
-npm install
-
-# 環境変数を設定（rag-evaluation/.env.local）
-# PINECONE_API_KEY=...
-# OPENAI_API_KEY=...
-# PINECONE_INDEX_NAME=...
-```
-
-### クイックスタート
-
-```bash
-# 1. 全チャンクCSV出力（優先度自動設定）
-npx ts-node rag-evaluator.ts export-all-csv \
-  --uuid "your-uuid-here" \
-  --output ./all-chunks.csv
-
-# 2. Excelで確認・調整後、Ground Truth変換
-npx ts-node rag-evaluator.ts convert-all-csv \
-  --input ./all-chunks.csv \
-  --uuid "your-uuid-here" \
-  --output ./ground-truth-all.json
-
-# 3. 評価実行
-npx ts-node rag-evaluator.ts evaluate-rrf \
-  --uuid "your-uuid-here" \
-  --stakeholders ./stakeholders.json \
-  --ground-truth ./ground-truth-all.json
-```
-
-### 注意事項
-
-- `all-chunks.csv`, `ground-truth-all.json`, `evaluation-results/` は `.gitignore` で除外推奨
-- 評価結果は毎回生成可能なため、Gitにコミットする必要はありません
-- 詳細は `rag-evaluation/README.md` を参照してください
+**Recommended for:**
+- GSN files (structure matters)
+- Numeric data (CSV, Excel, etc.)
+- Small files (under 5,000 characters)
+- Critical specification documents
+
+**Limits:**
+- Max 50,000 characters per file (excess is truncated)
+- Max 150,000 characters total
+- Files over 50,000 characters: up to 2 files can use full-text inclusion
+
+### Custom Stakeholders
+
+In addition to the 6 preset stakeholders, you can create custom ones. Go to Settings menu (≡) → "Stakeholder Settings":
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| Name | Display name | Risk Manager |
+| Perspective keywords | Keywords of interest | risk, mitigation, ASIL |
+| Expertise level | Expert / Non-expert | Expert |
+| Reading time | Report length (minutes) | 5 min |
+| Primary concerns | Priority reporting topics | Risk assessment and mitigation status |
+
+Custom stakeholders are automatically assigned K-values and weights based on keywords in the role name.
+
+### Custom Report Structures
+
+Beyond preset structures, you can create your own. From the structure selector, click "Create Custom Structure" to add, edit, delete, and reorder sections.
+
+### Report History
+
+After logging in, generated reports can be saved to the cloud (AWS DynamoDB + S3). Access Settings menu → "Report History" to browse, sort, filter, and re-export saved reports.
+
+Stored information: report body (Markdown), title, stakeholder, rhetorical strategy, creation date, and input file metadata.
+
+## Architecture
+
+### Stakeholder-Adaptive RAG
+
+Retrieval is controlled through three adaptation layers based on stakeholder role:
+
+| Layer | Description | Example |
+|-------|-------------|---------|
+| Query expansion | Auto-generates search queries from role concerns | CxO: ROI, cost, risk management |
+| Dynamic K-value | Controls the number of retrieved chunks per role | CxO: 25%, R&D: 60% |
+| RRF weights | Adjusts ranking based on query importance | Technical: 1st query = 1.5× |
+
+### Dynamic K-Value Design
+
+| Stakeholder | Ratio | Min K | Max K | Design Rationale |
+|-------------|-------|-------|-------|-----------------|
+| CxO | 25% | 15 | 50 | Concise, focused information |
+| Business | 30% | 15 | 60 | Business impact focus |
+| Product | 40% | 18 | 80 | Balance of quality and safety |
+| Technical Fellows | 55% | 22 | 120 | Detailed technical information |
+| Architect | 55% | 22 | 120 | Design integrity verification |
+| R&D | 60% | 25 | 120 | Comprehensive technical evidence |
+
+K-value formula: `K = min(K_max, max(K_min, ⌈N × r⌉))`
+
+### Structure-Aware Chunking
+
+Documents are processed through the following pipeline:
+
+1. **Markdown conversion** — DOCX/HTML/TXT → unified Markdown
+2. **Structure extraction** — Split at headings (#, ##, ###)
+3. **Table protection** — Markdown tables kept as single chunks
+4. **Max-Min chunking** — Large sections split at semantic boundaries
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| MIN_SECTION_SIZE | 300 chars | Sections smaller than this are merged with the next |
+| MAX_SECTION_SIZE | 1,200 chars | Sections larger than this are split via Max-Min |
+
+Protected structures: Markdown tables, figure/table captions ("Table 1", "Figure 2", etc.), safety IDs (H-001, SR-101, etc. rendered in bold)
+
+### Rhetorical Strategies
+
+| Strategy | Target Stakeholders | Characteristics |
+|----------|--------------------|----|
+| Data-Driven | CxO, Business, Product | Persuasion through quantitative evidence |
+| Logical Reasoning | Technical Fellows, Architect | Logical justification and traceability |
+| Authority-Based | R&D | Arguments grounded in standards and technical literature |
+
+## Evaluation
+
+Evaluation scripts for RAG retrieval quality and SSR generation quality are located in the `evaluation/` directory. See [evaluation/README.md](evaluation/README.md) for details.
+
+## Tech Stack
+
+| Category | Technologies |
+|----------|-------------|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| AI / LLM | Anthropic Claude API, OpenAI Embeddings, Google Cloud Vision |
+| Vector Store | Pinecone (hybrid search), Kuromoji, WinkTokenizer |
+| Serverless | AWS Lambda (SAM), S3, Cognito, DynamoDB |
+| File Processing | @react-pdf/renderer, mammoth, xlsx, docx, turndown |
+| UI | React 19, react-markdown |
+| Hosting | AWS Amplify |
+
+## Troubleshooting
+
+### Lambda Function URL not set
+1. Deploy with `cd lambda && sam build && sam deploy`
+2. Set the output Function URL in `.env.local` as `NEXT_PUBLIC_LAMBDA_FUNCTION_URL`
+
+### Knowledge base request size error (exceeds 2 MB)
+- Reduce `batchSize` in `vector-store.ts` (e.g., 30)
+
+### Low search accuracy
+1. Enable hybrid search (`ENABLE_HYBRID_SEARCH=true`)
+2. Use "Full Text" for important files
+3. Use DOCX/Markdown instead of PDF
+
+### Report generation stalls with full-text inclusion
+1. Reduce full-text files to 2 or fewer
+2. Use RAG (Full Text OFF) for large files
+
+### Japanese characters garbled in PDF
+- Verify Noto Sans JP font CDN loading and network connectivity
+
+### Language does not switch
+1. Clear browser localStorage
+2. Reload the page and select language again
+
+## License
+
+[License information]

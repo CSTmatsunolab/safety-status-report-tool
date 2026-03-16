@@ -1,0 +1,15 @@
+# Python
+ssr-quality-eval/venv/
+__pycache__/
+*.pyc
+.env
+.env.local
+
+# Node
+rag-evaluation/node_modules/
+
+# Temporary files
+rag-evaluation/all-chunks-check.csv
+
+# OS
+.DS_Store

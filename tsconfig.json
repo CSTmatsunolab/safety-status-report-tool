@@ -36,7 +36,8 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "rag-evaluation"
+  "node_modules",
+  "evaluation",
+  "lambda"
   ]
 }

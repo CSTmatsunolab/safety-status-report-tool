@@ -1,0 +1,69 @@
+
+╔══════════════════════════════════════════════════════════════════╗
+║                    RAG 評価結果レポート                          ║
+╚══════════════════════════════════════════════════════════════════╝
+
+📅 評価日時: 2026-02-28T03:23:53.211Z
+📊 K値: 26
+📁 Namespace: 8714aa18-e041-70fb-8d68-e4feabf66bdd
+📋 Ground Truth Version: 1.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                         📈 全体サマリー
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────┬─────────────┬───────────────────────────────┐
+│ 指標                │ スコア      │ 説明                          │
+├─────────────────────┼─────────────┼───────────────────────────────┤
+│ Precision@26       │  84.46%     │ 取得チャンクの正解率          │
+│ Recall@26          │  85.33%     │ 正解チャンクの取得率          │
+│ F1@26              │  82.94%     │ Precision/Recallのバランス    │
+│ MRR                 │ 1.0000      │ 最初の正解の上位出現度        │
+│ nDCG@26            │ 0.8709      │ 順位付き正解品質              │
+│ Success@1(◎)       │  50.00%     │ 1位が最重要(◎)の確率         │
+├─────────────────────┼─────────────┼───────────────────────────────┤
+│ Coverage            │  84.62%     │ ファイルの網羅率              │
+│ K値達成率           │ 100.00%     │ 目標K件取得の成功率           │
+└─────────────────────┴─────────────┴───────────────────────────────┘
+
+📊 評価クエリ数: 6
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                         📝 クエリ別詳細
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 rrf_cxo (cxo)
+   Query: [RRF] CxO / 経営層
+   P@K: 93.3% | R@K: 56.0% | F1: 70.0%
+   RR: 1.0000 | nDCG: 0.9541 | S@1(◎): ✅
+   Hits: 14/25 (cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, cxo_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2)
+
+🔍 rrf_technical-fellows (technical-fellows)
+   Query: [RRF] Technical Fellows / 技術専門家
+   P@K: 75.0% | R@K: 96.0% | F1: 84.2%
+   RR: 1.0000 | nDCG: 0.7888 | S@1(◎): ❌
+   Hits: 24/25 (technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1, technical-fellows_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3)
+
+🔍 rrf_architect (architect)
+   Query: [RRF] Architect / アーキテクト
+   P@K: 78.1% | R@K: 100.0% | F1: 87.7%
+   RR: 1.0000 | nDCG: 0.8863 | S@1(◎): ✅
+   Hits: 25/25 (architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, architect_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20)
+
+🔍 rrf_business (business)
+   Query: [RRF] Business Division / 事業部門
+   P@K: 88.9% | R@K: 64.0% | F1: 74.4%
+   RR: 1.0000 | nDCG: 0.9076 | S@1(◎): ✅
+   Hits: 16/25 (business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2, business_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15)
+
+🔍 rrf_product (product)
+   Query: [RRF] Product Division / 製品部門
+   P@K: 100.0% | R@K: 96.0% | F1: 98.0%
+   RR: 1.0000 | nDCG: 0.8646 | S@1(◎): ❌
+   Hits: 24/25 (product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, product_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4)
+
+🔍 rrf_r-and-d (r-and-d)
+   Query: [RRF] R&D Division / 研究開発部門
+   P@K: 71.4% | R@K: 100.0% | F1: 83.3%
+   RR: 1.0000 | nDCG: 0.8240 | S@1(◎): ❌
+   Hits: 25/25 (r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_1, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_3, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_10, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_2, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_5, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_1, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_2, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_0, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_2, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_4, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_2, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_15, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_3, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_4, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_4, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_4, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_4, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_1, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Verification_Results.md_20, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_3, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Risk_Summary.md_1, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_1, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Project_Status.md_2, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Hazard_Analysis.md_3, r-and-d_8714aa18-e041-70fb-8d68-e4feabf66bdd_TEST_Safety_Requirements.md_3)
