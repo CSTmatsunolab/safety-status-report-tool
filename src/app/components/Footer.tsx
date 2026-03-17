@@ -1,11 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
-import { useI18n } from './I18nProvider';
 
 export function Footer() {
-  const { language } = useI18n();
 
   return (
     <footer className="bg-gray-900 dark:bg-black mt-12">
