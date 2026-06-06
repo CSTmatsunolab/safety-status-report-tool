@@ -140,6 +140,18 @@ function testSecurityHardeningStaticChecks() {
   assert.match(clientAuthHeaders, /fetchAuthSession/, 'client API calls must be able to attach the Cognito ID token');
   assert.match(clientAuthHeaders, /Authorization.*Bearer/, 'client auth helper must emit a Bearer authorization header');
 
+  const amplifyConfig = readProjectFile('src/lib/amplify-config.ts');
+  assert.match(amplifyConfig, /NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID/, 'Amplify config must read the preferred Cognito client id env var');
+  assert.match(amplifyConfig, /NEXT_PUBLIC_COGNITO_CLIENT_ID/, 'Amplify config must retain the legacy Cognito client id env var fallback');
+
+  const authProvider = readProjectFile('src/app/components/AuthProvider.tsx');
+  assert.match(authProvider, /authConfigured: boolean/, 'auth context must expose whether Cognito auth is configured');
+  assert.match(authProvider, /if \(!authConfigured\)/, 'auth operations must avoid calling Amplify when Cognito auth is not configured');
+
+  const authModal = readProjectFile('src/app/components/AuthModal.tsx');
+  assert.match(authModal, /Authentication not configured/, 'auth modal must show a clear not-configured state');
+  assert.match(authModal, /if \(!authConfigured\)/, 'auth modal must avoid rendering sign-in/sign-up forms when auth is not configured');
+
   const s3Utils = readProjectFile('src/lib/s3-utils.ts');
   assert.match(s3Utils, /uploads\/\$\{scopedUser\}\//, 'presigned S3 uploads must be stored under a user-scoped prefix');
   assert.match(s3Utils, /owner:\s*scopedUser/, 'presigned S3 uploads must record the scoped owner metadata');

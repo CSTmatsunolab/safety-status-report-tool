@@ -44,7 +44,15 @@ const validatePassword = (password: string, language: 'en' | 'ja'): string | nul
 
 export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModalProps) {
   const { language, setLanguage } = useI18n();
-  const { signIn, signUp, confirmSignUp, resendConfirmationCode, resetPassword, confirmResetPassword } = useAuth();
+  const {
+    authConfigured,
+    signIn,
+    signUp,
+    confirmSignUp,
+    resendConfirmationCode,
+    resetPassword,
+    confirmResetPassword,
+  } = useAuth();
   
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
@@ -94,6 +102,7 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
     resetPasswordButton: language === 'en' ? 'Reset Password' : 'パスワードをリセット',
     resendCode: language === 'en' ? 'Resend code' : 'コードを再送信',
     continueAsGuest: language === 'en' ? 'Continue as Guest' : 'ゲストとして続ける',
+    close: language === 'en' ? 'Close' : '閉じる',
     
     // リンクテキスト
     forgotPassword: language === 'en' ? 'Forgot password?' : 'パスワードを忘れた方',
@@ -117,6 +126,10 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
     resetCodeSent: language === 'en' ? 'Password reset code has been sent to your email' : 'パスワードリセットコードをメールに送信しました',
     passwordResetSuccess: language === 'en' ? 'Password has been reset. Please sign in' : 'パスワードがリセットされました。ログインしてください',
     emailConfirmed: language === 'en' ? 'Email confirmed. Please sign in.' : 'メール確認が完了しました。ログインしてください。',
+    authUnavailableTitle: language === 'en' ? 'Authentication not configured' : '認証は未設定です',
+    authUnavailableDescription: language === 'en'
+      ? 'Cognito is not configured for this environment. Continue as a guest, or set NEXT_PUBLIC_COGNITO_USER_POOL_ID and NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID in .env.local and restart the dev server.'
+      : 'この環境では Cognito が設定されていません。ゲストとして続けるか、.env.local に NEXT_PUBLIC_COGNITO_USER_POOL_ID と NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID を設定して dev server を再起動してください。',
   };
 
   if (!isOpen) return null;
@@ -257,6 +270,23 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
   const inputClassName = "w-full px-5 py-4 text-xl border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors";
 
   const renderForm = () => {
+    if (!authConfigured) {
+      return (
+        <div className="space-y-6">
+          <p className="text-lg leading-relaxed text-gray-600 dark:text-gray-300">
+            {t.authUnavailableDescription}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full py-5 px-6 bg-blue-600 hover:bg-blue-700 text-white text-2xl rounded-xl font-semibold flex items-center justify-center transition-colors"
+          >
+            {t.continueAsGuest}
+          </button>
+        </div>
+      );
+    }
+
     switch (mode) {
       case 'signIn':
         return (
@@ -555,6 +585,10 @@ export function AuthModal({ isOpen, onClose, initialMode = 'signIn' }: AuthModal
   };
 
   const getTitle = () => {
+    if (!authConfigured) {
+      return t.authUnavailableTitle;
+    }
+
     switch (mode) {
       case 'signIn': return t.signIn;
       case 'signUp': return t.signUp;

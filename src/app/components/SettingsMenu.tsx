@@ -35,7 +35,7 @@ export function SettingsMenu() {
   const menuRef = useRef<HTMLDivElement>(null);
   const { theme, setTheme } = useTheme();
   const { language, setLanguage, t } = useI18n();
-  const { user, status, signOut, showAuthModal, setShowAuthModal } = useAuth();
+  const { user, status, authConfigured, signOut, showAuthModal, setShowAuthModal } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -115,6 +115,7 @@ export function SettingsMenu() {
     signOut: language === 'en' ? 'Sign Out' : 'ログアウト',
     guest: language === 'en' ? 'Guest' : 'ゲスト',
     account: language === 'en' ? 'Account' : 'アカウント',
+    authUnavailable: language === 'en' ? 'Authentication not configured' : '認証は未設定です',
   };
 
   // セクションヘッダーのテキスト
@@ -227,19 +228,25 @@ export function SettingsMenu() {
                         <FiUser size={28} className="flex-shrink-0" />
                         <span className="font-medium">{authText.guest}</span>
                       </div>
-                      <button
-                        onClick={handleOpenAuthModal}
-                        className="
-                          flex items-center gap-3 w-full px-4 py-3
-                          text-lg text-blue-600 dark:text-blue-400
-                          bg-blue-50 dark:bg-blue-900/20
-                          hover:bg-blue-100 dark:hover:bg-blue-900/30
-                          rounded-xl transition-colors font-semibold
-                        "
-                      >
-                        <FiLogIn size={24} className="flex-shrink-0" />
-                        <span>{authText.signIn}</span>
-                      </button>
+                      {authConfigured ? (
+                        <button
+                          onClick={handleOpenAuthModal}
+                          className="
+                            flex items-center gap-3 w-full px-4 py-3
+                            text-lg text-blue-600 dark:text-blue-400
+                            bg-blue-50 dark:bg-blue-900/20
+                            hover:bg-blue-100 dark:hover:bg-blue-900/30
+                            rounded-xl transition-colors font-semibold
+                          "
+                        >
+                          <FiLogIn size={24} className="flex-shrink-0" />
+                          <span>{authText.signIn}</span>
+                        </button>
+                      ) : (
+                        <div className="px-4 py-3 text-base text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/30 rounded-xl">
+                          {authText.authUnavailable}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

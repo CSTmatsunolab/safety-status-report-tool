@@ -8,7 +8,9 @@ let isConfigured = false;
 
 function getAmplifyConfigFromEnv(): ResourcesConfig | null {
   const userPoolId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID;
-  const userPoolClientId = process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID;
+  const userPoolClientId =
+    process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
   const identityPoolId = process.env.NEXT_PUBLIC_COGNITO_IDENTITY_POOL_ID;
 
   if (!userPoolId || !userPoolClientId) {

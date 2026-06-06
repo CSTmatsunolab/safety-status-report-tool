@@ -28,6 +28,7 @@ export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 interface AuthContextType {
   user: AuthUser | null;
   status: AuthStatus;
+  authConfigured: boolean;
   showAuthModal: boolean;
   setShowAuthModal: (show: boolean) => void;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }>;
@@ -49,11 +50,13 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [status, setStatus] = useState<AuthStatus>('loading');
+  const [authConfigured, setAuthConfigured] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Amplifyの初期化と現在のユーザーを確認
   useEffect(() => {
     const configured = configureAmplify();
+    setAuthConfigured(configured);
     if (configured) {
       checkCurrentUser();
     } else {
@@ -93,6 +96,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // サインイン
   const handleSignIn = async (email: string, password: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       const result = await signIn({ username: email, password });
       
@@ -112,6 +119,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // サインアップ
   const handleSignUp = async (email: string, password: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       await signUp({
         username: email,
@@ -131,6 +142,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // サインアウト
   const handleSignOut = async () => {
+    if (!authConfigured) {
+      setUser(null);
+      setStatus('unauthenticated');
+      return;
+    }
+
     try {
       await signOut();
       setUser(null);
@@ -142,6 +159,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // サインアップ確認（確認コード入力）
   const handleConfirmSignUp = async (email: string, code: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       await confirmSignUp({ username: email, confirmationCode: code });
       return { success: true };
@@ -153,6 +174,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // 確認コード再送信
   const handleResendConfirmationCode = async (email: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       await resendSignUpCode({ username: email });
       return { success: true };
@@ -164,6 +189,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // パスワードリセット要求
   const handleResetPassword = async (email: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       await resetPassword({ username: email });
       return { success: true };
@@ -175,6 +204,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // パスワードリセット確認
   const handleConfirmResetPassword = async (email: string, code: string, newPassword: string) => {
+    if (!authConfigured) {
+      return { success: false, error: 'Authentication is not configured for this environment.' };
+    }
+
     try {
       await confirmResetPassword({ username: email, confirmationCode: code, newPassword });
       return { success: true };
@@ -198,6 +231,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       value={{
         user,
         status,
+        authConfigured,
         showAuthModal,
         setShowAuthModal,
         signIn: handleSignIn,
