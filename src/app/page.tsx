@@ -14,16 +14,19 @@ import ReportStructureSelector from './components/ReportStructureSelector';
 import { KnowledgeBaseManager } from './components/KnowledgeBaseManager';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
-import { useSectionGeneration } from '@/hooks/useSectionGeneration';
+import { isRemoteLambdaGenerationConfigured, useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
-import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle } from 'react-icons/fi';
+import { shouldUseFullText } from '@/lib/full-text-files';
+import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiKey, FiX } from 'react-icons/fi';
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
+const ANTHROPIC_API_KEY_STORAGE_KEY = 'ssr-anthropic-api-key';
 
 export default function Home() {
   const { t, language } = useI18n();
   const { getUserIdentifier, status: authStatus } = useAuth();
+  const useRemoteRagGeneration = isRemoteLambdaGenerationConfigured();
   
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [selectedStakeholder, setSelectedStakeholder] = useState<Stakeholder | null>(null);
@@ -36,6 +39,7 @@ export default function Home() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [warningMessages, setWarningMessages] = useState<string[]>([]);
+  const [anthropicApiKey, setAnthropicApiKey] = useState('');
   
   // 中断処理用の状態
   const [isCancelling, setIsCancelling] = useState(false);
@@ -158,6 +162,13 @@ export default function Home() {
     }
   }, [authStatus, getUserIdentifier]);
 
+  useEffect(() => {
+    const savedApiKey = window.localStorage.getItem(ANTHROPIC_API_KEY_STORAGE_KEY);
+    if (savedApiKey) {
+      setAnthropicApiKey(savedApiKey);
+    }
+  }, []);
+
   // セクション生成エラーを監視
   useEffect(() => {
     if (sectionError) {
@@ -213,13 +224,26 @@ export default function Home() {
         return {
           ...file,
           type: (isGSN ? 'gsn' : 'other') as 'gsn' | 'minutes' | 'other',
+          includeFullText: isGSN ? true : file.includeFullText,
           metadata: {
             ...currentMetadata,
+            isGSN,
             userDesignatedGSN: isGSN
           }
         };
       })
     );
+  };
+
+  const handleAnthropicApiKeyChange = (value: string) => {
+    setAnthropicApiKey(value);
+
+    const trimmedValue = value.trim();
+    if (trimmedValue) {
+      window.localStorage.setItem(ANTHROPIC_API_KEY_STORAGE_KEY, trimmedValue);
+    } else {
+      window.localStorage.removeItem(ANTHROPIC_API_KEY_STORAGE_KEY);
+    }
   };
 
   // カスタム構成を追加する関数
@@ -469,8 +493,8 @@ export default function Home() {
     setWarningMessages([]);
     resetSectionGeneration();
     
-    // ファイルがある場合のみナレッジベース構築
-    if (files.length > 0 && knowledgeBaseStatus !== 'ready') {
+    // リモートLambda構成時のみ、生成前にナレッジベースを構築する
+    if (useRemoteRagGeneration && files.length > 0 && knowledgeBaseStatus !== 'ready') {
       await buildKnowledgeBase(true);
       if (knowledgeBaseStatus === 'error') return;
     }
@@ -480,7 +504,7 @@ export default function Home() {
     const MAX_LARGE_FULL_TEXT_FILES = 2;
     const MAX_CONTENT_CHARS_PER_FILE = 50000;
 
-    const fullTextFiles = files.filter(f => f.includeFullText);
+    const fullTextFiles = files.filter(f => shouldUseFullText(f));
 
     const oversizedFiles = fullTextFiles.filter(f => {
       const metadata = f.metadata as { originalContentLength?: number };
@@ -530,6 +554,7 @@ export default function Home() {
       reportStructure: selectedStructure,
       userIdentifier,
       language,
+      anthropicApiKey: anthropicApiKey.trim() || undefined,
     });
 
     if (report) {
@@ -723,7 +748,7 @@ export default function Home() {
                 onSelect={handleStakeholderSelect}
               />
 
-              {selectedStakeholder && (
+              {selectedStakeholder && useRemoteRagGeneration && (
                 <KnowledgeBaseManager
                   stakeholder={selectedStakeholder}
                   userIdentifier={userIdentifier}
@@ -823,6 +848,55 @@ export default function Home() {
                 />
               </div>
             )}
+
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-4 transition-all">
+              <label
+                htmlFor="anthropic-api-key"
+                className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200"
+              >
+                <FiKey className="text-gray-500 dark:text-gray-400" size={18} />
+                Claude API Key
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <input
+                  id="anthropic-api-key"
+                  type="password"
+                  value={anthropicApiKey}
+                  onChange={(event) => handleAnthropicApiKeyChange(event.target.value)}
+                  placeholder="sk-ant-..."
+                  autoComplete="new-password"
+                  spellCheck={false}
+                  className="
+                    min-w-0 flex-1 rounded-md border border-gray-300 dark:border-gray-600
+                    bg-white dark:bg-gray-900 px-3 py-2 text-sm
+                    text-gray-900 dark:text-gray-100
+                    placeholder:text-gray-400 dark:placeholder:text-gray-500
+                    focus:outline-none focus:ring-2 focus:ring-blue-500
+                  "
+                />
+                {anthropicApiKey && (
+                  <button
+                    type="button"
+                    onClick={() => handleAnthropicApiKeyChange('')}
+                    title={language === 'en' ? 'Clear Claude API key' : 'Claude APIキーをクリア'}
+                    aria-label={language === 'en' ? 'Clear Claude API key' : 'Claude APIキーをクリア'}
+                    className="
+                      shrink-0 rounded-md border border-gray-300 dark:border-gray-600
+                      p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700
+                      dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200
+                      transition-colors
+                    "
+                  >
+                    <FiX size={18} />
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                {language === 'en'
+                  ? 'Saved only in this browser and sent only when generating. If blank, the server-side ANTHROPIC_API_KEY is used.'
+                  : 'このブラウザにのみ保存し、生成時だけ送信します。未入力時はサーバー側の ANTHROPIC_API_KEY を使用します。'}
+              </p>
+            </div>
 
             {/* レポート生成ボタン */}
             <button

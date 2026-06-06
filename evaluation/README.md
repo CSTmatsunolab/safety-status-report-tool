@@ -179,6 +179,17 @@ evaluation-results/comparison-{timestamp}/
 └── non-adaptive-result-{timestamp}.json    # Non-Adaptive detail
 ```
 
+**Step 5: Reproduce paper tables from pinned artifacts**
+
+The paper-table manifest pins the exact saved result files used for manuscript revision. Use `--check` in CI or before editing the paper; omit it to write regenerated Markdown/JSON tables under `evaluation/rag-evaluation/paper-tables/`.
+
+```bash
+npm run test:evaluation-repro
+
+# or, from evaluation/rag-evaluation:
+npm run reproduce-paper-tables
+```
+
 **Utility: View generated queries**
 
 ```bash

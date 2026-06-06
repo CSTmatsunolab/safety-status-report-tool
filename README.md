@@ -109,8 +109,10 @@ cd ..
 Create `.env.local` in the project root:
 
 ```bash
-# Required
+# Required for server-side fallback. Users can also enter this in the UI.
 ANTHROPIC_API_KEY=your_claude_api_key
+
+# Required for RAG / embeddings
 OPENAI_API_KEY=your_openai_api_key
 PINECONE_API_KEY=your_pinecone_api_key
 PINECONE_INDEX_NAME=ssr-index
@@ -134,6 +136,26 @@ APP_AWS_S3_BUCKET_NAME=your_bucket_name
 # S3 cleanup
 CLEANUP_AUTH_TOKEN=your_secure_random_token
 ```
+
+### Local Mode
+
+For local development without a deployed Lambda function or Amplify `aws-exports`, copy the example file and either set `ANTHROPIC_API_KEY` or enter your Claude API key in the UI:
+
+```bash
+cp .env.local.example .env.local
+# optional: edit .env.local and set ANTHROPIC_API_KEY
+npm run dev:local
+```
+
+When `NEXT_PUBLIC_LAMBDA_FUNCTION_URL` is empty, the UI automatically uses the local Next.js route `/api/generate-report-local`. This mode:
+
+- runs without `src/aws-exports`
+- runs without Cognito by using guest mode
+- skips the Pinecone knowledge base step during report generation
+- supports small local uploads whose extracted text is available in the browser
+- lets users provide the Claude API key from the report generation screen; the key is stored only in that browser and sent only during generation
+
+Remote RAG mode is still available by setting `NEXT_PUBLIC_LAMBDA_FUNCTION_URL`, `OPENAI_API_KEY`, `PINECONE_API_KEY`, and `PINECONE_INDEX_NAME`.
 
 Lambda environment variables are configured in `lambda/template.yaml`. See [lambda/README.md](lambda/README.md) for details.
 

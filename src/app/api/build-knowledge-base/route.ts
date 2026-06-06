@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import { generateNamespace } from '@/lib/browser-id';
 import { chunkDocument } from '@/lib/chunking-strategies';
+import { isGSNFile, shouldUseFullText } from '@/lib/full-text-files';
 
 // FileMetadata型を拡張（pdfBufferプロパティを追加）
 interface ExtendedFileMetadata {
@@ -215,9 +216,10 @@ export async function POST(request: NextRequest) {
     const warnings: string[] = [];
     
     for (const file of files) {
-      // 全文使用ファイルはスキップ
-      if (file.includeFullText) {
-        console.log(`Skipping vector store for full-text file: ${file.name}`);
+      // 全文使用ファイルとGSNファイルは検索インデックスに入れない
+      if (shouldUseFullText(file)) {
+        const reason = isGSNFile(file) ? 'GSN full-text file' : 'full-text file';
+        console.log(`Skipping vector store for ${reason}: ${file.name}`);
         continue;
       }
       
@@ -325,7 +327,7 @@ export async function POST(request: NextRequest) {
             uploadedAt: file.uploadedAt.toString(),
             truncated: truncated,
             stakeholderId: stakeholderId,
-            isGSN: file.type === 'gsn' || file.metadata?.isGSN,
+            isGSN: isGSNFile(file),
             isMinutes: file.type === 'minutes',
             extractionMethod: file.metadata?.extractionMethod,
             userDesignatedGSN: file.metadata?.userDesignatedGSN
@@ -363,7 +365,7 @@ export async function POST(request: NextRequest) {
               chunkIndex: 0,
               totalChunks: 1,
               stakeholderId: stakeholderId,
-              isGSN: file.type === 'gsn',
+              isGSN: isGSNFile(file),
               isMinutes: file.type === 'minutes',
               chunkingMethod: 'fallback-error'
             }

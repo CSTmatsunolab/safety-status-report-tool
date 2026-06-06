@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "description": "Pinned RAG evaluation artifacts used to regenerate paper tables.",
+  "tolerance": 1e-9,
+  "broad": {
+    "label": "Broad relevance (relevance score >= 1)",
+    "resultPath": "evaluation-results/2026-02-28T03-23-53-212Z/evaluation-rrf-result-2026-02-28T03-23-53-212Z.json",
+    "expectedSummary": {
+      "avgPrecisionAtK": 0.8446263227513229,
+      "avgRecallAtK": 0.8533333333333334,
+      "avgF1AtK": 0.8294015770322817,
+      "avgNdcgAtK": 0.8709022636371397
+    }
+  },
+  "strictComparison": {
+    "label": "Strict relevance comparison (relevance score >= 2)",
+    "comparisonPath": "evaluation-results/comparison-2026-03-04T01-46-45-346Z/comparison-result-2026-03-04T01-46-45-346Z.json",
+    "adaptivePath": "evaluation-results/comparison-2026-03-04T01-46-45-346Z/adaptive-result-2026-03-04T01-46-45-346Z.json",
+    "nonAdaptivePath": "evaluation-results/comparison-2026-03-04T01-46-45-346Z/non-adaptive-result-2026-03-04T01-46-45-346Z.json",
+    "expectedAdaptiveSummary": {
+      "avgPrecisionAtK": 0.6581183862433861,
+      "avgRecallAtK": 0.8972222222222223,
+      "avgF1AtK": 0.7232973633309578,
+      "avgNdcgAtK": 0.806267842241729
+    },
+    "expectedNonAdaptiveSummary": {
+      "avgPrecisionAtK": 0.7083333333333334,
+      "avgRecallAtK": 0.9750000000000001,
+      "avgF1AtK": 0.8164335664335663,
+      "avgNdcgAtK": 0.8174748796957534
+    }
+  }
+}

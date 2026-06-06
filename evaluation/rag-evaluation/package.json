@@ -8,6 +8,8 @@
     "convert-tsv": "ts-node rag-evaluator.ts convert-tsv",
     "evaluate": "ts-node rag-evaluator.ts evaluate",
     "evaluate-rrf": "ts-node rag-evaluator.ts evaluate-rrf",
+    "reproduce-paper-tables": "node reproduce-paper-tables.mjs",
+    "check-paper-tables": "node reproduce-paper-tables.mjs --check",
     "show-queries": "ts-node rag-evaluator.ts show-queries",
     "help": "ts-node rag-evaluator.ts help"
   },

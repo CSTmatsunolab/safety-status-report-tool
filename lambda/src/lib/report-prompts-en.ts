@@ -469,7 +469,8 @@ Extract the following elements without omission and reflect in the report:
 - Causal relationships and analysis results explicitly stated in documents
 
 ### Citation Rules
-- Cite source for all numbers and facts: "XX (from Document ID: XXX-001)"
+- Cite source IDs for all numbers and facts: "XX [SRC-001]"
+- Use the exact [SRC-001] source ID format shown in the provided source contents
 - Record sources for information from multiple documents
 - Quote important numbers accurately from original text
 

@@ -5,9 +5,11 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
+import { isGSNFile, shouldUseFullText } from '@/lib/full-text-files';
 
-// Lambda Function URL (環境変数から取得)
+// Remote Lambda URL. If omitted, the app uses the local Next.js API route.
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
+const LOCAL_GENERATION_URL = '/api/generate-report-local';
 
 // 進捗状態の型定義
 interface SectionProgress {
@@ -45,6 +47,7 @@ interface GenerateReportParams {
   reportStructure: ReportStructureTemplate;
   userIdentifier: string;
   language: 'ja' | 'en';
+  anthropicApiKey?: string;
 }
 
 interface LambdaStreamMessage {
@@ -69,7 +72,15 @@ interface LambdaStreamMessage {
  * Lambda生成が利用可能かチェック
  */
 export function isLambdaGenerationAvailable(): boolean {
+  return true;
+}
+
+export function isRemoteLambdaGenerationConfigured(): boolean {
   return !!LAMBDA_FUNCTION_URL;
+}
+
+export function getReportGenerationEndpoint(): string {
+  return LAMBDA_FUNCTION_URL || LOCAL_GENERATION_URL;
 }
 
 export function useSectionGeneration(options: UseSectionGenerationOptions = {}) {
@@ -117,7 +128,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, anthropicApiKey } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -136,7 +147,9 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     const initialProgress: SectionProgress = {
       currentSection: 0,
       totalSections: reportStructure.sections.length,
-      sectionName: language === 'ja' ? 'Lambda関数で生成中...' : 'Generating with Lambda...',
+      sectionName: LAMBDA_FUNCTION_URL
+        ? (language === 'ja' ? 'Lambda関数で生成中...' : 'Generating with Lambda...')
+        : (language === 'ja' ? 'ローカルAPIで生成中...' : 'Generating with local API...'),
       status: 'generating',
       completedSections: [],
       contextPrepared: false,
@@ -150,21 +163,24 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     options.onProgress?.(initialProgress);
 
     // ファイルデータをLambda用に変換
-    const filesForLambda = files.map(f => ({
-      name: f.name,
-      content: f.content || '',
-      type: f.type,
-      size: f.metadata?.size || 0,
-      isGSN: f.metadata?.isGSN || f.metadata?.userDesignatedGSN || f.type === 'gsn',
-      useFullText: f.includeFullText || false,
-      s3Key: f.metadata?.s3Key,
-    }));
+    const filesForLambda = files.map(f => {
+      const isGSN = isGSNFile(f);
+      return {
+        name: f.name,
+        content: f.content || '',
+        type: f.type,
+        size: f.metadata?.size || 0,
+        isGSN,
+        useFullText: shouldUseFullText(f),
+        s3Key: f.metadata?.s3Key,
+      };
+    });
 
     const fullTextFileIds = files
-      .filter(f => f.includeFullText)
+      .filter(f => shouldUseFullText(f))
       .map(f => f.name);
 
-    const response = await fetch(LAMBDA_FUNCTION_URL, {
+    const response = await fetch(getReportGenerationEndpoint(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -176,6 +192,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         fullTextFileIds,
         language,
         userIdentifier,
+        anthropicApiKey: anthropicApiKey?.trim() || undefined,
       }),
       signal,
     });
@@ -329,10 +346,6 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
     streamingContentRef.current = '';
 
     try {
-      if (!isLambdaGenerationAvailable()) {
-        throw new Error('Lambda Function URLが設定されていません。環境変数 NEXT_PUBLIC_LAMBDA_FUNCTION_URL を確認してください。');
-      }
-
       return await generateReportWithLambda(params);
 
     } catch (err) {

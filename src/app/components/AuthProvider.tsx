@@ -53,8 +53,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Amplifyの初期化と現在のユーザーを確認
   useEffect(() => {
-    configureAmplify();
-    checkCurrentUser();
+    const configured = configureAmplify();
+    if (configured) {
+      checkCurrentUser();
+    } else {
+      setUser(null);
+      setStatus('unauthenticated');
+    }
   }, []);
 
   // 現在のログイン状態を確認

@@ -26,6 +26,15 @@ import {
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
 } from './lib/rhetoric-strategies';
+import { isGSNFile, shouldUseFullText } from './lib/full-text-files';
+import {
+  analyzeReportTraceability,
+  buildFullTextSource,
+  buildRagSources,
+  formatTraceableContext,
+  TraceabilityCheckResult,
+  TraceableSource,
+} from './lib/traceability';
 
 // RAGモジュールのインポート
 import { 
@@ -33,11 +42,6 @@ import {
   generateNamespace,
   debugQueryEnhancement
 } from './lib/rag';
-
-// クライアント初期化
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -56,6 +60,11 @@ const MAX_CONTENT_CHARS_PER_FILE = 50000;
 const MAX_TOTAL_CONTEXT_CHARS = 150000;
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
+function resolveAnthropicApiKey(requestApiKey: unknown): string | undefined {
+  const trimmedRequestApiKey = typeof requestApiKey === 'string' ? requestApiKey.trim() : '';
+  return trimmedRequestApiKey || process.env.ANTHROPIC_API_KEY;
+}
+
 // 進捗メッセージの型
 interface StreamMessage {
   type: 'progress' | 'chunk' | 'complete' | 'error';
@@ -72,6 +81,7 @@ interface StreamMessage {
     rhetoricStrategy: string;
     createdAt: string;
   };
+  traceability?: TraceabilityCheckResult;
   error?: string;
   details?: string;
   totalDuration?: number;
@@ -145,7 +155,8 @@ async function streamHandler(
       files = [], 
       fullTextFileIds = [],
       language = 'ja',
-      userIdentifier = 'anonymous'
+      userIdentifier = 'anonymous',
+      anthropicApiKey: requestAnthropicApiKey
     } = body;
 
     // バリデーション
@@ -157,6 +168,22 @@ async function streamHandler(
       httpResponseStream.end();
       return;
     }
+
+    const effectiveAnthropicApiKey = resolveAnthropicApiKey(requestAnthropicApiKey);
+    if (!effectiveAnthropicApiKey) {
+      sendMessage({
+        type: 'error',
+        error: language === 'ja'
+          ? 'Claude APIキーが設定されていません。画面で入力するか、Lambda環境変数 ANTHROPIC_API_KEY を設定してください。'
+          : 'Claude API key is not set. Enter it in the UI or set the Lambda ANTHROPIC_API_KEY environment variable.'
+      });
+      httpResponseStream.end();
+      return;
+    }
+
+    const anthropic = new Anthropic({
+      apiKey: effectiveAnthropicApiKey,
+    });
     
     if (DEBUG_LOGGING) {
         console.log('Starting streaming report generation:', {
@@ -210,8 +237,6 @@ async function streamHandler(
       }
     );
 
-    const ragContent = ragResult.content;
-
     // 検索結果のログ
     if (DEBUG_LOGGING) {
       console.log('RRF Search completed:', {
@@ -231,12 +256,12 @@ async function streamHandler(
       percent: 30
     });
 
-    const contextParts: string[] = [];
+    const contextParts: TraceableSource[] = [];
     let hasGSNFile = false;
 
     // 全文ファイル処理
     const fullTextFiles = files.filter(f => 
-      fullTextFileIds.includes(f.name) || f.useFullText
+      shouldUseFullText(f, fullTextFileIds)
     );
 
     for (const file of fullTextFiles) {
@@ -245,21 +270,27 @@ async function streamHandler(
         content = await getS3FileContent(file.s3Key, file.name);
       }
       if (content) {
-        const truncatedContent = content.length > MAX_CONTENT_CHARS_PER_FILE 
+        const wasTruncated = content.length > MAX_CONTENT_CHARS_PER_FILE;
+        const truncatedContent = wasTruncated
           ? content.substring(0, MAX_CONTENT_CHARS_PER_FILE) + '\n\n[内容が大きすぎるため省略されました]'
           : content;
-        contextParts.push(`=== ファイル: ${file.name} (全文) ===\n\n${truncatedContent}`);
-        if (file.isGSN) hasGSNFile = true;
+        contextParts.push(buildFullTextSource(
+          file,
+          contextParts.length,
+          truncatedContent,
+          wasTruncated
+        ));
+        if (isGSNFile(file)) hasGSNFile = true;
       }
     }
 
     // ファイル配列からもGSNチェック
     if (!hasGSNFile) {
-      hasGSNFile = files.some(f => f.isGSN);
+      hasGSNFile = files.some(f => isGSNFile(f));
     }
 
-    if (ragContent) {
-      contextParts.push(`=== RAG抽出内容 ===\n\n${ragContent}`);
+    if (ragResult.documents.length > 0) {
+      contextParts.push(...buildRagSources(ragResult.documents, contextParts.length));
     }
 
     if (contextParts.length === 0) {
@@ -273,7 +304,7 @@ async function streamHandler(
       return;
     }
 
-    let contextContent = contextParts.join('\n\n---\n\n');
+    let contextContent = formatTraceableContext(contextParts, language);
     if (contextContent.length > MAX_TOTAL_CONTEXT_CHARS) {
       contextContent = contextContent.substring(0, MAX_TOTAL_CONTEXT_CHARS) + '\n\n...(文字数制限により省略)';
     }
@@ -357,8 +388,14 @@ async function streamHandler(
       : `Safety Status Report for ${stakeholder.role}`;
 
     const totalDuration = Date.now() - startTime;
+    const traceability = analyzeReportTraceability(fullReportContent, contextParts);
 
     console.log(`Report generation completed in ${totalDuration}ms`);
+    console.log('Traceability check:', {
+      sourceCount: traceability.sourceCount,
+      citationCoverage: traceability.citationCoverage,
+      issues: traceability.issues.length,
+    });
 
     // 最終結果を送信
     sendMessage({
@@ -373,6 +410,7 @@ async function streamHandler(
         rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
         createdAt: new Date().toISOString(),
       },
+      traceability,
       totalDuration,
     });
 

@@ -6,7 +6,7 @@ import { MemoryVectorStore } from 'langchain/vectorstores/memory';
 import { PineconeStore } from '@langchain/pinecone';
 import { Pinecone, type RecordMetadata } from '@pinecone-database/pinecone';
 import { generateNamespace } from './browser-id';
-import { createSparseVector, type SparseValues } from './sparse-vector-utils';
+import { createBM25SparseVectorSet, type SparseValues } from './sparse-vector-utils';
 
 export interface VectorStoreConfig {
   stakeholderId: string;
@@ -282,11 +282,15 @@ export class VectorStoreFactory {
         docs.map(doc => doc.pageContent)
       );
 
-      console.log(`Generating sparse vectors (async) for ${docs.length} documents...`);
-      
-      // Promise.all を使って疎ベクトルを並列生成
-      const sparseVectors = await Promise.all(
-        docs.map(doc => createSparseVector(doc.pageContent))
+      console.log(`Generating BM25 sparse vectors for ${docs.length} documents...`);
+      const sparseVectorSet = await createBM25SparseVectorSet(
+        docs.map(doc => doc.pageContent)
+      );
+      const sparseVectors = sparseVectorSet.vectors;
+      console.log(
+        `BM25 corpus stats: documents=${sparseVectorSet.stats.documentCount}, ` +
+        `avgDocLength=${sparseVectorSet.stats.averageDocumentLength.toFixed(2)}, ` +
+        `uniqueTerms=${sparseVectorSet.stats.uniqueTerms}`
       );
 
       console.log('Preparing for upsert...');
@@ -326,6 +330,10 @@ export class VectorStoreFactory {
         
         // pageContentを追加（検索用）
         cleanMetadata.pageContent = doc.pageContent;
+        cleanMetadata.sparseVectorMethod = 'bm25';
+        cleanMetadata.bm25CorpusSize = sparseVectorSet.stats.documentCount;
+        cleanMetadata.bm25AverageDocumentLength = Number(sparseVectorSet.stats.averageDocumentLength.toFixed(4));
+        cleanMetadata.bm25UniqueTerms = sparseVectorSet.stats.uniqueTerms;
         
         const originalFileName = (cleanMetadata.fileName as string) || 'unknown_file';
         const sanitizedFileName = originalFileName.replace(/[^a-zA-Z0-9_.-]/g, '_'); 

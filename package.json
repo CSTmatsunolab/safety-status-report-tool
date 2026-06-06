@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:tool-improvements": "node scripts/test-tool-improvements.mjs",
+    "test:evaluation-repro": "node evaluation/rag-evaluation/reproduce-paper-tables.mjs --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.60.0",

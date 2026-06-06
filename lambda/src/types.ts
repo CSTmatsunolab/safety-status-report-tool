@@ -74,4 +74,5 @@ export interface GenerateReportRequest {
   fullTextFileIds?: string[];
   language?: 'ja' | 'en';
   userIdentifier?: string;
+  anthropicApiKey?: string;
 }
