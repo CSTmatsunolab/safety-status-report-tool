@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PDF_OCR_MAX_PAGES, MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 interface IVisionBlock {
   confidence?: number | null;
@@ -61,6 +62,11 @@ function cleanPDFText(text: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const resolvedUser = await resolveRequestUserIdentifier(request);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     

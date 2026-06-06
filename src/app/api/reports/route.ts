@@ -7,7 +7,7 @@ import {
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { getAuthenticatedUserId } from '@/lib/server-auth';
 
 // DynamoDB クライアント
 const dynamoClient = new DynamoDBClient({
@@ -32,34 +32,10 @@ const s3Client = new S3Client({
 const TABLE_NAME = 'ssr-reports';
 const S3_BUCKET = process.env.APP_AWS_S3_BUCKET_NAME || 'safety-status-report-tool';
 
-// Cognito JWT 検証用
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'ap-northeast-1_3jFiTDLjJ',
-  tokenUse: 'id',
-  clientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '2oalmj35uv85tn4t5284boou64',
-});
-
-// JWT からユーザーIDを取得
-async function getUserIdFromToken(request: NextRequest): Promise<string | null> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-
-    const token = authHeader.substring(7);
-    const payload = await verifier.verify(token);
-    return payload.sub;
-  } catch (error) {
-    console.error('JWT verification failed:', error);
-    return null;
-  }
-}
-
 // GET: レポート一覧を取得
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserIdFromToken(request);
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -110,7 +86,7 @@ export async function GET(request: NextRequest) {
 // POST: レポートを保存
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getUserIdFromToken(request);
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },

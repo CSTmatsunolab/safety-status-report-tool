@@ -4,6 +4,7 @@ import { getFileFromS3, deleteFileFromS3 } from '@/lib/s3-utils';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { MIN_EMBEDDED_TEXT_LENGTH } from '@/lib/config/constants';
+import { isS3KeyInUserScope, resolveRequestUserIdentifier } from '@/lib/server-auth';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import pdf from 'pdf-parse-new';
@@ -161,6 +162,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Missing required parameters' },
         { status: 400 }
+      );
+    }
+
+    const resolvedUser = await resolveRequestUserIdentifier(request, requestData.userIdentifier);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+
+    if (!isS3KeyInUserScope(key, resolvedUser.userIdentifier)) {
+      return NextResponse.json(
+        { error: 'S3 key is outside the current user scope' },
+        { status: 403 }
       );
     }
 

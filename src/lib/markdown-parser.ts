@@ -236,11 +236,14 @@ function parseCodeBlock(lines: string[], startIndex: number): { block: ParsedBlo
  * インラインMarkdownをHTMLに変換
  */
 export function processInlineMarkdown(text: string): string {
-  let result = text;
+  let result = escapeHtml(text);
+  result = result.replace(/\[(.+?)\]\((.+?)\)/g, (_match, label: string, href: string) => {
+    const safeHref = sanitizeHref(href);
+    return `<a href="${safeHref}" rel="noopener noreferrer">${label}</a>`;
+  });
   result = result.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   result = result.replace(/\*(.+?)\*/g, '<em>$1</em>');
   result = result.replace(/`(.+?)`/g, '<code>$1</code>');
-  result = result.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
   return result;
 }
 
@@ -354,4 +357,12 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function sanitizeHref(href: string): string {
+  const normalizedHref = href.trim().replace(/&amp;/g, '&');
+  if (/^(https?:|mailto:|tel:|#|\/)/i.test(normalizedHref)) {
+    return escapeHtml(normalizedHref);
+  }
+  return '#';
 }

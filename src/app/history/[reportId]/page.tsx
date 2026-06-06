@@ -25,6 +25,7 @@ import { useI18n } from '../../components/I18nProvider';
 import { useAuth } from '../../components/AuthProvider';
 import { SettingsMenu } from '../../components/SettingsMenu';
 import { useReportHistory, ReportDetail } from '@/hooks/useReportHistory';
+import { parseMarkdown, blocksToHtml } from '@/lib/markdown-parser';
 
 export default function ReportDetailPage() {
   const { language } = useI18n();
@@ -166,111 +167,16 @@ export default function ReportDetailPage() {
 
   // MarkdownをHTMLに変換（印刷用）
   const convertMarkdownToHtml = (markdown: string): string => {
-    const lines = markdown.split('\n');
-    const result: string[] = [];
-    let inTable = false;
-    let tableRows: string[] = [];
-
-    const processTable = (rows: string[]): string => {
-      if (rows.length < 2) return rows.join('\n');
-      
-      let tableHtml = '<table>';
-      
-      // ヘッダー行
-      const headerCells = rows[0].split('|').filter(cell => cell.trim() !== '');
-      tableHtml += '<thead><tr>';
-      headerCells.forEach(cell => {
-        tableHtml += `<th>${cell.trim()}</th>`;
-      });
-      tableHtml += '</tr></thead>';
-      
-      // ボディ行（区切り行をスキップ）
-      tableHtml += '<tbody>';
-      for (let i = 2; i < rows.length; i++) {
-        const cells = rows[i].split('|').filter(cell => cell.trim() !== '');
-        if (cells.length > 0) {
-          tableHtml += '<tr>';
-          cells.forEach(cell => {
-            tableHtml += `<td>${cell.trim()}</td>`;
-          });
-          tableHtml += '</tr>';
-        }
-      }
-      tableHtml += '</tbody></table>';
-      
-      return tableHtml;
-    };
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      
-      // 表の検出（|で始まる行）
-      if (line.trim().startsWith('|') && line.trim().endsWith('|')) {
-        if (!inTable) {
-          inTable = true;
-          tableRows = [];
-        }
-        tableRows.push(line);
-      } else {
-        // 表の終了
-        if (inTable) {
-          result.push(processTable(tableRows));
-          inTable = false;
-          tableRows = [];
-        }
-        
-        let processedLine = line;
-        
-        // 見出し
-        if (processedLine.match(/^### (.+)$/)) {
-          processedLine = processedLine.replace(/^### (.+)$/, '<h3>$1</h3>');
-        } else if (processedLine.match(/^## (.+)$/)) {
-          processedLine = processedLine.replace(/^## (.+)$/, '<h2>$1</h2>');
-        } else if (processedLine.match(/^# (.+)$/)) {
-          processedLine = processedLine.replace(/^# (.+)$/, '<h1>$1</h1>');
-        }
-        // リスト項目
-        else if (processedLine.match(/^- (.+)$/)) {
-          processedLine = processedLine.replace(/^- (.+)$/, '<li>$1</li>');
-        }
-        // 番号付きリスト
-        else if (processedLine.match(/^(\d+)\. (.+)$/)) {
-          processedLine = processedLine.replace(/^(\d+)\. (.+)$/, '<li>$2</li>');
-        }
-        
-        // インライン要素
-        processedLine = processedLine.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-        processedLine = processedLine.replace(/\*(.+?)\*/g, '<em>$1</em>');
-        processedLine = processedLine.replace(/`(.+?)`/g, '<code>$1</code>');
-        
-        result.push(processedLine);
-      }
-    }
-    
-    // 最後に表が残っていた場合
-    if (inTable && tableRows.length > 0) {
-      result.push(processTable(tableRows));
-    }
-    
-    // 連続するliをulで囲む
-    let html = result.join('\n');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
-    
-    // 段落処理（空行で区切られたテキストをpタグで囲む）
-    html = html.split('\n\n').map(para => {
-      const trimmed = para.trim();
-      if (trimmed === '' || 
-          trimmed.startsWith('<h') || 
-          trimmed.startsWith('<li') || 
-          trimmed.startsWith('<ul') ||
-          trimmed.startsWith('<table')) {
-        return para;
-      }
-      return `<p>${para}</p>`;
-    }).join('\n');
-    
-    return html;
+    return blocksToHtml(parseMarkdown(markdown));
   };
+
+  const escapeHtml = (text: string): string =>
+    text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
 
   // エクスポート: Markdown
   const handleExportMarkdown = () => {
@@ -412,7 +318,7 @@ export default function ReportDetailPage() {
 <html lang="${language}">
 <head>
   <meta charset="UTF-8">
-  <title>${report.title}</title>
+	  <title>${escapeHtml(report.title)}</title>
   <style>
     body {
       font-family: ${language === 'en' ? "'Segoe UI', sans-serif" : "'Noto Sans JP', 'Hiragino Sans', sans-serif"};
@@ -444,9 +350,9 @@ export default function ReportDetailPage() {
   </style>
 </head>
 <body>
-  <h1>${report.title}</h1>
-  <div class="metadata">
-    <p>${language === 'en' ? 'Target' : '対象'}: ${report.stakeholder.role} | ${language === 'en' ? 'Strategy' : '戦略'}: ${report.rhetoricStrategy}</p>
+	  <h1>${escapeHtml(report.title)}</h1>
+	  <div class="metadata">
+	    <p>${language === 'en' ? 'Target' : '対象'}: ${escapeHtml(report.stakeholder.role)} | ${language === 'en' ? 'Strategy' : '戦略'}: ${escapeHtml(report.rhetoricStrategy)}</p>
     <p>${language === 'en' ? 'Created' : '作成日'}: ${new Date(report.createdAt).toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP')}</p>
   </div>
   <div class="content">${htmlContent}</div>

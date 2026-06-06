@@ -454,7 +454,7 @@ function extractPreservedBlocksWithContext(text: string): {
   }
   
   // 残りテキストから保護ブロックと[TABLE_BLOCK]プレースホルダーを削除
-  let remaining = text
+  const remaining = text
     .replace(pattern, '')  // PRESERVEマーカーと内容を削除
     .replace(/\[TABLE_BLOCK\]/g, '')  // プレースホルダーを削除
     .replace(/\n{3,}/g, '\n\n')  // 連続改行を整理

@@ -7,6 +7,7 @@ import {
   getRhetoricStrategyDisplayName,
 } from '@/lib/rhetoric-strategies';
 import { isGSNFile, shouldUseFullText } from '@/lib/full-text-files';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ type LocalGenerateRequest = {
   }>;
   fullTextFileIds?: string[];
   language?: 'ja' | 'en';
+  userIdentifier?: string;
   anthropicApiKey?: string;
 };
 
@@ -198,6 +200,16 @@ export async function POST(request: NextRequest): Promise<Response> {
           send({
             type: 'error',
             error: 'Missing required parameters: stakeholder or reportStructure',
+          });
+          controller.close();
+          return;
+        }
+
+        const resolvedUser = await resolveRequestUserIdentifier(request, body.userIdentifier);
+        if ('error' in resolvedUser) {
+          send({
+            type: 'error',
+            error: language === 'en' ? 'Unauthorized' : '認証が必要です。',
           });
           controller.close();
           return;

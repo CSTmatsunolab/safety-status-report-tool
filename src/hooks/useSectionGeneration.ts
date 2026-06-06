@@ -6,6 +6,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { isGSNFile, shouldUseFullText } from '@/lib/full-text-files';
+import { getOptionalAuthHeaders } from '@/lib/client-auth-headers';
 
 // Remote Lambda URL. If omitted, the app uses the local Next.js API route.
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
@@ -184,6 +185,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(await getOptionalAuthHeaders()),
       },
       body: JSON.stringify({
         stakeholder,

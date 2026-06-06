@@ -10,10 +10,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
-
-const pdfParse = require('pdf-parse-new');
 
 import { 
   GenerateReportRequest, 
@@ -60,9 +59,74 @@ const MAX_CONTENT_CHARS_PER_FILE = 50000;
 const MAX_TOTAL_CONTEXT_CHARS = 150000;
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
+type CognitoVerifier = ReturnType<typeof CognitoJwtVerifier.create>;
+let cognitoVerifier: CognitoVerifier | null = null;
+
 function resolveAnthropicApiKey(requestApiKey: unknown): string | undefined {
   const trimmedRequestApiKey = typeof requestApiKey === 'string' ? requestApiKey.trim() : '';
   return trimmedRequestApiKey || process.env.ANTHROPIC_API_KEY;
+}
+
+function getCognitoConfig(): { userPoolId: string; clientId: string } | null {
+  const userPoolId = process.env.COGNITO_USER_POOL_ID || process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID;
+  const clientId =
+    process.env.COGNITO_USER_POOL_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+
+  if (!userPoolId || !clientId) {
+    return null;
+  }
+
+  return { userPoolId, clientId };
+}
+
+function getCognitoVerifier(): CognitoVerifier | null {
+  const config = getCognitoConfig();
+  if (!config) {
+    return null;
+  }
+
+  if (!cognitoVerifier) {
+    cognitoVerifier = CognitoJwtVerifier.create({
+      userPoolId: config.userPoolId,
+      tokenUse: 'id',
+      clientId: config.clientId,
+    });
+  }
+
+  return cognitoVerifier;
+}
+
+async function resolveLambdaUserIdentifier(
+  event: APIGatewayProxyEventV2,
+  suppliedIdentifier?: string
+): Promise<string | null> {
+  const verifier = getCognitoVerifier();
+  if (!verifier) {
+    return suppliedIdentifier || 'anonymous';
+  }
+
+  const authHeader = event.headers.authorization || event.headers.Authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return null;
+  }
+
+  try {
+    const payload = await verifier.verify(authHeader.substring(7));
+    return payload.sub;
+  } catch (error) {
+    console.error('JWT verification failed:', error);
+    return null;
+  }
+}
+
+function sanitizeScopeIdentifier(identifier: string): string {
+  return identifier.replace(/[^a-zA-Z0-9._:-]/g, '_');
+}
+
+function isS3KeyInUserScope(key: string, userIdentifier: string): boolean {
+  return key.startsWith(`uploads/${sanitizeScopeIdentifier(userIdentifier)}/`);
 }
 
 // 進捗メッセージの型
@@ -155,7 +219,7 @@ async function streamHandler(
       files = [], 
       fullTextFileIds = [],
       language = 'ja',
-      userIdentifier = 'anonymous',
+      userIdentifier: suppliedUserIdentifier = 'anonymous',
       anthropicApiKey: requestAnthropicApiKey
     } = body;
 
@@ -164,6 +228,16 @@ async function streamHandler(
       sendMessage({
         type: 'error',
         error: 'Missing required parameters: stakeholder or reportStructure'
+      });
+      httpResponseStream.end();
+      return;
+    }
+
+    const userIdentifier = await resolveLambdaUserIdentifier(event, suppliedUserIdentifier);
+    if (!userIdentifier) {
+      sendMessage({
+        type: 'error',
+        error: language === 'ja' ? '認証が必要です。' : 'Unauthorized.'
       });
       httpResponseStream.end();
       return;
@@ -267,6 +341,16 @@ async function streamHandler(
     for (const file of fullTextFiles) {
       let content = file.content;
       if (file.s3Key && (!content || content.length < 100)) {
+        if (!isS3KeyInUserScope(file.s3Key, userIdentifier)) {
+          sendMessage({
+            type: 'error',
+            error: language === 'ja'
+              ? `ファイル ${file.name} は現在のユーザーのS3スコープ外です。`
+              : `File ${file.name} is outside the current user's S3 scope.`
+          });
+          httpResponseStream.end();
+          return;
+        }
         content = await getS3FileContent(file.s3Key, file.name);
       }
       if (content) {
@@ -478,6 +562,7 @@ async function getS3FileContent(key: string, fileName: string): Promise<string> 
     // PDF ファイル (.pdf) の処理
     if (lowerFileName.endsWith('.pdf')) {
       console.log(`Processing PDF file: ${fileName}`);
+      const { default: pdfParse } = await import('pdf-parse-new');
       const pdfData = await pdfParse(buffer);
       console.log(`PDF file processed: ${pdfData.numpages} pages, ${pdfData.text.length} chars`);
       

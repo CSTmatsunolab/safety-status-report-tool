@@ -24,9 +24,26 @@ Resources:
           PINECONE_INDEX_NAME: !Ref PineconeIndexName
           ENABLE_HYBRID_SEARCH: 'true'
           S3_BUCKET_NAME: !Ref S3BucketName
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_USER_POOL_CLIENT_ID: !Ref CognitoUserPoolClientId
       Policies:
         - S3ReadPolicy:
             BucketName: !Ref S3BucketName
+
+  SSRGeneratorFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !Ref SSRGeneratorFunction
+      AuthType: NONE
+      InvokeMode: RESPONSE_STREAM
+
+  SSRGeneratorFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref SSRGeneratorFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
 
   # ユーザー設定用DynamoDBテーブル
   UserSettingsTable:
@@ -72,6 +89,14 @@ Parameters:
     Type: String
     Default: safety-status-report-tool
     Description: S3 Bucket Name for file storage
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Optional Cognito User Pool ID for app-level JWT validation
+  CognitoUserPoolClientId:
+    Type: String
+    Default: ''
+    Description: Optional Cognito User Pool Client ID for app-level JWT validation
 
 Outputs:
   SSRGeneratorFunctionArn:
@@ -80,6 +105,9 @@ Outputs:
   SSRGeneratorFunctionName:
     Description: SSR Generator Lambda Function Name
     Value: !Ref SSRGeneratorFunction
+  SSRGeneratorFunctionUrl:
+    Description: SSR Generator Lambda Function URL
+    Value: !GetAtt SSRGeneratorFunctionUrl.FunctionUrl
   UserSettingsTableName:
     Description: User Settings DynamoDB Table Name
     Value: !Ref UserSettingsTable

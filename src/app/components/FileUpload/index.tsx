@@ -4,6 +4,7 @@
 import { UploadedFile } from '@/types';
 import { useI18n } from '../I18nProvider';
 import { useFileUpload } from './hooks/useFileUpload';
+import { useAuth } from '../AuthProvider';
 import { UploadZone } from './components/UploadZone';
 import { FileList } from './components/FileList';
 import { FileWarnings } from './components/FileWarnings';
@@ -24,6 +25,7 @@ export function FileUpload({
   onToggleGSN 
 }: FileUploadProps) {
   const { language } = useI18n();
+  const { getUserIdentifier } = useAuth();
   
   const {
     isProcessing,
@@ -31,7 +33,7 @@ export function FileUpload({
     getRootProps,
     getInputProps,
     isDragActive,
-  } = useFileUpload({ files, onUpload, language });
+  } = useFileUpload({ files, onUpload, language, userIdentifier: getUserIdentifier() });
 
   return (
     <div className="space-y-4">

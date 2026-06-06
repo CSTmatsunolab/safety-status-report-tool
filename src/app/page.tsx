@@ -18,6 +18,7 @@ import { isRemoteLambdaGenerationConfigured, useSectionGeneration } from '@/hook
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
 import { shouldUseFullText } from '@/lib/full-text-files';
+import { getOptionalAuthHeaders } from '@/lib/client-auth-headers';
 import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiKey, FiX } from 'react-icons/fi';
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
@@ -278,14 +279,14 @@ export default function Home() {
   };
 
   // 知識ベースを構築する関数
-  const buildKnowledgeBase = async (isTriggeredByReportGeneration = false) => {
-    if (!selectedStakeholder || files.length === 0 || !userIdentifier) return;
+  const buildKnowledgeBase = async (isTriggeredByReportGeneration = false): Promise<boolean> => {
+    if (!selectedStakeholder || files.length === 0 || !userIdentifier) return false;
 
     if (knowledgeBaseStatus === 'idle' && !isTriggeredByReportGeneration) {
       const confirmMessage = t('knowledgeBase.confirmBuild');
       
       if (!confirm(confirmMessage)) {
-        return;
+        return false;
       }
     }
 
@@ -296,7 +297,10 @@ export default function Home() {
     try {
       const response = await fetch('/api/build-knowledge-base', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await getOptionalAuthHeaders()),
+        },
         body: JSON.stringify({
           files,
           stakeholderId: selectedStakeholder.id,
@@ -357,6 +361,7 @@ export default function Home() {
       }
       
       setKnowledgeBaseStatus('ready');
+      return true;
     } catch (error) {
       console.error('Knowledge base building error:', error);
       setKnowledgeBaseStatus('error');
@@ -364,6 +369,7 @@ export default function Home() {
       if (!errorMessage) {
         setErrorMessage(t('knowledgeBase.buildFailed'));
       }
+      return false;
     } finally {
       setIsKnowledgeBaseBuilding(false);
     }
@@ -380,10 +386,13 @@ export default function Home() {
       
       // ファイル数を取得
       try {
-        const filesResponse = await fetch(
-          `/api/list-knowledge-files?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
-          { method: 'GET' }
-        );
+          const filesResponse = await fetch(
+            `/api/list-knowledge-files?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
+            {
+              method: 'GET',
+              headers: await getOptionalAuthHeaders(),
+            }
+          );
         
         if (filesResponse.ok) {
           const filesData = await filesResponse.json();
@@ -399,7 +408,10 @@ export default function Home() {
         try {
           const statsResponse = await fetch(
             `/api/delete-knowledge-base?stakeholderId=${selectedStakeholder.id}&userIdentifier=${userIdentifier}`,
-            { method: 'GET' }
+            {
+              method: 'GET',
+              headers: await getOptionalAuthHeaders(),
+            }
           );
           if (statsResponse.ok) {
             const stats = await statsResponse.json();
@@ -438,7 +450,10 @@ export default function Home() {
       
       const response = await fetch('/api/delete-knowledge-base', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(await getOptionalAuthHeaders()),
+        },
         body: JSON.stringify({
           stakeholderId: selectedStakeholder.id,
           userIdentifier: userIdentifier,
@@ -495,8 +510,8 @@ export default function Home() {
     
     // リモートLambda構成時のみ、生成前にナレッジベースを構築する
     if (useRemoteRagGeneration && files.length > 0 && knowledgeBaseStatus !== 'ready') {
-      await buildKnowledgeBase(true);
-      if (knowledgeBaseStatus === 'error') return;
+      const built = await buildKnowledgeBase(true);
+      if (!built) return;
     }
     
     // 大きいファイルの確認

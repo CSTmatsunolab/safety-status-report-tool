@@ -1,10 +1,15 @@
 // src/app/api/s3-upload/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { generateUploadPresignedUrl, validateFileSize, validateFileType } from '@/lib/s3-utils';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileName, fileType, fileSize } = await request.json();
+    const { fileName, fileType, fileSize, userIdentifier } = await request.json();
+    const resolvedUser = await resolveRequestUserIdentifier(request, userIdentifier);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
 
     // 入力検証
     if (!fileName || !fileType || !fileSize) {
@@ -34,7 +39,8 @@ export async function POST(request: NextRequest) {
     const { uploadUrl, key } = await generateUploadPresignedUrl(
       fileName,
       fileType,
-      fileSize
+      fileSize,
+      resolvedUser.userIdentifier
     );
 
     return NextResponse.json({

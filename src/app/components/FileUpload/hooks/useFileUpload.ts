@@ -37,6 +37,7 @@ interface UseFileUploadProps {
   files: UploadedFile[];
   onUpload: (files: UploadedFile[]) => void;
   language: string;
+  userIdentifier: string;
 }
 
 interface UseFileUploadReturn {
@@ -47,7 +48,7 @@ interface UseFileUploadReturn {
   isDragActive: boolean;
 }
 
-export function useFileUpload({ files, onUpload, language }: UseFileUploadProps): UseFileUploadReturn {
+export function useFileUpload({ files, onUpload, language, userIdentifier }: UseFileUploadProps): UseFileUploadReturn {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStatus, setProcessingStatus] = useState('');
 
@@ -104,7 +105,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
 
           // PDFファイル
           if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-            const result = await extractTextFromPDF(file, language as 'ja' | 'en');
+            const result = await extractTextFromPDF(file, language as 'ja' | 'en', { userIdentifier });
             
             if (result.error) {
               alert(`${file.name}:\n${result.error}`);
@@ -118,7 +119,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
           // 画像ファイル
           else if (file.type.startsWith('image/')) {
             console.log(`Extracting text from image: ${file.name}`);
-            const result = await extractTextFromImage(file, language as 'ja' | 'en');
+            const result = await extractTextFromImage(file, language as 'ja' | 'en', { userIdentifier });
             
             if (result.error) {
               alert(`${file.name}:\n${result.error}`);
@@ -137,7 +138,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
             file.name.endsWith('.xlsx')
           ) {
             console.log(`Extracting binary from Excel: ${file.name}`);
-            const excelResult = await extractTextFromExcel(file, language);
+            const excelResult = await extractTextFromExcel(file, language, { userIdentifier });
             
             if (excelResult.error) {
               alert(`${file.name}:\n${excelResult.error}`);
@@ -156,7 +157,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
             file.name.endsWith('.docx')
           ) {
             console.log(`Extracting binary from DOCX: ${file.name}`);
-            const docxResult = await extractTextFromDocx(file, language);
+            const docxResult = await extractTextFromDocx(file, language, { userIdentifier });
             
             if (docxResult.error) {
               alert(`${file.name}:\n${docxResult.error}`);
@@ -171,7 +172,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
           } 
           // テキスト系ファイル
           else if (isTextFile(file)) {
-            const textResult = await processTextFile(file);
+            const textResult = await processTextFile(file, { userIdentifier });
             content = textResult.content;
             s3Key = textResult.s3Key;
             originalContentLength = textResult.originalContentLength;
@@ -242,7 +243,7 @@ export function useFileUpload({ files, onUpload, language }: UseFileUploadProps)
       setIsProcessing(false);
       setProcessingStatus('');
     }
-  }, [onUpload, language, files.length]);
+  }, [onUpload, language, files.length, userIdentifier]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

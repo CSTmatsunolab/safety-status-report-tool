@@ -8,7 +8,7 @@ import {
   DeleteCommand,
   QueryCommand
 } from '@aws-sdk/lib-dynamodb';
-import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { getAuthenticatedUserId } from '@/lib/server-auth';
 
 // DynamoDB クライアント初期化
 const dynamoClient = new DynamoDBClient({
@@ -26,34 +26,10 @@ const TABLE_NAME = 'ssr-user-settings';
 // 設定タイプの定義
 export type SettingType = 'customStakeholders' | 'customReportStructures';
 
-// Cognito JWT 検証用
-const verifier = CognitoJwtVerifier.create({
-  userPoolId: process.env.NEXT_PUBLIC_COGNITO_USER_POOL_ID || 'ap-northeast-1_3jFiTDLjJ',
-  tokenUse: 'id',
-  clientId: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || '2oalmj35uv85tn4t5284boou64',
-});
-
-// JWT からユーザーIDを取得
-async function getUserIdFromToken(request: NextRequest): Promise<string | null> {
-  try {
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return null;
-    }
-
-    const token = authHeader.substring(7);
-    const payload = await verifier.verify(token);
-    return payload.sub;
-  } catch (error) {
-    console.error('JWT verification failed:', error);
-    return null;
-  }
-}
-
 // GET: ユーザー設定を取得
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getUserIdFromToken(request);
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -108,7 +84,7 @@ export async function GET(request: NextRequest) {
 // PUT: ユーザー設定を保存/更新
 export async function PUT(request: NextRequest) {
   try {
-    const userId = await getUserIdFromToken(request);
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -158,7 +134,7 @@ export async function PUT(request: NextRequest) {
 // DELETE: ユーザー設定を削除
 export async function DELETE(request: NextRequest) {
   try {
-    const userId = await getUserIdFromToken(request);
+    const userId = await getAuthenticatedUserId(request);
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized' },

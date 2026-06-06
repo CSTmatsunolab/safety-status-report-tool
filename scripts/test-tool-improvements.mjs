@@ -129,6 +129,74 @@ function testUserProvidedClaudeApiKeyFlow() {
   assert.match(lambdaIndex, /apiKey:\s*effectiveAnthropicApiKey/, 'Lambda must initialize Claude with the effective key');
 }
 
+function testSecurityHardeningStaticChecks() {
+  const serverAuth = readProjectFile('src/lib/server-auth.ts');
+  assert.match(serverAuth, /CognitoJwtVerifier/, 'server routes must verify Cognito ID tokens when Cognito is configured');
+  assert.match(serverAuth, /NEXT_PUBLIC_COGNITO_USER_POOL_CLIENT_ID/, 'server auth must use the same Cognito client id env var as Amplify');
+  assert.match(serverAuth, /export function isS3KeyInUserScope/, 'server auth must expose S3 scope validation');
+  assert.match(serverAuth, /uploads\/\$\{sanitizeScopeIdentifier\(userIdentifier\)\}\//, 'S3 scope validation must constrain keys by user');
+
+  const clientAuthHeaders = readProjectFile('src/lib/client-auth-headers.ts');
+  assert.match(clientAuthHeaders, /fetchAuthSession/, 'client API calls must be able to attach the Cognito ID token');
+  assert.match(clientAuthHeaders, /Authorization.*Bearer/, 'client auth helper must emit a Bearer authorization header');
+
+  const s3Utils = readProjectFile('src/lib/s3-utils.ts');
+  assert.match(s3Utils, /uploads\/\$\{scopedUser\}\//, 'presigned S3 uploads must be stored under a user-scoped prefix');
+  assert.match(s3Utils, /owner:\s*scopedUser/, 'presigned S3 uploads must record the scoped owner metadata');
+
+  const s3ProcessRoute = readProjectFile('src/app/api/s3-process/route.ts');
+  assert.match(s3ProcessRoute, /resolveRequestUserIdentifier/, 'S3 processing must resolve the request user');
+  assert.match(s3ProcessRoute, /isS3KeyInUserScope\(key,\s*resolvedUser\.userIdentifier\)/, 'S3 processing must reject keys outside the request user scope');
+
+  const buildKnowledgeBaseRoute = readProjectFile('src/app/api/build-knowledge-base/route.ts');
+  assert.match(buildKnowledgeBaseRoute, /resolveRequestUserIdentifier/, 'knowledge-base build must resolve the request user');
+  assert.match(buildKnowledgeBaseRoute, /isS3KeyInUserScope\(file\.metadata\.s3Key,\s*identifier\)/, 'knowledge-base build must reject foreign S3-backed files');
+
+  const deleteKnowledgeBaseRoute = readProjectFile('src/app/api/delete-knowledge-base/route.ts');
+  assert.match(deleteKnowledgeBaseRoute, /resolveRequestUserIdentifier/, 'knowledge-base delete/list status must resolve the request user');
+  assert.doesNotMatch(deleteKnowledgeBaseRoute, /allNamespaces/, 'knowledge-base status must not disclose all Pinecone namespaces');
+
+  const listKnowledgeFilesRoute = readProjectFile('src/app/api/list-knowledge-files/route.ts');
+  assert.match(listKnowledgeFilesRoute, /resolveRequestUserIdentifier/, 'knowledge-file listing must resolve the request user');
+
+  const generationHook = readProjectFile('src/hooks/useSectionGeneration.ts');
+  assert.match(generationHook, /getOptionalAuthHeaders/, 'report generation calls must attach optional auth headers');
+
+  const page = readProjectFile('src/app/page.tsx');
+  assert.match(page, /const buildKnowledgeBase = async \(isTriggeredByReportGeneration = false\): Promise<boolean>/, 'knowledge-base build must return a completion boolean');
+  assert.match(page, /const built = await buildKnowledgeBase\(true\);\s*if \(!built\) return;/, 'report generation must wait for the actual build result instead of stale state');
+}
+
+function testHtmlExportEscapingStaticChecks() {
+  const markdownParser = readProjectFile('src/lib/markdown-parser.ts');
+  assert.match(markdownParser, /let result = escapeHtml\(text\)/, 'inline Markdown conversion must escape raw HTML first');
+  assert.match(markdownParser, /function sanitizeHref/, 'inline Markdown conversion must sanitize link destinations');
+  assert.match(markdownParser, /rel="noopener noreferrer"/, 'generated external links should include rel protection');
+
+  const reportPreview = readProjectFile('src/app/components/ReportPreview.tsx');
+  assert.match(reportPreview, /blocksToHtml\(parseMarkdown\(markdown\)\)/, 'preview print/export must use the shared sanitized Markdown renderer');
+  assert.match(reportPreview, /escapeHtml\(report\.title\)/, 'preview print/export must escape report metadata');
+
+  const historyReport = readProjectFile('src/app/history/[reportId]/page.tsx');
+  assert.match(historyReport, /blocksToHtml\(parseMarkdown\(markdown\)\)/, 'history print/export must use the shared sanitized Markdown renderer');
+  assert.match(historyReport, /escapeHtml\(report\.title\)/, 'history print/export must escape report metadata');
+}
+
+function testLambdaFunctionUrlAndAuthStaticChecks() {
+  const lambdaIndex = readProjectFile('lambda/src/index.ts');
+  assert.match(lambdaIndex, /CognitoJwtVerifier/, 'Lambda must verify Cognito ID tokens when configured');
+  assert.match(lambdaIndex, /COGNITO_USER_POOL_CLIENT_ID/, 'Lambda auth must read the deployed Cognito client id parameter');
+  assert.match(lambdaIndex, /isS3KeyInUserScope\(file\.s3Key,\s*userIdentifier\)/, 'Lambda full-text S3 access must reject keys outside the request user scope');
+
+  for (const templatePath of ['template.yaml', 'lambda/template.yaml']) {
+    const template = readProjectFile(templatePath);
+    assert.match(template, /AWS::Lambda::Url/, `${templatePath} must declare a Lambda Function URL`);
+    assert.match(template, /InvokeMode:\s*RESPONSE_STREAM/, `${templatePath} must enable response streaming for the Function URL`);
+    assert.match(template, /COGNITO_USER_POOL_ID/, `${templatePath} must pass Cognito user pool id to Lambda`);
+    assert.match(template, /COGNITO_USER_POOL_CLIENT_ID/, `${templatePath} must pass Cognito client id to Lambda`);
+  }
+}
+
 async function main() {
   run('npm', ['run', 'build', '--prefix', 'lambda']);
 
@@ -136,6 +204,9 @@ async function main() {
   testFullTextGSNDetection();
   testTraceability();
   testUserProvidedClaudeApiKeyFlow();
+  testSecurityHardeningStaticChecks();
+  testHtmlExportEscapingStaticChecks();
+  testLambdaFunctionUrlAndAuthStaticChecks();
 
   run('node', ['evaluation/rag-evaluation/reproduce-paper-tables.mjs', '--check']);
 

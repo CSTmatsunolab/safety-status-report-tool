@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { FiDatabase, FiCheckCircle, FiLoader, FiTrash2, FiFile, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { Stakeholder } from '@/types';
 import { useI18n } from './I18nProvider';
+import { getOptionalAuthHeaders } from '@/lib/client-auth-headers';
 
 interface FileInfo {
   fileName: string;
@@ -79,7 +80,10 @@ export function KnowledgeBaseManager({
     try {
       const response = await fetch(
         `/api/delete-knowledge-base?stakeholderId=${stakeholder.id}&userIdentifier=${userIdentifier}`,
-        { method: 'GET' }
+        {
+          method: 'GET',
+          headers: await getOptionalAuthHeaders(),
+        }
       );
       
       if (response.ok) {
@@ -104,7 +108,10 @@ export function KnowledgeBaseManager({
     try {
       const response = await fetch(
         `/api/list-knowledge-files?stakeholderId=${stakeholder.id}&userIdentifier=${userIdentifier}`,
-        { method: 'GET' }
+        {
+          method: 'GET',
+          headers: await getOptionalAuthHeaders(),
+        }
       );
       
       if (response.ok) {

@@ -10,6 +10,7 @@ import * as mammoth from 'mammoth';
 import { generateNamespace } from '@/lib/browser-id';
 import { chunkDocument } from '@/lib/chunking-strategies';
 import { isGSNFile, shouldUseFullText } from '@/lib/full-text-files';
+import { isS3KeyInUserScope, resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 // FileMetadata型を拡張（pdfBufferプロパティを追加）
 interface ExtendedFileMetadata {
@@ -150,7 +151,7 @@ async function getContentFromS3(
     }
 
     // テキストベースファイルの場合はテキストに変換
-    let text = new TextDecoder().decode(nodeBuffer);
+    const text = new TextDecoder().decode(nodeBuffer);
 
     const truncated = truncateContent(text, fileType, fileName);
     return {
@@ -197,7 +198,11 @@ export async function POST(request: NextRequest) {
       browserId?: string; 
     } = await request.json();
     
-    const identifier = userIdentifier || browserId;
+    const resolvedUser = await resolveRequestUserIdentifier(request, userIdentifier || browserId);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+    const identifier = resolvedUser.userIdentifier;
     
     if (!files || files.length === 0) {
       return NextResponse.json(
@@ -229,6 +234,13 @@ export async function POST(request: NextRequest) {
       
       // S3参照の場合、またはcontentが空の場合はコンテンツを取得
       if (file.metadata?.s3Key && (!file.content || file.content === '')) {
+        if (!isS3KeyInUserScope(file.metadata.s3Key, identifier)) {
+          return NextResponse.json(
+            { error: `File ${file.name} is outside the current user scope` },
+            { status: 403 }
+          );
+        }
+
         console.log(`Fetching content for ${file.name} from S3: ${file.metadata.s3Key}`);
         
         try {

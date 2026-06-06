@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getVisionClient } from '@/lib/google-cloud-auth';
 import { handleVisionAPIError } from '@/lib/vision-api-utils';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 interface IVisionBlock {
   confidence?: number | null;
@@ -15,6 +16,11 @@ export async function POST(request: NextRequest) {
   let fileName: string = 'unknown'; 
   
   try {
+    const resolvedUser = await resolveRequestUserIdentifier(request);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     

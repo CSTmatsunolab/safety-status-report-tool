@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { generateNamespace } from '@/lib/browser-id';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 // 指定されたステークホルダーのPineconeネームスペースを削除
 export async function DELETE(request: NextRequest) {
@@ -16,14 +17,11 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const identifier = userIdentifier || browserId;
-    
-    if (!identifier) {
-      return NextResponse.json(
-        { error: 'User identifier is required' },
-        { status: 400 }
-      );
+    const resolvedUser = await resolveRequestUserIdentifier(request, userIdentifier || browserId);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
     }
+    const identifier = resolvedUser.userIdentifier;
 
     // ネームスペースを生成
     const namespace = generateNamespace(stakeholderId, identifier);
@@ -167,14 +165,20 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const stakeholderId = searchParams.get('stakeholderId');
-    const userIdentifier = searchParams.get('userIdentifier') || searchParams.get('browserId');
+    const requestedIdentifier = searchParams.get('userIdentifier') || searchParams.get('browserId');
 
-    if (!stakeholderId || !userIdentifier) {
+    if (!stakeholderId) {
       return NextResponse.json(
-        { error: 'Stakeholder ID and User Identifier are required' },
+        { error: 'Stakeholder ID is required' },
         { status: 400 }
       );
     }
+
+    const resolvedUser = await resolveRequestUserIdentifier(request, requestedIdentifier);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+    const userIdentifier = resolvedUser.userIdentifier;
 
     const namespace = generateNamespace(stakeholderId, userIdentifier);
     const vectorStoreType = process.env.VECTOR_STORE || 'pinecone';
@@ -191,8 +195,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         namespace: namespace,
         vectorCount: stats.namespaces?.[namespace]?.recordCount || 0,
-        totalVectors: stats.totalRecordCount,
-        allNamespaces: Object.keys(stats.namespaces || {})
+        totalVectors: stats.totalRecordCount
       });
     }
     

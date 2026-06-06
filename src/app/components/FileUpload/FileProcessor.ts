@@ -3,6 +3,7 @@
 import * as XLSX from 'xlsx';
 import * as mammoth from 'mammoth';
 import { PREVIEW_LENGTH } from '@/lib/config/constants';
+import { getOptionalAuthHeaders } from '@/lib/client-auth-headers';
 
 // ファイルサイズの閾値
 export const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - Excel/Word/テキスト用（ブラウザ処理）
@@ -12,6 +13,17 @@ export const S3_THRESHOLD = 18 * 1024 * 1024; // 18MB - Excel/Word/テキスト�
 export const API_PAYLOAD_THRESHOLD = 5 * 1024 * 1024; // 5MB - PDF/画像用
 
 type FileType = 'excel' | 'word' | 'pdf' | 'image' | 'text' | 'other';
+
+interface FileProcessingAuthContext {
+  userIdentifier?: string;
+}
+
+async function jsonRequestHeaders(): Promise<Record<string, string>> {
+  return {
+    'Content-Type': 'application/json',
+    ...(await getOptionalAuthHeaders()),
+  };
+}
 
 /**
  * タイムアウトエラーメッセージを生成する関数
@@ -63,14 +75,15 @@ export function getTimeoutErrorMessage(fileType: FileType, language: string): st
 /**
  * S3アップロード用の関数
  */
-export async function uploadToS3(file: File): Promise<string> {
+export async function uploadToS3(file: File, authContext: FileProcessingAuthContext = {}): Promise<string> {
   const urlResponse = await fetch('/api/s3-upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await jsonRequestHeaders(),
     body: JSON.stringify({
       fileName: file.name,
       fileType: file.type,
       fileSize: file.size,
+      userIdentifier: authContext.userIdentifier,
     }),
   });
 
@@ -100,16 +113,18 @@ export async function uploadToS3(file: File): Promise<string> {
 export async function processFileFromS3(
   key: string,
   fileName: string,
-  fileType: string
+  fileType: string,
+  authContext: FileProcessingAuthContext = {}
 ): Promise<{ text: string; confidence?: number; method?: string }> {
   const response = await fetch('/api/s3-process', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await jsonRequestHeaders(),
     body: JSON.stringify({
       key,
       fileName,
       fileType,
       deleteAfterProcess: false,
+      userIdentifier: authContext.userIdentifier,
     }),
   });
 
@@ -144,7 +159,11 @@ export interface ImageExtractionResult {
  * 画像からテキストを抽出
  * 注意: 画像はサーバーAPI経由で処理されるため、API_PAYLOAD_THRESHOLDを使用
  */
-export async function extractTextFromImage(file: File, language: 'ja' | 'en'): Promise<ImageExtractionResult> {
+export async function extractTextFromImage(
+  file: File,
+  language: 'ja' | 'en',
+  authContext: FileProcessingAuthContext = {}
+): Promise<ImageExtractionResult> {
   try {
     console.log(`Processing Image: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -152,9 +171,13 @@ export async function extractTextFromImage(file: File, language: 'ja' | 'en'): P
     if (file.size < API_PAYLOAD_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
+      if (authContext.userIdentifier) {
+        formData.append('userIdentifier', authContext.userIdentifier);
+      }
       
       const response = await fetch('/api/google-vision-ocr', {
         method: 'POST',
+        headers: await getOptionalAuthHeaders(),
         body: formData,
       });
       
@@ -203,8 +226,8 @@ export async function extractTextFromImage(file: File, language: 'ja' | 'en'): P
     // API_PAYLOAD_THRESHOLD以上はS3経由
     else {
       console.log(`Large image file (${(file.size / 1024 / 1024).toFixed(2)} MB), using S3...`);
-      const s3Key = await uploadToS3(file);
-      const result = await processFileFromS3(s3Key, file.name, file.type);
+      const s3Key = await uploadToS3(file, authContext);
+      const result = await processFileFromS3(s3Key, file.name, file.type, authContext);
       
       // OCR結果が空の場合
       if (!result.text || result.text.trim() === '') {
@@ -257,7 +280,11 @@ export interface PDFExtractionResult {
  * PDFからテキストを抽出
  * 注意: PDFはサーバーAPI経由で処理されるため、API_PAYLOAD_THRESHOLDを使用
  */
-export async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Promise<PDFExtractionResult> {
+export async function extractTextFromPDF(
+  file: File,
+  language: 'ja' | 'en',
+  authContext: FileProcessingAuthContext = {}
+): Promise<PDFExtractionResult> {
   try {
     console.log(`Processing PDF: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -265,9 +292,13 @@ export async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Pro
     if (file.size < API_PAYLOAD_THRESHOLD) {
       const formData = new FormData();
       formData.append('file', file);
+      if (authContext.userIdentifier) {
+        formData.append('userIdentifier', authContext.userIdentifier);
+      }
       
       const response = await fetch('/api/pdf-extract', {
         method: 'POST',
+        headers: await getOptionalAuthHeaders(),
         body: formData,
       });
 
@@ -293,8 +324,8 @@ export async function extractTextFromPDF(file: File, language: 'ja' | 'en'): Pro
     // API_PAYLOAD_THRESHOLD以上はS3経由
     else {
       console.log(`Large PDF file (${(file.size / 1024 / 1024).toFixed(2)} MB), using S3...`);
-      const s3Key = await uploadToS3(file);
-      const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf');
+      const s3Key = await uploadToS3(file, authContext);
+      const result = await processFileFromS3(s3Key, file.name, file.type || 'application/pdf', authContext);
       return {
         text: result.text || '',
         method: result.method || 's3',
@@ -338,7 +369,11 @@ export interface ExcelExtractionResult {
  * Excelからテキストを抽出（Base64で保存し、プレビュー用テキストも抽出）
  * 注意: Excelはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
-export async function extractTextFromExcel(file: File, language: string = 'ja'): Promise<ExcelExtractionResult> {
+export async function extractTextFromExcel(
+  file: File,
+  language: string = 'ja',
+  authContext: FileProcessingAuthContext = {}
+): Promise<ExcelExtractionResult> {
   try {
     console.log(`Processing Excel (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -371,7 +406,7 @@ export async function extractTextFromExcel(file: File, language: string = 'ja'):
       };
     } else {
       console.log('Large Excel file, uploading to S3 as binary...');
-      const s3Key = await uploadToS3(file);
+      const s3Key = await uploadToS3(file, authContext);
       
       // プレビュー用にテキスト抽出
       const arrayBuffer = await file.arrayBuffer();
@@ -416,7 +451,11 @@ export interface DocxExtractionResult {
  * Word (DOCX)からテキストを抽出（Base64で保存し、プレビュー用テキストも抽出）
  * 注意: Wordはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
-export async function extractTextFromDocx(file: File, language: string = 'ja'): Promise<DocxExtractionResult> {
+export async function extractTextFromDocx(
+  file: File,
+  language: string = 'ja',
+  authContext: FileProcessingAuthContext = {}
+): Promise<DocxExtractionResult> {
   try {
     console.log(`Processing Word (binary): ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
     
@@ -443,7 +482,7 @@ export async function extractTextFromDocx(file: File, language: string = 'ja'): 
       };
     } else {
       console.log('Large Word file, uploading to S3 as binary...');
-      const s3Key = await uploadToS3(file);
+      const s3Key = await uploadToS3(file, authContext);
       
       // プレビュー用にテキスト抽出
       const arrayBuffer = await file.arrayBuffer();
@@ -473,7 +512,7 @@ export async function extractTextFromDocx(file: File, language: string = 'ja'): 
  * テキストファイルを処理
  * 注意: テキストはブラウザで直接処理されるため、S3_THRESHOLDを使用
  */
-export async function processTextFile(file: File): Promise<{
+export async function processTextFile(file: File, authContext: FileProcessingAuthContext = {}): Promise<{
   content: string;
   s3Key?: string;
   originalContentLength: number;
@@ -488,7 +527,7 @@ export async function processTextFile(file: File): Promise<{
   } else {
     // 大きなCSV/TXTファイルはS3に保存
     console.log(`Large text file (${file.name}), using S3...`);
-    const s3Key = await uploadToS3(file);
+    const s3Key = await uploadToS3(file, authContext);
     
     // プレビュー用に最初の部分だけ取得  
     const fullText = await file.text();

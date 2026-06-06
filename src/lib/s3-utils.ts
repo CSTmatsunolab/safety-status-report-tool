@@ -1,6 +1,7 @@
 // src/lib/s3-utils.ts
 import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { sanitizeScopeIdentifier } from './server-auth';
 
 // S3クライアントの初期化
 const s3Client = new S3Client({
@@ -21,13 +22,15 @@ const DOWNLOAD_EXPIRY_SECONDS = 7200; // 2時間
 export async function generateUploadPresignedUrl(
   fileName: string,
   fileType: string,
-  fileSize: number
+  fileSize: number,
+  userIdentifier: string
 ): Promise<{ uploadUrl: string; key: string }> {
   // ユニークなキーを生成（タイムスタンプ + ランダム文字列）
   const timestamp = Date.now();
   const randomStr = Math.random().toString(36).substring(2, 15);
   const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
-  const key = `uploads/${timestamp}-${randomStr}/${sanitizedFileName}`;
+  const scopedUser = sanitizeScopeIdentifier(userIdentifier);
+  const key = `uploads/${scopedUser}/${timestamp}-${randomStr}/${sanitizedFileName}`;
 
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
@@ -38,6 +41,7 @@ export async function generateUploadPresignedUrl(
     Metadata: {
       originalName: fileName,
       uploadTimestamp: timestamp.toString(),
+      owner: scopedUser,
     },
   });
 

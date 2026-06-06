@@ -1,9 +1,15 @@
 // src/app/api/excel-extract/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 export async function POST(request: NextRequest) {
   try {
+    const resolvedUser = await resolveRequestUserIdentifier(request);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Pinecone } from '@pinecone-database/pinecone';
 import { generateNamespace } from '@/lib/browser-id';
+import { resolveRequestUserIdentifier } from '@/lib/server-auth';
 
 interface FileInfo {
   fileName: string;
@@ -13,14 +14,20 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const stakeholderId = searchParams.get('stakeholderId');
-    const userIdentifier = searchParams.get('userIdentifier');
+    const requestedIdentifier = searchParams.get('userIdentifier');
 
-    if (!stakeholderId || !userIdentifier) {
+    if (!stakeholderId) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
+        { error: 'Missing required stakeholderId parameter' },
         { status: 400 }
       );
     }
+
+    const resolvedUser = await resolveRequestUserIdentifier(request, requestedIdentifier);
+    if ('error' in resolvedUser) {
+      return resolvedUser.error;
+    }
+    const userIdentifier = resolvedUser.userIdentifier;
 
     if (!process.env.PINECONE_API_KEY) {
       return NextResponse.json(
