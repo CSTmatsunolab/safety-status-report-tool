@@ -179,6 +179,35 @@ evaluation-results/comparison-{timestamp}/
 └── non-adaptive-result-{timestamp}.json    # Non-Adaptive detail
 ```
 
+**Step 5: Run Ablation Analysis (Strict Relevance)**
+
+```bash
+npx ts-node rag-evaluator.ts evaluate-ablation \
+  --uuid "<your-uuid>" \
+  --stakeholders ./stakeholders-all.json \
+  --ground-truth ./ground-truth-p2.json
+```
+
+The ablation command runs four conditions against the same Ground Truth:
+
+| Condition | Query Expansion | Adaptive K |
+|-----------|-----------------|------------|
+| baseline | Off | Off |
+| query-expansion-only | On | Off |
+| adaptive-k-only | Off | On |
+| full-system | On | On |
+
+Output:
+```
+evaluation-results/ablation-{timestamp}/
+├── ablation-result-{timestamp}.json        # Combined ablation data
+├── ablation-report-{timestamp}.txt         # Summary table and factor deltas
+├── baseline-result-{timestamp}.json        # Baseline detail
+├── query-expansion-only-result-{timestamp}.json
+├── adaptive-k-only-result-{timestamp}.json
+└── full-system-result-{timestamp}.json
+```
+
 **Utility: View generated queries**
 
 ```bash
@@ -255,7 +284,13 @@ npx ts-node rag-evaluator.ts evaluate-comparison \
   --stakeholders ./stakeholders-all.json \
   --ground-truth ./ground-truth-p2.json
 
-# 3. SSR Quality: LLM-as-a-Judge
+# 3. RAG: Ablation Analysis
+npx ts-node rag-evaluator.ts evaluate-ablation \
+  --uuid "<your-uuid>" \
+  --stakeholders ./stakeholders-all.json \
+  --ground-truth ./ground-truth-p2.json
+
+# 4. SSR Quality: LLM-as-a-Judge
 cd ../ssr-quality-eval
 source venv/bin/activate
 python evaluate.py

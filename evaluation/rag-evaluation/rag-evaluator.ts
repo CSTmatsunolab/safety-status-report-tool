@@ -782,6 +782,426 @@ interface StakeholderComparisonResult {
   };
 }
 
+// ============================================================
+// コマンド: evaluate-ablation（4条件アブレーション分析）
+// ============================================================
+
+interface AblationCondition {
+  id: 'baseline' | 'query-expansion-only' | 'adaptive-k-only' | 'full-system';
+  label: string;
+  enableQueryExpansion: boolean;
+  enableAdaptiveK: boolean;
+}
+
+interface StakeholderAblationResult {
+  stakeholderId: string;
+  stakeholderRole: string;
+  totalChunks: number;
+  relevantChunkCount: number;
+  conditions: Record<string, {
+    k: number;
+    queries: string[];
+    weights: number[];
+    retrievedCount: number;
+    metrics: QueryEvaluationResult;
+  }>;
+}
+
+const ABLATION_CONDITIONS: AblationCondition[] = [
+  {
+    id: 'baseline',
+    label: 'Baseline',
+    enableQueryExpansion: false,
+    enableAdaptiveK: false,
+  },
+  {
+    id: 'query-expansion-only',
+    label: 'Query Expansion Only',
+    enableQueryExpansion: true,
+    enableAdaptiveK: false,
+  },
+  {
+    id: 'adaptive-k-only',
+    label: 'Adaptive K Only',
+    enableQueryExpansion: false,
+    enableAdaptiveK: true,
+  },
+  {
+    id: 'full-system',
+    label: 'Full System',
+    enableQueryExpansion: true,
+    enableAdaptiveK: true,
+  },
+];
+
+function generateBaseQueryForStakeholder(stakeholder: Stakeholder): string[] {
+  const terms = [
+    stakeholder.role,
+    ...stakeholder.concerns,
+  ]
+    .map(term => term.trim())
+    .filter(Boolean);
+
+  return [terms.join(' ') || '安全 リスク 品質 進捗'];
+}
+
+function getQueriesForCondition(stakeholder: Stakeholder, condition: AblationCondition): string[] {
+  if (condition.enableQueryExpansion) {
+    return generateQueriesForStakeholder(stakeholder);
+  }
+
+  return generateBaseQueryForStakeholder(stakeholder);
+}
+
+function getKForCondition(
+  totalChunks: number,
+  stakeholder: Stakeholder,
+  condition: AblationCondition
+): number {
+  if (condition.enableAdaptiveK) {
+    return getDynamicK(totalChunks, stakeholder, 'pinecone');
+  }
+
+  return getNonAdaptiveK(totalChunks);
+}
+
+async function commandEvaluateAblation(
+  namespace: string | undefined,
+  uuid: string | undefined,
+  stakeholdersPath: string,
+  groundTruthPath: string,
+  outputDir: string,
+  config: Partial<EvaluationConfig> = {}
+): Promise<void> {
+  console.log('\n╔══════════════════════════════════════════════════════════════╗');
+  console.log('║              RAG Ablation Analysis                          ║');
+  console.log('╚══════════════════════════════════════════════════════════════╝\n');
+  console.log('条件: baseline / query-expansion-only / adaptive-k-only / full-system\n');
+
+  const { pinecone, openai } = initializeClients();
+  const indexName = config.indexName || DEFAULT_CONFIG.indexName!;
+
+  const stakeholders: Stakeholder[] = JSON.parse(fs.readFileSync(stakeholdersPath, 'utf-8'));
+  console.log(`✅ Stakeholders 読み込み完了: ${stakeholders.length} 件`);
+
+  const groundTruth = loadGroundTruth(groundTruthPath);
+  console.log(`✅ Ground Truth 読み込み完了: ${groundTruth.entries.length} 件のクエリ\n`);
+
+  const stakeholderResults: StakeholderAblationResult[] = [];
+  const conditionQueryResults = new Map<string, QueryEvaluationResult[]>();
+  const conditionRetrievedChunks = new Map<string, RetrievedChunk[][]>();
+  const conditionKValues = new Map<string, number[]>();
+  const allFiles: string[] = [];
+
+  for (const condition of ABLATION_CONDITIONS) {
+    conditionQueryResults.set(condition.id, []);
+    conditionRetrievedChunks.set(condition.id, []);
+    conditionKValues.set(condition.id, []);
+  }
+
+  for (const stakeholder of stakeholders) {
+    const stakeholderNamespace = namespace || `${stakeholder.id}_${uuid}`;
+    const totalChunks = await getTotalChunks(pinecone, stakeholderNamespace, indexName);
+
+    if (totalChunks === 0) {
+      console.warn(`⚠️ Namespace "${stakeholderNamespace}" にチャンクが存在しません。スキップします。`);
+      continue;
+    }
+
+    const files = await getAllFiles(pinecone, stakeholderNamespace, indexName);
+    allFiles.push(...files);
+
+    const relevantEntries = groundTruth.entries.filter(
+      (e: GroundTruthEntry) => e.stakeholderId === stakeholder.id
+    );
+    const allRelevantChunks: RelevantChunk[] = relevantEntries.flatMap(
+      (e: GroundTruthEntry) => e.relevantChunks
+    );
+    const uniqueRelevantChunks: RelevantChunk[] = Array.from(
+      new Map(allRelevantChunks.map((c: RelevantChunk) => [c.chunkId, c])).values()
+    );
+
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`📋 ${stakeholder.role} (${stakeholder.id})`);
+    console.log(`   Namespace: ${stakeholderNamespace}`);
+    console.log(`   Total chunks: ${totalChunks}`);
+    console.log(`   Ground Truth: ${uniqueRelevantChunks.length} 件`);
+
+    const stakeholderResult: StakeholderAblationResult = {
+      stakeholderId: stakeholder.id,
+      stakeholderRole: stakeholder.role,
+      totalChunks,
+      relevantChunkCount: uniqueRelevantChunks.length,
+      conditions: {},
+    };
+
+    for (const condition of ABLATION_CONDITIONS) {
+      const k = getKForCondition(totalChunks, stakeholder, condition);
+      const queries = getQueriesForCondition(stakeholder, condition);
+      const weights = condition.enableQueryExpansion
+        ? getWeightsForStakeholder(stakeholder, queries.length)
+        : Array(queries.length).fill(1.0);
+
+      console.log(`\n   ${condition.label}:`);
+      console.log(`      Query expansion=${condition.enableQueryExpansion ? 'on' : 'off'}, Adaptive K=${condition.enableAdaptiveK ? 'on' : 'off'}`);
+      console.log(`      K=${k}, Queries=${queries.length}, Weights=[${weights.map(w => w.toFixed(1)).join(', ')}]`);
+
+      const retrievedChunks = await executeRRFSearch(
+        openai,
+        pinecone,
+        queries,
+        stakeholderNamespace,
+        indexName,
+        k,
+        60,
+        weights
+      );
+
+      const result = evaluateQuery(
+        `${condition.id}_${stakeholder.id}`,
+        `[${condition.label}] ${stakeholder.role}`,
+        stakeholder.id,
+        retrievedChunks,
+        uniqueRelevantChunks,
+        k
+      );
+
+      conditionQueryResults.get(condition.id)!.push(result);
+      conditionRetrievedChunks.get(condition.id)!.push(retrievedChunks);
+      conditionKValues.get(condition.id)!.push(k);
+
+      stakeholderResult.conditions[condition.id] = {
+        k,
+        queries,
+        weights,
+        retrievedCount: retrievedChunks.length,
+        metrics: result,
+      };
+
+      console.log(`      取得: ${retrievedChunks.length}/${k}`);
+      console.log(`      P@K: ${(result.metrics.precisionAtK * 100).toFixed(1)}%, R@K: ${(result.metrics.recallAtK * 100).toFixed(1)}%, F1: ${(result.metrics.f1AtK * 100).toFixed(1)}%, nDCG: ${result.metrics.ndcgAtK.toFixed(3)}`);
+    }
+
+    stakeholderResults.push(stakeholderResult);
+  }
+
+  if (stakeholderResults.length === 0) {
+    console.error('❌ エラー: 評価できたステークホルダーがありません。');
+    process.exit(1);
+  }
+
+  const uniqueFiles = [...new Set(allFiles)];
+  const conditionReports: Record<string, EvaluationReport> = {};
+
+  for (const condition of ABLATION_CONDITIONS) {
+    const kValues = conditionKValues.get(condition.id)!;
+    const avgK = Math.round(kValues.reduce((a, b) => a + b, 0) / kValues.length);
+
+    conditionReports[condition.id] = generateEvaluationReport(
+      conditionQueryResults.get(condition.id)!,
+      conditionRetrievedChunks.get(condition.id)!,
+      uniqueFiles,
+      groundTruth.version,
+      avgK,
+      uuid || namespace || 'unknown',
+      kValues
+    );
+  }
+
+  const ablationText = formatAblationReport(stakeholderResults, conditionReports);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestampDir = path.join(outputDir, `ablation-${timestamp}`);
+
+  if (!fs.existsSync(timestampDir)) {
+    fs.mkdirSync(timestampDir, { recursive: true });
+  }
+
+  const ablationJsonPath = path.join(timestampDir, `ablation-result-${timestamp}.json`);
+  const ablationTextPath = path.join(timestampDir, `ablation-report-${timestamp}.txt`);
+
+  const ablationJson = {
+    timestamp: new Date().toISOString(),
+    groundTruthVersion: groundTruth.version,
+    uuid: uuid || namespace || 'unknown',
+    conditions: ABLATION_CONDITIONS,
+    summary: Object.fromEntries(
+      ABLATION_CONDITIONS.map(condition => [
+        condition.id,
+        conditionReports[condition.id].summary,
+      ])
+    ),
+    stakeholderResults: stakeholderResults.map(result => ({
+      stakeholderId: result.stakeholderId,
+      stakeholderRole: result.stakeholderRole,
+      totalChunks: result.totalChunks,
+      relevantChunkCount: result.relevantChunkCount,
+      conditions: Object.fromEntries(
+        Object.entries(result.conditions).map(([conditionId, conditionResult]) => [
+          conditionId,
+          {
+            k: conditionResult.k,
+            queries: conditionResult.queries,
+            weights: conditionResult.weights,
+            retrievedCount: conditionResult.retrievedCount,
+            metrics: conditionResult.metrics.metrics,
+            hits: conditionResult.metrics.hits,
+          },
+        ])
+      ),
+    })),
+  };
+
+  fs.writeFileSync(ablationJsonPath, JSON.stringify(ablationJson, null, 2), 'utf-8');
+  fs.writeFileSync(ablationTextPath, ablationText, 'utf-8');
+
+  for (const condition of ABLATION_CONDITIONS) {
+    const reportPath = path.join(timestampDir, `${condition.id}-result-${timestamp}.json`);
+    fs.writeFileSync(
+      reportPath,
+      JSON.stringify({
+        ...conditionReports[condition.id],
+        kValues: conditionKValues.get(condition.id),
+      }, null, 2),
+      'utf-8'
+    );
+  }
+
+  console.log(ablationText);
+  console.log(`\n📄 結果ファイル:`);
+  console.log(`   アブレーションJSON: ${ablationJsonPath}`);
+  console.log(`   アブレーションText: ${ablationTextPath}`);
+  console.log(`   条件別JSON:         ${timestampDir}/*-result-${timestamp}.json`);
+}
+
+function formatAblationReport(
+  results: StakeholderAblationResult[],
+  reports: Record<string, EvaluationReport>
+): string {
+  const lines: string[] = [];
+  const baselineSummary = reports.baseline.summary;
+
+  lines.push('');
+  lines.push('╔══════════════════════════════════════════════════════════════════════════╗');
+  lines.push('║                    RAG Ablation Analysis Report                         ║');
+  lines.push('╚══════════════════════════════════════════════════════════════════════════╝');
+  lines.push('');
+  lines.push(`評価日時: ${new Date().toISOString()}`);
+  lines.push('');
+  lines.push('条件定義:');
+  lines.push('  baseline             = 非拡張クエリ + 非適応K');
+  lines.push('  query-expansion-only = 拡張クエリ + 非適応K');
+  lines.push('  adaptive-k-only      = 非拡張クエリ + 適応型K');
+  lines.push('  full-system          = 拡張クエリ + 適応型K');
+  lines.push('');
+
+  lines.push(`${'━'.repeat(74)}`);
+  lines.push('■ 全体サマリー（平均との差分はbaseline比）');
+  lines.push('');
+  lines.push('  ┌──────────────────────┬──────┬──────────┬──────────┬──────────┬──────────┬──────────┐');
+  lines.push('  │ 条件                 │ AvgK │ P@K      │ R@K      │ F1@K     │ MRR      │ nDCG@K   │');
+  lines.push('  ├──────────────────────┼──────┼──────────┼──────────┼──────────┼──────────┼──────────┤');
+
+  for (const condition of ABLATION_CONDITIONS) {
+    const report = reports[condition.id];
+    lines.push(formatAblationSummaryRow(condition.id, report, baselineSummary));
+  }
+
+  lines.push('  └──────────────────────┴──────┴──────────┴──────────┴──────────┴──────────┴──────────┘');
+  lines.push('');
+
+  const qe = reports['query-expansion-only'].summary.avgNdcgAtK - baselineSummary.avgNdcgAtK;
+  const ak = reports['adaptive-k-only'].summary.avgNdcgAtK - baselineSummary.avgNdcgAtK;
+  const full = reports['full-system'].summary.avgNdcgAtK - baselineSummary.avgNdcgAtK;
+  const interaction = full - qe - ak;
+
+  lines.push('要因分解（nDCG@K, baseline比）:');
+  lines.push(`  クエリ拡張単独: ${formatDelta(qe, false)}`);
+  lines.push(`  適応型K単独:    ${formatDelta(ak, false)}`);
+  lines.push(`  フルシステム:   ${formatDelta(full, false)}`);
+  lines.push(`  交互作用目安:   ${formatDelta(interaction, false)}  (full - queryExpansion - adaptiveK)`);
+  lines.push('');
+
+  for (const result of results) {
+    lines.push(`${'━'.repeat(74)}`);
+    lines.push(`■ ${result.stakeholderRole} (${result.stakeholderId})`);
+    lines.push(`  総チャンク: ${result.totalChunks}, Ground Truth: ${result.relevantChunkCount}`);
+    lines.push('');
+    lines.push('  ┌──────────────────────┬──────┬───────┬──────────┬──────────┬──────────┬──────────┐');
+    lines.push('  │ 条件                 │ K    │ Query │ P@K      │ R@K      │ F1@K     │ nDCG@K   │');
+    lines.push('  ├──────────────────────┼──────┼───────┼──────────┼──────────┼──────────┼──────────┤');
+
+    for (const condition of ABLATION_CONDITIONS) {
+      const conditionResult = result.conditions[condition.id];
+      const metrics = conditionResult.metrics.metrics;
+      lines.push(formatStakeholderAblationRow(
+        condition.id,
+        conditionResult.k,
+        conditionResult.queries.length,
+        metrics.precisionAtK,
+        metrics.recallAtK,
+        metrics.f1AtK,
+        metrics.ndcgAtK
+      ));
+    }
+
+    lines.push('  └──────────────────────┴──────┴───────┴──────────┴──────────┴──────────┴──────────┘');
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+function formatAblationSummaryRow(
+  conditionId: string,
+  report: EvaluationReport,
+  baseline: EvaluationReport['summary']
+): string {
+  const summary = report.summary;
+  const label = conditionId.padEnd(20);
+  const k = report.config.k.toString().padStart(4);
+
+  return [
+    `  │ ${label} │`,
+    `${k} │`,
+    `${formatPercentWithDelta(summary.avgPrecisionAtK, summary.avgPrecisionAtK - baseline.avgPrecisionAtK)} │`,
+    `${formatPercentWithDelta(summary.avgRecallAtK, summary.avgRecallAtK - baseline.avgRecallAtK)} │`,
+    `${formatPercentWithDelta(summary.avgF1AtK, summary.avgF1AtK - baseline.avgF1AtK)} │`,
+    `${formatMetricWithDelta(summary.mrr, summary.mrr - baseline.mrr)} │`,
+    `${formatMetricWithDelta(summary.avgNdcgAtK, summary.avgNdcgAtK - baseline.avgNdcgAtK)} │`,
+  ].join('');
+}
+
+function formatStakeholderAblationRow(
+  conditionId: string,
+  k: number,
+  queryCount: number,
+  precision: number,
+  recall: number,
+  f1: number,
+  ndcg: number
+): string {
+  return `  │ ${conditionId.padEnd(20)} │${k.toString().padStart(4)}  │${queryCount.toString().padStart(5)}  │${formatPercent(precision)} │${formatPercent(recall)} │${formatPercent(f1)} │${ndcg.toFixed(4).padStart(8)} │`;
+}
+
+function formatPercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`.padStart(8);
+}
+
+function formatDelta(value: number, percent: boolean): string {
+  const sign = value >= 0 ? '+' : '';
+  return percent
+    ? `${sign}${(value * 100).toFixed(1)}pp`
+    : `${sign}${value.toFixed(4)}`;
+}
+
+function formatPercentWithDelta(value: number, delta: number): string {
+  return `${formatPercent(value)} ${formatDelta(delta, true).padStart(8)}`.padStart(18);
+}
+
+function formatMetricWithDelta(value: number, delta: number): string {
+  return `${value.toFixed(4).padStart(8)} ${formatDelta(delta, false).padStart(8)}`.padStart(18);
+}
+
 async function commandEvaluateComparison(
   namespace: string | undefined,
   uuid: string | undefined,
@@ -1309,6 +1729,27 @@ async function main(): Promise<void> {
       break;
     }
 
+    case 'evaluate-ablation': {
+      const namespace = getArg('namespace');
+      const uuid = getArg('uuid');
+      const stakeholdersFile = getArg('stakeholders');
+      const groundTruth = getArg('ground-truth');
+      const outputDir = getArg('output') || './evaluation-results';
+
+      if (!namespace && !uuid) {
+        console.error('❌ --namespace または --uuid が必要です');
+        process.exit(1);
+      }
+
+      if (!stakeholdersFile || !groundTruth) {
+        console.error('❌ --stakeholders, --ground-truth が必要です');
+        process.exit(1);
+      }
+
+      await commandEvaluateAblation(namespace, uuid, stakeholdersFile, groundTruth, outputDir);
+      break;
+    }
+
     case 'convert-csv': {
       const input = getArg('input');
       const output = getArg('output') || './ground-truth.json';
@@ -1401,6 +1842,15 @@ async function main(): Promise<void> {
     ※ 同じGround Truthに対して、Adaptive（本番同等）とNon-Adaptive（固定K=20,
        汎用クエリ, 均等重み）の両方を実行し、差分を比較レポートとして出力します。
 
+  evaluate-ablation  クエリ拡張と適応型K値の4条件アブレーション分析
+    --uuid          <string>  ユーザーUUID（namespace自動生成）
+    --namespace     <string>  Pinecone namespace（直接指定する場合）
+    --stakeholders  <file>    ステークホルダーJSONファイル（必須）
+    --ground-truth  <file>    Ground Truth JSONファイル（必須）
+    --output        <dir>     出力ディレクトリ
+    ※ baseline / query-expansion-only / adaptive-k-only / full-system を
+       同一Ground Truthに対して実行し、要因別の差分を出力します。
+
   show-queries     ステークホルダーから生成されるクエリを確認
     --stakeholders  <file>    ステークホルダーJSONファイル（必須）
 
@@ -1448,6 +1898,12 @@ async function main(): Promise<void> {
 
   5. 評価実行（手動でCLI実行）
      npx ts-node rag-evaluator.ts evaluate-rrf \\
+       --uuid <your-uuid> \\
+       --stakeholders ./stakeholders.json \\
+       --ground-truth ./ground-truth.json
+
+  6. アブレーション分析（手動でCLI実行）
+     npx ts-node rag-evaluator.ts evaluate-ablation \\
        --uuid <your-uuid> \\
        --stakeholders ./stakeholders.json \\
        --ground-truth ./ground-truth.json

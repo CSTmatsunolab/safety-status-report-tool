@@ -8,6 +8,7 @@
     "convert-tsv": "ts-node rag-evaluator.ts convert-tsv",
     "evaluate": "ts-node rag-evaluator.ts evaluate",
     "evaluate-rrf": "ts-node rag-evaluator.ts evaluate-rrf",
+    "evaluate-ablation": "ts-node rag-evaluator.ts evaluate-ablation",
     "show-queries": "ts-node rag-evaluator.ts show-queries",
     "help": "ts-node rag-evaluator.ts help"
   },
