@@ -1,0 +1,425 @@
+{
+  "timestamp": "2026-05-25T02:21:47.296Z",
+  "groundTruthVersion": "1.0",
+  "uuid": "67e47a68-90b1-7055-df58-b1f2c302e6d6",
+  "nonAdaptiveConfig": {
+    "baseRatio": 0.4,
+    "genericQueries": [
+      "安全 リスク ハザード 課題 対策",
+      "安全性 品質 検証 テスト 評価",
+      "設計 アーキテクチャ 構成 要件",
+      "コスト スケジュール 進捗 計画",
+      "問題 課題 対応 改善",
+      "safety risk hazard quality verification"
+    ],
+    "uniformWeights": true
+  },
+  "stakeholderResults": [
+    {
+      "stakeholderId": "cxo",
+      "stakeholderRole": "CxO / 経営層",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 15,
+        "queries": [
+          "経営層 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+          "経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+          "経営方針 事業戦略 コスト ROI 投資対効果",
+          "経営 経営方針 事業戦略",
+          "経営層 費用",
+          "risk management cost ROI governance strategy"
+        ],
+        "weights": [
+          1.2,
+          1.2,
+          0.8,
+          0.8,
+          0.8,
+          0.8
+        ],
+        "retrievedCount": 15,
+        "metrics": {
+          "precisionAtK": 0.9333333333333333,
+          "recallAtK": 0.7,
+          "f1AtK": 0.8,
+          "reciprocalRank": 1,
+          "ndcgAtK": 0.9567776611905398,
+          "successAt1HighRelevance": 1
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.7916666666666666,
+          "recallAtK": 0.95,
+          "f1AtK": 0.8636363636363635,
+          "reciprocalRank": 1,
+          "ndcgAtK": 0.8950113863547563,
+          "successAt1HighRelevance": 1
+        }
+      },
+      "delta": {
+        "precisionAtK": 0.14166666666666672,
+        "recallAtK": -0.25,
+        "f1AtK": -0.06363636363636349,
+        "reciprocalRank": 0,
+        "ndcgAtK": 0.06176627483578345
+      }
+    },
+    {
+      "stakeholderId": "technical-fellows",
+      "stakeholderRole": "Technical Fellows / 技術専門家",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 32,
+        "queries": [
+          "技術専門家 技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+          "技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+          "技術品質 設計品質 技術方針 技術選定",
+          "技術者 技術品質 設計品質",
+          "技術専門家 クオリティ",
+          "technical quality architecture design review standard"
+        ],
+        "weights": [
+          1.5,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 32,
+        "metrics": {
+          "precisionAtK": 0.4375,
+          "recallAtK": 0.9333333333333333,
+          "f1AtK": 0.5957446808510638,
+          "reciprocalRank": 0.25,
+          "ndcgAtK": 0.6688505337280192,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.625,
+          "recallAtK": 1,
+          "f1AtK": 0.7692307692307693,
+          "reciprocalRank": 0.5,
+          "ndcgAtK": 0.7780554757375667,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "delta": {
+        "precisionAtK": -0.1875,
+        "recallAtK": -0.06666666666666665,
+        "f1AtK": -0.17348608837970547,
+        "reciprocalRank": -0.25,
+        "ndcgAtK": -0.10920494200954756
+      }
+    },
+    {
+      "stakeholderId": "architect",
+      "stakeholderRole": "Architect / アーキテクト",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 32,
+        "queries": [
+          "アーキテクト 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+          "設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+          "設計整合性 アーキテクチャ 技術的負債",
+          "設計者 設計整合性 アーキテクチャ",
+          "アーキテクト アーキテクチャ",
+          "system architecture design ADR component interface"
+        ],
+        "weights": [
+          1.5,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 32,
+        "metrics": {
+          "precisionAtK": 0.46875,
+          "recallAtK": 1,
+          "f1AtK": 0.6382978723404256,
+          "reciprocalRank": 1,
+          "ndcgAtK": 0.8153190871812712,
+          "successAt1HighRelevance": 1
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.625,
+          "recallAtK": 1,
+          "f1AtK": 0.7692307692307693,
+          "reciprocalRank": 0.5,
+          "ndcgAtK": 0.762920510552469,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "delta": {
+        "precisionAtK": -0.15625,
+        "recallAtK": 0,
+        "f1AtK": -0.1309328968903437,
+        "reciprocalRank": 0.5,
+        "ndcgAtK": 0.05239857662880221
+      }
+    },
+    {
+      "stakeholderId": "business",
+      "stakeholderRole": "Business Division / 事業部門",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 18,
+        "queries": [
+          "事業部門 ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+          "ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+          "ROI 収益 コスト 事業リスク ビジネスリスク",
+          "ビジネス ROI 収益 コスト",
+          "事業部門 費用"
+        ],
+        "weights": [
+          1.2,
+          1.2,
+          0.8,
+          0.8,
+          0.8
+        ],
+        "retrievedCount": 18,
+        "metrics": {
+          "precisionAtK": 0.8888888888888888,
+          "recallAtK": 0.8,
+          "f1AtK": 0.8421052631578948,
+          "reciprocalRank": 1,
+          "ndcgAtK": 0.9069136882090114,
+          "successAt1HighRelevance": 1
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.7916666666666666,
+          "recallAtK": 0.95,
+          "f1AtK": 0.8636363636363635,
+          "reciprocalRank": 1,
+          "ndcgAtK": 0.8941964615016422,
+          "successAt1HighRelevance": 1
+        }
+      },
+      "delta": {
+        "precisionAtK": 0.09722222222222221,
+        "recallAtK": -0.1499999999999999,
+        "f1AtK": -0.021531100478468734,
+        "reciprocalRank": 0,
+        "ndcgAtK": 0.01271722670736919
+      }
+    },
+    {
+      "stakeholderId": "product",
+      "stakeholderRole": "Product Division / 製品部門",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 24,
+        "queries": [
+          "製品部門 製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+          "製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+          "製品品質 安全性 品質保証 競争力 差別化 市場価値",
+          "プロダクト 製品品質 安全性 品質保証",
+          "製品部門 セーフティ",
+          "product quality safety requirements verification test"
+        ],
+        "weights": [
+          1.2,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.7916666666666666,
+          "recallAtK": 0.95,
+          "f1AtK": 0.8636363636363635,
+          "reciprocalRank": 0.5,
+          "ndcgAtK": 0.7972908950050026,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.7916666666666666,
+          "recallAtK": 0.95,
+          "f1AtK": 0.8636363636363635,
+          "reciprocalRank": 0.5,
+          "ndcgAtK": 0.7961434430064718,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "delta": {
+        "precisionAtK": 0,
+        "recallAtK": 0,
+        "f1AtK": 0,
+        "reciprocalRank": 0,
+        "ndcgAtK": 0.0011474519985308351
+      }
+    },
+    {
+      "stakeholderId": "r-and-d",
+      "stakeholderRole": "R&D Division / 研究開発部門",
+      "totalChunks": 58,
+      "adaptive": {
+        "k": 35,
+        "queries": [
+          "研究開発部門 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+          "技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+          "技術検証 実装可能性 技術課題 技術リスク",
+          "R&D 技術検証 実装可能性",
+          "研究開発部門 テスト",
+          "technical verification implementation development issue risk"
+        ],
+        "weights": [
+          1.5,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 35,
+        "metrics": {
+          "precisionAtK": 0.42857142857142855,
+          "recallAtK": 1,
+          "f1AtK": 0.6,
+          "reciprocalRank": 0.25,
+          "ndcgAtK": 0.7026473945097971,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "nonAdaptive": {
+        "k": 24,
+        "queries": [
+          "安全 リスク ハザード 課題 対策",
+          "安全性 品質 検証 テスト 評価",
+          "設計 アーキテクチャ 構成 要件",
+          "コスト スケジュール 進捗 計画",
+          "問題 課題 対応 改善",
+          "safety risk hazard quality verification"
+        ],
+        "weights": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        "retrievedCount": 24,
+        "metrics": {
+          "precisionAtK": 0.625,
+          "recallAtK": 1,
+          "f1AtK": 0.7692307692307693,
+          "reciprocalRank": 0.5,
+          "ndcgAtK": 0.7780554757375667,
+          "successAt1HighRelevance": 0
+        }
+      },
+      "delta": {
+        "precisionAtK": -0.19642857142857145,
+        "recallAtK": 0,
+        "f1AtK": -0.1692307692307693,
+        "reciprocalRank": -0.25,
+        "ndcgAtK": -0.07540808122776965
+      }
+    }
+  ]
+}

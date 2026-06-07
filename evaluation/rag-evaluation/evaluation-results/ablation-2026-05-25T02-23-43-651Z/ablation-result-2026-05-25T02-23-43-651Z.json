@@ -1,0 +1,1098 @@
+{
+  "timestamp": "2026-05-25T02:23:43.652Z",
+  "groundTruthVersion": "1.0",
+  "uuid": "67e47a68-90b1-7055-df58-b1f2c302e6d6",
+  "conditions": [
+    {
+      "id": "baseline",
+      "label": "Baseline",
+      "enableQueryExpansion": false,
+      "enableAdaptiveK": false
+    },
+    {
+      "id": "query-expansion-only",
+      "label": "Query Expansion Only",
+      "enableQueryExpansion": true,
+      "enableAdaptiveK": false
+    },
+    {
+      "id": "adaptive-k-only",
+      "label": "Adaptive K Only",
+      "enableQueryExpansion": false,
+      "enableAdaptiveK": true
+    },
+    {
+      "id": "full-system",
+      "label": "Full System",
+      "enableQueryExpansion": true,
+      "enableAdaptiveK": true
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "totalQueries": 6,
+      "avgPrecisionAtK": 0.6666666666666666,
+      "avgRecallAtK": 0.9055555555555556,
+      "avgF1AtK": 0.7641802641802643,
+      "mrr": 0.6458333333333334,
+      "avgNdcgAtK": 0.7496125243724862,
+      "coverage": 0.6923076923076923,
+      "kAchievementRate": 1,
+      "successAt1HighRelevance": 0.5
+    },
+    "query-expansion-only": {
+      "totalQueries": 6,
+      "avgPrecisionAtK": 0.6319444444444445,
+      "avgRecallAtK": 0.8611111111111112,
+      "avgF1AtK": 0.7253302253302253,
+      "mrr": 0.6666666666666666,
+      "avgNdcgAtK": 0.765519338224629,
+      "coverage": 0.7692307692307693,
+      "kAchievementRate": 1,
+      "successAt1HighRelevance": 0.5
+    },
+    "adaptive-k-only": {
+      "totalQueries": 6,
+      "avgPrecisionAtK": 0.6784887566137566,
+      "avgRecallAtK": 0.9138888888888889,
+      "avgF1AtK": 0.7415931026793289,
+      "mrr": 0.6458333333333334,
+      "avgNdcgAtK": 0.7775348104699651,
+      "coverage": 0.9230769230769231,
+      "kAchievementRate": 1,
+      "successAt1HighRelevance": 0.5
+    },
+    "full-system": {
+      "totalQueries": 6,
+      "avgPrecisionAtK": 0.6581183862433861,
+      "avgRecallAtK": 0.8972222222222223,
+      "avgF1AtK": 0.7232973633309578,
+      "mrr": 0.6666666666666666,
+      "avgNdcgAtK": 0.8079665433039401,
+      "coverage": 0.8461538461538461,
+      "kAchievementRate": 1,
+      "successAt1HighRelevance": 0.5
+    }
+  },
+  "stakeholderResults": [
+    {
+      "stakeholderId": "cxo",
+      "stakeholderRole": "CxO / 経営層",
+      "totalChunks": 58,
+      "relevantChunkCount": 20,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "CxO / 経営層 戦略的整合性 企業価値への影響 リスク管理 ステークホルダーへの説明責任"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7916666666666666,
+            "recallAtK": 0.95,
+            "f1AtK": 0.8636363636363635,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.930967495023954,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "経営層 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+            "経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+            "経営方針 事業戦略 コスト ROI 投資対効果",
+            "経営 経営方針 事業戦略",
+            "経営層 費用",
+            "risk management cost ROI governance strategy"
+          ],
+          "weights": [
+            1.2,
+            1.2,
+            0.8,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7083333333333334,
+            "recallAtK": 0.85,
+            "f1AtK": 0.7727272727272727,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9096946895368203,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 15,
+          "queries": [
+            "CxO / 経営層 戦略的整合性 企業価値への影響 リスク管理 ステークホルダーへの説明責任"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 15,
+          "metrics": {
+            "precisionAtK": 1,
+            "recallAtK": 0.75,
+            "f1AtK": 0.8571428571428571,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9209343206065129,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1"
+          ]
+        },
+        "full-system": {
+          "k": 15,
+          "queries": [
+            "経営層 経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+            "経営方針 事業戦略 コスト ROI 投資対効果 リスク管理",
+            "経営方針 事業戦略 コスト ROI 投資対効果",
+            "経営 経営方針 事業戦略",
+            "経営層 費用",
+            "risk management cost ROI governance strategy"
+          ],
+          "weights": [
+            1.2,
+            1.2,
+            0.8,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "retrievedCount": 15,
+          "metrics": {
+            "precisionAtK": 0.9333333333333333,
+            "recallAtK": 0.7,
+            "f1AtK": 0.8,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9567776611905398,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "cxo_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2"
+          ]
+        }
+      }
+    },
+    {
+      "stakeholderId": "technical-fellows",
+      "stakeholderRole": "Technical Fellows / 技術専門家",
+      "totalChunks": 58,
+      "relevantChunkCount": 15,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "Technical Fellows / 技術専門家 技術的な卓越性 ベストプラクティスの適用 長期的な技術戦略 技術的イノベーション"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.4166666666666667,
+            "recallAtK": 0.6666666666666666,
+            "f1AtK": 0.5128205128205129,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.47066909177593497,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "技術専門家 技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+            "技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+            "技術品質 設計品質 技術方針 技術選定",
+            "技術者 技術品質 設計品質",
+            "技術専門家 クオリティ",
+            "technical quality architecture design review standard"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.5,
+            "recallAtK": 0.8,
+            "f1AtK": 0.6153846153846154,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.597850355874971,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 32,
+          "queries": [
+            "Technical Fellows / 技術専門家 技術的な卓越性 ベストプラクティスの適用 長期的な技術戦略 技術的イノベーション"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 32,
+          "metrics": {
+            "precisionAtK": 0.4375,
+            "recallAtK": 0.9333333333333333,
+            "f1AtK": 0.5957446808510638,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.6114054988741221,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15"
+          ]
+        },
+        "full-system": {
+          "k": 32,
+          "queries": [
+            "技術専門家 技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+            "技術品質 設計品質 技術方針 技術選定 技術改善 最適化",
+            "技術品質 設計品質 技術方針 技術選定",
+            "技術者 技術品質 設計品質",
+            "技術専門家 クオリティ",
+            "technical quality architecture design review standard"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 32,
+          "metrics": {
+            "precisionAtK": 0.4375,
+            "recallAtK": 0.9333333333333333,
+            "f1AtK": 0.5957446808510638,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.6688505337280192,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "technical-fellows_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1"
+          ]
+        }
+      }
+    },
+    {
+      "stakeholderId": "architect",
+      "stakeholderRole": "Architect / アーキテクト",
+      "totalChunks": 58,
+      "relevantChunkCount": 15,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "Architect / アーキテクト システム設計の整合性 スケーラビリティ 技術的負債 アーキテクチャの保守性"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.5833333333333334,
+            "recallAtK": 0.9333333333333333,
+            "f1AtK": 0.7179487179487181,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.7945436512546342,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "アーキテクト 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+            "設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+            "設計整合性 アーキテクチャ 技術的負債",
+            "設計者 設計整合性 アーキテクチャ",
+            "アーキテクト アーキテクチャ",
+            "system architecture design ADR component interface"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.4583333333333333,
+            "recallAtK": 0.7333333333333333,
+            "f1AtK": 0.5641025641025641,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.7009886651474292,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 32,
+          "queries": [
+            "Architect / アーキテクト システム設計の整合性 スケーラビリティ 技術的負債 アーキテクチャの保守性"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 32,
+          "metrics": {
+            "precisionAtK": 0.46875,
+            "recallAtK": 1,
+            "f1AtK": 0.6382978723404256,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.8337805959324596,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3"
+          ]
+        },
+        "full-system": {
+          "k": 32,
+          "queries": [
+            "アーキテクト 設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+            "設計整合性 アーキテクチャ 技術的負債 スケーラビリティ",
+            "設計整合性 アーキテクチャ 技術的負債",
+            "設計者 設計整合性 アーキテクチャ",
+            "アーキテクト アーキテクチャ",
+            "system architecture design ADR component interface"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 32,
+          "metrics": {
+            "precisionAtK": 0.46875,
+            "recallAtK": 1,
+            "f1AtK": 0.6382978723404256,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.8153190871812712,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "architect_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1"
+          ]
+        }
+      }
+    },
+    {
+      "stakeholderId": "business",
+      "stakeholderRole": "Business Division / 事業部門",
+      "totalChunks": 58,
+      "relevantChunkCount": 20,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "Business Division / 事業部門 ビジネスインパクト ROIと収益性 市場シェア 事業リスク"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.8333333333333334,
+            "recallAtK": 1,
+            "f1AtK": 0.9090909090909091,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9688646215541459,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "事業部門 ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+            "ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+            "ROI 収益 コスト 事業リスク ビジネスリスク",
+            "ビジネス ROI 収益 コスト",
+            "事業部門 費用"
+          ],
+          "weights": [
+            1.2,
+            1.2,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.75,
+            "recallAtK": 0.9,
+            "f1AtK": 0.8181818181818182,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9209404671623518,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 18,
+          "queries": [
+            "Business Division / 事業部門 ビジネスインパクト ROIと収益性 市場シェア 事業リスク"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 18,
+          "metrics": {
+            "precisionAtK": 0.9444444444444444,
+            "recallAtK": 0.85,
+            "f1AtK": 0.8947368421052632,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9316888471072854,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_4"
+          ]
+        },
+        "full-system": {
+          "k": 18,
+          "queries": [
+            "事業部門 ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+            "ROI 収益 コスト 事業リスク ビジネスリスク 事業影響 ビジネス価値",
+            "ROI 収益 コスト 事業リスク ビジネスリスク",
+            "ビジネス ROI 収益 コスト",
+            "事業部門 費用"
+          ],
+          "weights": [
+            1.2,
+            1.2,
+            0.8,
+            0.8,
+            0.8
+          ],
+          "retrievedCount": 18,
+          "metrics": {
+            "precisionAtK": 0.8888888888888888,
+            "recallAtK": 0.8,
+            "f1AtK": 0.8421052631578948,
+            "reciprocalRank": 1,
+            "ndcgAtK": 0.9069136882090114,
+            "successAt1HighRelevance": 1
+          },
+          "hits": [
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_5",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Project_Status.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "business_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15"
+          ]
+        }
+      }
+    },
+    {
+      "stakeholderId": "product",
+      "stakeholderRole": "Product Division / 製品部門",
+      "totalChunks": 58,
+      "relevantChunkCount": 20,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "Product Division / 製品部門 製品の品質と安全性 市場競争力 ユーザビリティ 製品化のタイムライン"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7916666666666666,
+            "recallAtK": 0.95,
+            "f1AtK": 0.8636363636363635,
+            "reciprocalRank": 0.5,
+            "ndcgAtK": 0.7358516456087636,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "製品部門 製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+            "製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+            "製品品質 安全性 品質保証 競争力 差別化 市場価値",
+            "プロダクト 製品品質 安全性 品質保証",
+            "製品部門 セーフティ",
+            "product quality safety requirements verification test"
+          ],
+          "weights": [
+            1.2,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7916666666666666,
+            "recallAtK": 0.95,
+            "f1AtK": 0.8636363636363635,
+            "reciprocalRank": 0.5,
+            "ndcgAtK": 0.7972908950050026,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 24,
+          "queries": [
+            "Product Division / 製品部門 製品の品質と安全性 市場競争力 ユーザビリティ 製品化のタイムライン"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7916666666666666,
+            "recallAtK": 0.95,
+            "f1AtK": 0.8636363636363635,
+            "reciprocalRank": 0.5,
+            "ndcgAtK": 0.7358516456087636,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4"
+          ]
+        },
+        "full-system": {
+          "k": 24,
+          "queries": [
+            "製品部門 製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+            "製品品質 安全性 品質保証 競争力 差別化 市場価値 使いやすさ UX ユーザー体験",
+            "製品品質 安全性 品質保証 競争力 差別化 市場価値",
+            "プロダクト 製品品質 安全性 品質保証",
+            "製品部門 セーフティ",
+            "product quality safety requirements verification test"
+          ],
+          "weights": [
+            1.2,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.7916666666666666,
+            "recallAtK": 0.95,
+            "f1AtK": 0.8636363636363635,
+            "reciprocalRank": 0.5,
+            "ndcgAtK": 0.7972908950050026,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_10",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Risk_Summary.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "product_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4"
+          ]
+        }
+      }
+    },
+    {
+      "stakeholderId": "r-and-d",
+      "stakeholderRole": "R&D Division / 研究開発部門",
+      "totalChunks": 58,
+      "relevantChunkCount": 15,
+      "conditions": {
+        "baseline": {
+          "k": 24,
+          "queries": [
+            "R&D Division / 研究開発部門 技術的な実現可能性 開発リソースの効率性 イノベーションの機会 技術的リスクと課題"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.5833333333333334,
+            "recallAtK": 0.9333333333333333,
+            "f1AtK": 0.7179487179487181,
+            "reciprocalRank": 0.125,
+            "ndcgAtK": 0.5967786410174842,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3"
+          ]
+        },
+        "query-expansion-only": {
+          "k": 24,
+          "queries": [
+            "研究開発部門 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+            "技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+            "技術検証 実装可能性 技術課題 技術リスク",
+            "R&D 技術検証 実装可能性",
+            "研究開発部門 テスト",
+            "technical verification implementation development issue risk"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 24,
+          "metrics": {
+            "precisionAtK": 0.5833333333333334,
+            "recallAtK": 0.9333333333333333,
+            "f1AtK": 0.7179487179487181,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.6663509566211997,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3"
+          ]
+        },
+        "adaptive-k-only": {
+          "k": 35,
+          "queries": [
+            "R&D Division / 研究開発部門 技術的な実現可能性 開発リソースの効率性 イノベーションの機会 技術的リスクと課題"
+          ],
+          "weights": [
+            1
+          ],
+          "retrievedCount": 35,
+          "metrics": {
+            "precisionAtK": 0.42857142857142855,
+            "recallAtK": 1,
+            "f1AtK": 0.6,
+            "reciprocalRank": 0.125,
+            "ndcgAtK": 0.6315479546906471,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3"
+          ]
+        },
+        "full-system": {
+          "k": 35,
+          "queries": [
+            "研究開発部門 技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+            "技術検証 実装可能性 技術課題 技術リスク 技術改善 新技術",
+            "技術検証 実装可能性 技術課題 技術リスク",
+            "R&D 技術検証 実装可能性",
+            "研究開発部門 テスト",
+            "technical verification implementation development issue risk"
+          ],
+          "weights": [
+            1.5,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "retrievedCount": 35,
+          "metrics": {
+            "precisionAtK": 0.42857142857142855,
+            "recallAtK": 1,
+            "f1AtK": 0.6,
+            "reciprocalRank": 0.25,
+            "ndcgAtK": 0.7026473945097971,
+            "successAt1HighRelevance": 0
+          },
+          "hits": [
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_0",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_2",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_15",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_4",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Verification_Results.md_20",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_1",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Hazard_Analysis.md_3",
+            "r-and-d_67e47a68-90b1-7055-df58-b1f2c302e6d6_TEST_Safety_Requirements.md_3"
+          ]
+        }
+      }
+    }
+  ]
+}
