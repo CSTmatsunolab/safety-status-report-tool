@@ -10,18 +10,44 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { getAuthenticatedUserId } from '@/lib/server-auth';
 
+const REGION = process.env.APP_AWS_REGION || process.env.AWS_REGION || 'ap-northeast-1';
+const hasAppAwsCredentials = Boolean(process.env.APP_AWS_ACCESS_KEY_ID && process.env.APP_AWS_SECRET_ACCESS_KEY);
+
 // DynamoDB クライアント初期化
 const dynamoClient = new DynamoDBClient({
-  region: process.env.APP_AWS_REGION || 'ap-northeast-1',
-  credentials: {
-    accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID || '',
-    secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY || '',
-  },
+  region: REGION,
+  ...(hasAppAwsCredentials
+    ? {
+        credentials: {
+          accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID!,
+          secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY!,
+        },
+      }
+    : {}),
 });
 
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
-const TABLE_NAME = 'ssr-user-settings';
+const TABLE_NAME = process.env.USER_SETTINGS_TABLE_NAME || 'ssr-user-settings';
+
+function isUserSettingsStorageConfigured(): boolean {
+  return Boolean(
+    hasAppAwsCredentials ||
+      process.env.AWS_ACCESS_KEY_ID ||
+      process.env.AWS_PROFILE ||
+      process.env.AWS_WEB_IDENTITY_TOKEN_FILE ||
+      process.env.AWS_CONTAINER_CREDENTIALS_RELATIVE_URI ||
+      process.env.AWS_CONTAINER_CREDENTIALS_FULL_URI ||
+      process.env.AWS_EXECUTION_ENV
+  );
+}
+
+function storageUnavailableResponse(): NextResponse {
+  return NextResponse.json(
+    { error: 'User settings storage is not configured' },
+    { status: 503 }
+  );
+}
 
 // 設定タイプの定義
 export type SettingType = 'customStakeholders' | 'customReportStructures';
@@ -35,6 +61,10 @@ export async function GET(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    if (!isUserSettingsStorageConfigured()) {
+      return storageUnavailableResponse();
     }
 
     const { searchParams } = new URL(request.url);
@@ -92,6 +122,10 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    if (!isUserSettingsStorageConfigured()) {
+      return storageUnavailableResponse();
+    }
+
     const body = await request.json();
     const { type, data } = body as { type: SettingType; data: unknown };
 
@@ -140,6 +174,10 @@ export async function DELETE(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 401 }
       );
+    }
+
+    if (!isUserSettingsStorageConfigured()) {
+      return storageUnavailableResponse();
     }
 
     const { searchParams } = new URL(request.url);

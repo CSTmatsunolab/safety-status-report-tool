@@ -45,6 +45,11 @@ interface ApiResponse<T> {
   error?: string;
 }
 
+interface ApiFetchResult<T> {
+  data: T | null;
+  available: boolean;
+}
+
 export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSettingsReturn {
   const { language = 'ja' } = options;
   const { user, status: authStatus, getUserIdentifier } = useAuth();
@@ -70,9 +75,9 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
   };
 
   // API経由でデータを取得
-  const fetchFromApi = async <T>(type: SettingType): Promise<T | null> => {
+  const fetchFromApi = async <T>(type: SettingType): Promise<ApiFetchResult<T>> => {
     const token = await getAuthToken();
-    if (!token) return null;
+    if (!token) return { data: null, available: false };
 
     try {
       const response = await fetch(`/api/user-settings?type=${type}`, {
@@ -82,14 +87,13 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch from API');
+        return { data: null, available: false };
       }
 
       const result: ApiResponse<T> = await response.json();
-      return result.data || null;
-    } catch (err) {
-      console.error(`Failed to fetch ${type} from API:`, err);
-      return null;
+      return { data: result.data || null, available: true };
+    } catch {
+      return { data: null, available: false };
     }
   };
 
@@ -109,12 +113,11 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save to API');
+        return false;
       }
 
       return true;
-    } catch (err) {
-      console.error(`Failed to save ${type} to API:`, err);
+    } catch {
       return false;
     }
   };
@@ -150,7 +153,7 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
       const customOnly = localStakeholders.filter(s => s.id.startsWith('custom_'));
       if (customOnly.length > 0) {
         const apiStakeholders = await fetchFromApi<Stakeholder[]>('customStakeholders');
-        if (!apiStakeholders || apiStakeholders.length === 0) {
+        if (apiStakeholders.available && (!apiStakeholders.data || apiStakeholders.data.length === 0)) {
           await saveToApi('customStakeholders', customOnly);
           console.log('Migrated custom stakeholders to DynamoDB');
         }
@@ -161,7 +164,7 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
     const localStructures = fetchFromLocalStorage<ReportStructureTemplate[]>('customReportStructures');
     if (localStructures && localStructures.length > 0) {
       const apiStructures = await fetchFromApi<ReportStructureTemplate[]>('customReportStructures');
-      if (!apiStructures || apiStructures.length === 0) {
+      if (apiStructures.available && (!apiStructures.data || apiStructures.data.length === 0)) {
         await saveToApi('customReportStructures', localStructures);
         console.log('Migrated custom structures to DynamoDB');
       }
@@ -185,8 +188,17 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
           fetchFromApi<ReportStructureTemplate[]>('customReportStructures'),
         ]);
 
-        setCustomStakeholdersState(apiStakeholders || []);
-        setCustomStructuresState(apiStructures || []);
+        if (apiStakeholders.available && apiStructures.available) {
+          setCustomStakeholdersState(apiStakeholders.data || []);
+          setCustomStructuresState(apiStructures.data || []);
+        } else {
+          const localStakeholders = fetchFromLocalStorage<Stakeholder[]>('customStakeholders');
+          const localStructures = fetchFromLocalStorage<ReportStructureTemplate[]>('customReportStructures');
+          const customOnly = localStakeholders?.filter(s => s.id.startsWith('custom_')) || [];
+
+          setCustomStakeholdersState(customOnly);
+          setCustomStructuresState(localStructures || []);
+        }
       } else {
         // 未認証: LocalStorageから取得
         const localStakeholders = fetchFromLocalStorage<Stakeholder[]>('customStakeholders');
@@ -223,7 +235,8 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
       if (isAuthenticated) {
         const success = await saveToApi('customStakeholders', customOnly);
         if (!success) {
-          throw new Error('Failed to save to API');
+          const dataToSave = [...predefinedStakeholders, ...customOnly];
+          saveToLocalStorage('customStakeholders', dataToSave);
         }
       } else {
         // 未認証時はLocalStorageに保存（定義済み + カスタム）
@@ -262,7 +275,7 @@ export function useUserSettings(options: UseUserSettingsOptions = {}): UseUserSe
       if (isAuthenticated) {
         const success = await saveToApi('customReportStructures', structures);
         if (!success) {
-          throw new Error('Failed to save to API');
+          saveToLocalStorage('customReportStructures', structures);
         }
       } else {
         saveToLocalStorage('customReportStructures', structures);

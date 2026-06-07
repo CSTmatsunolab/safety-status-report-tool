@@ -152,6 +152,16 @@ function testSecurityHardeningStaticChecks() {
   assert.match(authModal, /Authentication not configured/, 'auth modal must show a clear not-configured state');
   assert.match(authModal, /if \(!authConfigured\)/, 'auth modal must avoid rendering sign-in/sign-up forms when auth is not configured');
 
+  const userSettingsHook = readProjectFile('src/hooks/useUserSettings.ts');
+  assert.match(userSettingsHook, /interface ApiFetchResult/, 'user settings fetches must distinguish missing data from unavailable cloud storage');
+  assert.match(userSettingsHook, /available: false/, 'user settings must mark unavailable cloud storage without throwing console errors');
+  assert.match(userSettingsHook, /saveToLocalStorage\('customStakeholders'/, 'user settings must fall back to local storage when cloud save is unavailable');
+  assert.match(userSettingsHook, /saveToLocalStorage\('customReportStructures'/, 'report structures must fall back to local storage when cloud save is unavailable');
+
+  const userSettingsRoute = readProjectFile('src/app/api/user-settings/route.ts');
+  assert.match(userSettingsRoute, /isUserSettingsStorageConfigured/, 'user-settings API must check whether DynamoDB storage is configured');
+  assert.match(userSettingsRoute, /status: 503/, 'user-settings API must report unavailable storage without attempting invalid AWS credentials');
+
   const s3Utils = readProjectFile('src/lib/s3-utils.ts');
   assert.match(s3Utils, /uploads\/\$\{scopedUser\}\//, 'presigned S3 uploads must be stored under a user-scoped prefix');
   assert.match(s3Utils, /owner:\s*scopedUser/, 'presigned S3 uploads must record the scoped owner metadata');
