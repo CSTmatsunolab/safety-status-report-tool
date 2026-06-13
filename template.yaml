@@ -12,7 +12,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: ssr-generator
-      CodeUri: .
+      CodeUri: lambda
       Handler: dist/index.handler
       Runtime: nodejs20.x
       Description: Generates Safety Status Reports (Bulk Generation - 1 Claude API call)

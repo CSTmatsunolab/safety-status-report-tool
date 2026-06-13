@@ -10,10 +10,20 @@ Globals:
 Resources:
   SSRGeneratorFunction:
     Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: "es2022"
+        Sourcemap: true
+        EntryPoints:
+          - src/index.ts
+        External:
+          - kuromoji
     Properties:
       FunctionName: ssr-generator
       CodeUri: .
-      Handler: dist/index.handler
+      Handler: src/index.handler
       Runtime: nodejs20.x
       Description: Generates Safety Status Reports (Bulk Generation - 1 Claude API call)
       Environment:
