@@ -344,7 +344,8 @@ When about to write \`## number.\`:
 
 ### Volume (Executive Audience)
 - Total pages: 8-12 pages maximum (strictly enforced)
-- Total word count: 4,000-6,000 words
+- Total word count: 4,000-6,000 words (guideline, not a floor)
+- **Redundancy-over-length rule**: Adding redundant content to meet the minimum word count is PROHIBITED. Complete the report once all information derivable from provided documents has been included
 - Section guidelines:
   - Executive Summary: 1-2 pages
   - GSN Analysis (if included): within 1 page
@@ -358,7 +359,8 @@ When about to write \`## number.\`:
 
 ### Volume
 - Total pages: 12-15 pages maximum (strictly enforced)
-- Total word count: 6,000-8,000 words
+- Total word count: 6,000-8,000 words (guideline, not a floor)
+- **Redundancy-over-length rule**: Adding redundant content to meet the minimum word count is PROHIBITED. Complete the report once all information derivable from provided documents has been included
 - Section guidelines:
   - Executive Summary: 1-2 pages
   - Technical Overview: 1-2 pages
@@ -879,7 +881,8 @@ Assign sequential numbers and titles to all figures and tables.
 - Assign number and title at first appearance
 - Subsequent references use number only (re-explanation of content prohibited)
 - State "Cannot illustrate due to insufficient information" when data is lacking
-- All figure/table data must be from documents (see Anti-Hallucination Rules, Section 2)`;
+- All figure/table data must be from documents (see Anti-Hallucination Rules, Section 2)
+- **Inserting figures/tables solely to meet word count or page targets is PROHIBITED.** Do not include any figure or table that does not directly support the target stakeholder's decision-making or understanding.`;
 
   return prompt;
 }
@@ -1015,8 +1018,72 @@ ${sectionsFormatted}`;
 }
 
 // ============================================================================
-// 14. Build Complete User Prompt (v5 Update)
+// 14. System Prompt and User Prompt Assembly
 // ============================================================================
+
+export function buildSystemPromptEN(params: {
+  stakeholder: Stakeholder;
+}): string {
+  const { stakeholder } = params;
+
+  const parts = [
+    // Role definition
+    generateSystemPromptEN(),
+
+    // Mandatory rules, safety, and anti-hallucination policy
+    generateAntiHallucinationPromptEN(stakeholder),
+
+    // Output policy
+    generateOutputConstraintsEN(stakeholder),
+    generateRedundancyPreventionPromptEN(stakeholder),
+    generateDocumentUsagePrinciplesEN(),
+
+    // Invalid file handling policy
+    generateInvalidFileGuidelinesEN(),
+  ];
+
+  return parts.join('\n');
+}
+
+export function buildUserPromptEN(params: {
+  stakeholder: Stakeholder;
+  strategy: RhetoricStrategy;
+  contextContent: string;
+  reportSections: string[];
+  hasGSN: boolean;
+  structureDescription?: string;
+}): string {
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
+
+  const parts = [
+    // Target stakeholder for this request
+    generateStakeholderSectionEN(stakeholder, strategy),
+
+    // Stakeholder-specific writing instructions for this request
+    generateReportGuidelinesEN(stakeholder),
+
+    // Content generation instructions based on this request's inputs
+    generateGSNAnalysisPromptEN(hasGSN, stakeholder),
+    generateFigureRequirementsPromptEN(hasGSN, stakeholder),
+    generateRiskAnalysisPromptEN(),
+
+    // Rhetoric strategy for this request
+    `\n※ Apply the following strategy while complying with the anti-hallucination rules in the system prompt.
+${strategy} characteristics:${getStrategyGuidelinesEN(strategy)}`,
+
+    // Input documents for this request
+    `\n## PROVIDED DOCUMENT CONTENT\n${contextContent}`,
+
+    // Report structure for this request
+    generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription)
+  ];
+
+  return parts.join('\n');
+}
+
+// Backward compatibility: returns the previous all-in-one user prompt if any
+// existing caller remains. The report generation API uses buildSystemPromptEN
+// plus buildUserPromptEN.
 
 export function buildCompleteUserPromptEN(params: {
   stakeholder: Stakeholder;

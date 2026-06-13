@@ -20,8 +20,8 @@ import {
   Stakeholder,
   ReportStructureTemplate,
 } from './types';
-import { buildCompleteUserPrompt } from './lib/report-prompts';
-import { buildCompleteUserPromptEN } from './lib/report-prompts-en';
+import { buildSystemPrompt, buildUserPrompt } from './lib/report-prompts';
+import { buildSystemPromptEN, buildUserPromptEN } from './lib/report-prompts-en';
 import { 
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
@@ -294,15 +294,20 @@ async function streamHandler(
       console.log('Final sections:', finalSections);
       console.log('Has GSN:', hasGSNFile);
     }
-    const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
-    const promptContent = promptBuilder({
+    const promptParams = {
       stakeholder,
       strategy,
       contextContent,
       reportSections: finalSections,
       hasGSN: hasGSNFile,
       structureDescription: reportStructure.description
-    });
+    };
+    const systemPrompt = language === 'en'
+      ? buildSystemPromptEN({ stakeholder })
+      : buildSystemPrompt({ stakeholder });
+    const userPrompt = language === 'en'
+      ? buildUserPromptEN(promptParams)
+      : buildUserPrompt(promptParams);
 
     // ステップ5: Claude APIストリーミング呼び出し
     sendMessage({
@@ -322,10 +327,11 @@ async function streamHandler(
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 20000,
       temperature: 0.3,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',
-          content: promptContent
+          content: userPrompt
         }
       ]
     });

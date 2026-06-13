@@ -344,7 +344,8 @@ Markdown記法を使用してレポートを構造化すること。
 
 ### 分量（経営層向け）
 - 総ページ数: 8〜12ページ以内（厳守）
-- 総文字数: 10,000〜15,000文字以内
+- 総文字数: 10,000〜15,000文字を目安とする
+- **冗長性防止優先ルール**: 文字数の下限に達するために冗長な内容を追加することは禁止する。提供文書から導出できる情報を出し切った時点で完結させること
 - セクション目安:
   - エグゼクティブサマリー: 1〜2ページ
   - GSN分析（含む場合）: 1ページ以内
@@ -358,7 +359,8 @@ Markdown記法を使用してレポートを構造化すること。
 
 ### 分量
 - 総ページ数: 12〜15ページ以内（厳守）
-- 総文字数: 15,000〜18,000文字以内
+- 総文字数: 15,000〜18,000文字を目安とする
+- **冗長性防止優先ルール**: 文字数の下限に達するために冗長な内容を追加することは禁止する。提供文書から導出できる情報を出し切った時点で完結させること
 - セクション目安:
   - エグゼクティブサマリー: 1〜2ページ
   - 技術概要: 1〜2ページ
@@ -880,7 +882,8 @@ export function generateFigureRequirementsPrompt(hasGSNFile: boolean, stakeholde
 - 図表は初出時に番号とタイトルを付与
 - 以降の参照は番号のみで行う（内容の再説明は禁止）
 - 情報不足の場合は「情報不足のため図示不可」と明記
-- 図表内のデータは全て文書由来であること（ハルシネーション防止規則第2項参照）`;
+- 図表内のデータは全て文書由来であること（ハルシネーション防止規則第2項参照）
+- **文字数・ページ数の目標達成を目的とした図表の挿入を禁止する。** 当該ステークホルダーにとって意思決定・理解に直結する情報を含まない図表は挿入してはならない。`;
 
   return prompt;
 }
@@ -928,7 +931,43 @@ export function generateInvalidFileGuidelines(): string {
 }
 
 // ============================================================================
-// 12. レトリック戦略ガイドライン
+// 12. 絶対遵守コンテンツ要件（簡潔性・冗長防止より優先）
+// ============================================================================
+// 【設計方針】
+// システムプロンプトの簡潔性・冗長防止ルールがユーザープロンプトの具体的指示を
+// 上書きしてしまう問題を防ぐため、本関数でセクション構成・図表名・GSN読み方
+// ガイドを「最高優先度」として明示する。
+
+export function generateAbsoluteContentRules(stakeholder: Stakeholder): string {
+  const expert = isExpertStakeholder(stakeholder);
+
+  let rules = `
+## 絶対遵守コンテンツ要件（簡潔性・冗長防止ルールより優先）
+
+### セクション構成の遵守（最優先）
+- ユーザープロンプトに指定されたセクション一覧を**完全に遵守**すること
+- 指定されたセクションを統合・省略・順序変更することは禁止する
+- 簡潔性・冗長防止ルールはセクション構成の遵守より低い優先度とする
+- セクション数の削減を目的とした構成変更は禁止する
+
+### 必須図表の名称固定
+以下の図表は名称を変更せず、必ずこの名称で作成すること：
+1. 「安全性評価結果一覧」（必須図表①）
+2. 「ハザード・対策対応表」（必須図表②）`;
+
+  if (!expert) {
+    rules += `
+
+### GSN読み方ガイドの挿入（非専門家向け：必須）
+GSNファイルが提供されている場合、レポート冒頭（エグゼクティブサマリーの前）に必ずGSN読み方ガイドを挿入すること。
+この指示は簡潔性ルールより優先される。省略は禁止する。`;
+  }
+
+  return rules;
+}
+
+// ============================================================================
+// 14. レトリック戦略ガイドライン（旧12）
 // ============================================================================
 
 export function getStrategyGuidelines(strategy: RhetoricStrategy): string {
@@ -971,7 +1010,7 @@ export function getStrategyGuidelines(strategy: RhetoricStrategy): string {
 }
 
 // ============================================================================
-// 13. レポート構成指示
+// 15. レポート構成指示（旧13）
 // ============================================================================
 
 export function generateStructurePrompt(
@@ -1016,8 +1055,74 @@ ${sectionsFormatted}`;
 }
 
 // ============================================================================
-// 14. 完全なユーザープロンプトの組み立て（v5更新）
+// 16. システムプロンプトとユーザープロンプトの組み立て（旧14）
 // ============================================================================
+
+export function buildSystemPrompt(params: {
+  stakeholder: Stakeholder;
+}): string {
+  const { stakeholder } = params;
+
+  const parts = [
+    // 役割定義
+    generateSystemPrompt(),
+
+    // 絶対遵守ルール・安全性・ハルシネーション防止方針
+    generateAntiHallucinationPrompt(stakeholder),
+
+    // 出力方針
+    generateOutputConstraints(stakeholder),
+    generateRedundancyPreventionPrompt(stakeholder),
+    generateDocumentUsagePrinciples(),
+
+    // 不適切ファイル対応方針
+    generateInvalidFileGuidelines(),
+
+    // セクション構成・図表名・GSN読み方ガイドの絶対遵守（簡潔性ルールより優先）
+    generateAbsoluteContentRules(stakeholder),
+  ];
+
+  return parts.join('\n');
+}
+
+export function buildUserPrompt(params: {
+  stakeholder: Stakeholder;
+  strategy: RhetoricStrategy;
+  contextContent: string;
+  reportSections: string[];
+  hasGSN: boolean;
+  structureDescription?: string;
+}): string {
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
+
+  const parts = [
+    // 今回の対象ステークホルダー
+    generateStakeholderSection(stakeholder, strategy),
+
+    // 今回のステークホルダーに合わせた作成指示
+    generateReportGuidelines(stakeholder),
+
+    // 今回の入力条件に応じたコンテンツ生成指示
+    generateGSNAnalysisPrompt(hasGSN, stakeholder),
+    generateFigureRequirementsPrompt(hasGSN, stakeholder),
+    generateRiskAnalysisPrompt(),
+
+    // 今回のレトリック戦略
+    `\n※ 以下の戦略を活かしつつ、システムプロンプトのハルシネーション防止規則を遵守すること。
+${strategy}の特徴：${getStrategyGuidelines(strategy)}`,
+
+    // 今回の入力文書
+    `\n## 提供された文書の内容\n${contextContent}`,
+
+    // 今回のレポート構成
+    generateStructurePrompt(reportSections, hasGSN, stakeholder, structureDescription)
+  ];
+
+  return parts.join('\n');
+}
+
+// 後方互換用: 既存の呼び出し元が残っている場合でも従来形式のユーザープロンプトを返す。
+// 新規のレポート生成APIでは buildSystemPrompt + buildUserPrompt を使用する。
 
 export function buildCompleteUserPrompt(params: {
   stakeholder: Stakeholder;
