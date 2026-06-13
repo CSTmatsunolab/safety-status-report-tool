@@ -325,4 +325,4 @@ Evaluation scripts for RAG retrieval quality and SSR generation quality are loca
 
 ## License
 
-[License information]
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
