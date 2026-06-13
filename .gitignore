@@ -74,3 +74,6 @@ docs/
 
 # .vscode/.gitignore
 .vscode/
+
+# Evaluation generated outputs (AI-generated SSR reports)
+evaluation/ssr-quality-eval/outputs/
