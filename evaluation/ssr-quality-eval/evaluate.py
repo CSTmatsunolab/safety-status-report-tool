@@ -37,11 +37,12 @@ except ImportError:
     print("Warning: openai package not installed. GPT-5.2 and DeepSeek V3.2 evaluation will not be available.")
 
 try:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types as genai_types
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
-    print("Warning: google-generativeai package not installed. Gemini 2.5 Flash evaluation will not be available.")
+    print("Warning: google-genai package not installed. Gemini 2.5 Flash evaluation will not be available.")
 
 try:
     import anthropic
@@ -142,7 +143,7 @@ class SSREvaluator:
         
         # APIクライアント初期化（遅延初期化）
         self._openai_clients = {}  # base_url別にキャッシュ
-        self._gemini_model = None
+        self._gemini_client = None
         self._anthropic_client = None
         
     def _load_template(self) -> str:
@@ -242,15 +243,13 @@ class SSREvaluator:
     def _init_gemini(self):
         """Gemini クライアントを初期化"""
         if not GEMINI_AVAILABLE:
-            raise RuntimeError("google-generativeai package is not installed")
-        
+            raise RuntimeError("google-genai package is not installed")
+
         api_key = os.environ.get("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable is not set")
-        
-        genai.configure(api_key=api_key)
-        config = MODEL_CONFIG["gemini"]
-        self._gemini_model = genai.GenerativeModel(config["model_name"])
+
+        self._gemini_client = genai.Client(api_key=api_key)
     
     def _init_anthropic(self):
         """Anthropic クライアントを初期化"""
@@ -281,19 +280,19 @@ class SSREvaluator:
     
     def _call_gemini(self, prompt: str) -> str:
         """Gemini APIを呼び出し"""
-        if not self._gemini_model:
+        if not hasattr(self, "_gemini_client") or not self._gemini_client:
             self._init_gemini()
-        
-        generation_config = genai.types.GenerationConfig(
-            temperature=0,
-            max_output_tokens=8192  # より多くのトークンを許可
+
+        config = MODEL_CONFIG["gemini"]
+        response = self._gemini_client.models.generate_content(
+            model=config["model_name"],
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(
+                temperature=0,
+                max_output_tokens=8192
+            )
         )
-        
-        response = self._gemini_model.generate_content(
-            prompt,
-            generation_config=generation_config
-        )
-        
+
         return response.text
     
     def _call_anthropic(self, prompt: str, model_key: str) -> str:

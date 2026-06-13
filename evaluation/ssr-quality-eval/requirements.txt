@@ -4,8 +4,8 @@
 # OpenAI GPT-5.2 API
 openai>=1.0.0
 
-# Google Gemini 2.0 Flash API
-google-generativeai>=0.3.0
+# Google Gemini 2.5 Flash API
+google-genai>=1.0.0
 
 # 環境変数の.envファイル読み込み
 python-dotenv>=1.0.0
