@@ -910,6 +910,46 @@ Organize identified risks from these perspectives:
 }
 
 // ============================================================================
+// 10b. Mandatory Safety Core (All Stakeholders)
+// ============================================================================
+
+export function generateMandatoryCorePromptEN(hasMandatoryCore: boolean): string {
+  if (!hasMandatoryCore) return '';
+
+  return `
+## Mandatory Safety Core (Required for ALL Stakeholders)
+
+The following items MUST be included in every report regardless of stakeholder role or expertise level.
+
+### Required Items
+Extract and explicitly state the following from provided documents:
+
+1. **High-Severity Hazards** (High/Critical)
+   - Hazard ID, description, countermeasure status, residual risk
+
+2. **ASIL-D Equivalent Highest Risk Items**
+   - ASIL rating, requirement ID, verification status
+
+3. **Unverified Safety Requirements**
+   - Safety requirement ID, reason unverified, completion schedule
+
+4. **Open Issues**
+   - Node ID/issue ID, content, priority, response plan
+
+5. **Failed Verification**
+   - Test ID, failure details, retest conditions
+
+6. **Assumptions/Contexts Affecting the Safety Case**
+   - Node ID, assumption content, validity conditions
+
+### Omission Prohibition
+If any of the 6 items above exist in the provided documents, they MUST NOT be omitted regardless of the stakeholder's abstraction level setting.
+If information is completely absent, state: "N/A (not documented)".
+
+※ All judgments and descriptions must fully comply with Anti-Hallucination Rules (Section 2).`;
+}
+
+// ============================================================================
 // 11. Invalid File Guidelines
 // ============================================================================
 
@@ -993,6 +1033,11 @@ ${sectionsFormatted}`;
     prompt += isExecutiveRole(role)
       ? '\n\nNote: Keep GSN analysis within 1 page.'
       : '\n\nNote: Include GSN analysis section as GSN files are provided.';
+
+    const hasNodeIdSections = reportSections.some(s => /^G\d+:/.test(s));
+    if (hasNodeIdSections) {
+      prompt += '\n\nFor sections beginning with a GSN node ID (e.g., G1: ...), focus on that node\'s content, achievement status, and supporting evidence.';
+    }
   }
 
   if (structureDescription) {
@@ -1025,50 +1070,62 @@ export function buildCompleteUserPromptEN(params: {
   reportSections: string[];
   hasGSN: boolean;
   structureDescription?: string;
+  hasMandatoryCore?: boolean;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
+  const {
+    stakeholder,
+    strategy,
+    contextContent,
+    reportSections,
+    hasGSN,
+    structureDescription,
+    hasMandatoryCore = hasGSN,
+  } = params;
 
   // Prompt assembly order (by importance — no duplicates)
   const parts = [
     // 1. Role definition
     generateSystemPromptEN(),
-    
+
     // 2. Anti-hallucination + fidelity/consistency (single authoritative source)
     generateAntiHallucinationPromptEN(stakeholder),
-    
+
     // 3. Output constraints (format, style, volume)
     generateOutputConstraintsEN(stakeholder),
-    
+
     // 4. Redundancy prevention + information density optimization
     generateRedundancyPreventionPromptEN(stakeholder),
-    
+
     // 5. Document usage principles (citation rules, comprehensiveness, quantification merged)
     generateDocumentUsagePrinciplesEN(),
-    
+
     // 6. Stakeholder-specific settings
     generateStakeholderSectionEN(stakeholder, strategy),
-    
+
     // 7. Report guidelines + terms/plain language (merged)
     generateReportGuidelinesEN(stakeholder),
-    
+
     // 8. Content generation guides
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
     generateRiskAnalysisPromptEN(),
-    
+
+    // 8b. Mandatory Safety Core (applies to all stakeholders when GSN present)
+    generateMandatoryCorePromptEN(hasMandatoryCore),
+
     // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),
-    
+
     // 10. Rhetoric strategy
     `\n※ Apply the following strategy while complying with Anti-Hallucination Rules (Section 2).
 ${strategy} characteristics:${getStrategyGuidelinesEN(strategy)}`,
-    
+
     // 11. Provided documents
     `\n## PROVIDED DOCUMENT CONTENT\n${contextContent}`,
-    
+
     // 12. Structure instruction
     generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription)
   ];
 
-  return parts.join('\n');
+  return parts.filter(p => p && p.trim().length > 0).join('\n');
 }

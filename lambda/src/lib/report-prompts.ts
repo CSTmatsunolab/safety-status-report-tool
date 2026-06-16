@@ -971,6 +971,50 @@ export function getStrategyGuidelines(strategy: RhetoricStrategy): string {
 }
 
 // ============================================================================
+// 12b. Mandatory Safety Core（全ステークホルダー共通）
+// ============================================================================
+
+/**
+ * Mandatory Safety Core セクションのプロンプト
+ * 全ステークホルダーのレポートに必ず含めること（system_design.md 設計方針）
+ */
+export function generateMandatoryCorePrompt(hasMandatoryCore: boolean): string {
+  if (!hasMandatoryCore) return '';
+
+  return `
+## Mandatory Safety Core（必須安全コア）
+
+以下の情報は、ステークホルダーの役職・専門知識レベルに関わらず、**全レポートに必ず含めること**。
+
+### 必須記載項目
+提供文書の中から以下を必ず抽出し、専用セクションまたは各セクションの該当箇所で明示すること：
+
+1. **高Severityハザード**（High/Critical）
+   - ハザードID、説明、対策状況、残存リスクを記載
+
+2. **ASIL-D相当の最高リスク項目**
+   - ASIL等級、要件ID、検証状況を記載
+
+3. **未検証の安全要求**（Unverified Safety Requirements）
+   - 安全要件ID、未検証の理由、完了予定を記載
+
+4. **Open Issues（未解決事項）**
+   - ノードID/課題ID、内容、優先度、対応計画を記載
+
+5. **Failed Verification（検証失敗）**
+   - テストID、失敗内容、再試験条件を記載
+
+6. **Safety Caseに影響するAssumption/Context**
+   - ノードID、前提条件の内容、成立条件を記載
+
+### 省略禁止規則
+上記6項目のいずれかが提供文書に存在する場合、ステークホルダーの抽象度設定に関わらず省略してはならない。
+情報が全くない場合は「該当なし（文書記載なし）」と明記すること。
+
+※ 上記の判断・記述はハルシネーション防止規則（第2項）に完全準拠すること。`;
+}
+
+// ============================================================================
 // 13. レポート構成指示
 // ============================================================================
 
@@ -994,6 +1038,11 @@ ${sectionsFormatted}`;
     prompt += isExecutiveRole(role)
       ? '\n\n注意: GSN分析は1ページ以内で簡潔にまとめること。'
       : '\n\n注意: GSNファイルが含まれているため、GSN分析セクションを含めること。';
+
+    const hasNodeIdSections = reportSections.some(s => /^G\d+:/.test(s));
+    if (hasNodeIdSections) {
+      prompt += '\n\nGSNノードIDで始まるセクション（例: G1: ～）は、そのノードの内容・達成状況・根拠を中心に記述すること。';
+    }
   }
 
   if (structureDescription) {
@@ -1026,50 +1075,62 @@ export function buildCompleteUserPrompt(params: {
   reportSections: string[];
   hasGSN: boolean;
   structureDescription?: string;
+  hasMandatoryCore?: boolean;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
+  const {
+    stakeholder,
+    strategy,
+    contextContent,
+    reportSections,
+    hasGSN,
+    structureDescription,
+    hasMandatoryCore = hasGSN,
+  } = params;
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   const parts = [
     // 1. 役割定義
     generateSystemPrompt(),
-    
+
     // 2. ハルシネーション防止 + 忠実性・整合性（唯一の権威的ソース）
     generateAntiHallucinationPrompt(stakeholder),
-    
+
     // 3. 出力制約（フォーマット・文体・分量）
     generateOutputConstraints(stakeholder),
-    
+
     // 4. 冗長防止規則 + 情報密度最適化
     generateRedundancyPreventionPrompt(stakeholder),
-    
+
     // 5. 文書活用原則（引用ルール・網羅性・定量化を統合）
     generateDocumentUsagePrinciples(),
-    
+
     // 6. ステークホルダー固有設定
     generateStakeholderSection(stakeholder, strategy),
-    
+
     // 7. レポートガイドライン + 用語・平易表現（統合済み）
     generateReportGuidelines(stakeholder),
-    
+
     // 8. コンテンツ生成ガイド
     generateGSNAnalysisPrompt(hasGSN, stakeholder),
     generateFigureRequirementsPrompt(hasGSN, stakeholder),
     generateRiskAnalysisPrompt(),
-    
+
+    // 8b. Mandatory Safety Core（GSNがある場合は全ステークホルダーに適用）
+    generateMandatoryCorePrompt(hasMandatoryCore),
+
     // 9. 不適切ファイル対応（参考）
     generateInvalidFileGuidelines(),
-    
+
     // 10. レトリック戦略
     `\n※ 以下の戦略を活かしつつ、ハルシネーション防止規則（第2項）を遵守すること。
 ${strategy}の特徴：${getStrategyGuidelines(strategy)}`,
-    
+
     // 11. 提供文書
     `\n## 提供された文書の内容\n${contextContent}`,
-    
+
     // 12. 構成指示
     generateStructurePrompt(reportSections, hasGSN, stakeholder, structureDescription)
   ];
 
-  return parts.join('\n');
+  return parts.filter(p => p && p.trim().length > 0).join('\n');
 }
