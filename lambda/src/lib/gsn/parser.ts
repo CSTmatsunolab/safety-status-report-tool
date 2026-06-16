@@ -1,0 +1,303 @@
+// lambda/src/lib/gsn/parser.ts
+// GSNテキストをパースしてノード構造を抽出
+
+import {
+  GSNNode,
+  GSNNodeType,
+  GSNNodeStatus,
+  RiskSeverity,
+  ParsedGSN,
+} from './types';
+
+// ============================================================
+// ノード種別判定
+// ============================================================
+
+function detectNodeType(nodeId: string, typeHint?: string): GSNNodeType {
+  const hint = (typeHint || '').toLowerCase();
+
+  if (hint.includes('sub-goal') || hint.includes('subgoal')) return 'SubGoal';
+  if (hint.includes('goal') && nodeId.includes('.')) return 'SubGoal';
+  if (hint.includes('goal')) return 'Goal';
+  if (hint.includes('strategy')) return 'Strategy';
+  if (hint.includes('context')) return 'Context';
+  if (hint.includes('assumption')) return 'Assumption';
+  if (hint.includes('solution') || hint.includes('evidence')) return 'Solution';
+  if (hint.includes('justification')) return 'Justification';
+  if (hint.includes('undeveloped')) return 'Undeveloped';
+
+  // IDパターンで判定
+  if (/^G\d+\.\d/.test(nodeId)) return 'SubGoal';
+  if (/^G\d+$/.test(nodeId)) return 'Goal';
+  if (/^S\d+$/.test(nodeId)) return 'Strategy';
+  if (/^C\d+$/.test(nodeId)) return 'Context';
+  if (/^A\d+$/.test(nodeId)) return 'Assumption';
+  if (/^Sn\d+$/i.test(nodeId)) return 'Solution';
+  if (/^E\d+$/.test(nodeId)) return 'Evidence';
+  if (/^J\d+$/.test(nodeId)) return 'Justification';
+  if (/^U\d+$/.test(nodeId)) return 'Undeveloped';
+
+  return 'Goal';
+}
+
+function detectStatus(text: string): GSNNodeStatus {
+  const t = text.toLowerCase();
+  if ((t.includes('達成') && !t.includes('部分') && !t.includes('未')) ||
+      (t.includes('achieved') && !t.includes('not') && !t.includes('partial'))) {
+    return 'achieved';
+  }
+  if (t.includes('部分達成') || t.includes('partial')) return 'partial';
+  if (t.includes('未達成') || t.includes('not achieved') || t.includes('failed')) return 'unachieved';
+  if (t.includes('進行中') || t.includes('検討中') || t.includes('in progress')) return 'partial';
+  return 'unknown';
+}
+
+function detectSeverity(text: string): RiskSeverity {
+  const t = text.toLowerCase();
+  if (t.includes('critical') || t.includes('catastrophic') || t.includes('致命')) return 'critical';
+  if (t.includes('serious') || t.includes('high') || t.includes('重大') ||
+      t.includes('危機的') || t.includes('asil-d') || t.includes('asil d')) return 'high';
+  if (t.includes('medium') || t.includes('moderate') || t.includes('marginal') ||
+      t.includes('中程度')) return 'medium';
+  if (t.includes('low') || t.includes('negligible') || t.includes('低')) return 'low';
+  return 'unknown';
+}
+
+function detectASIL(text: string): string | undefined {
+  const m = text.match(/ASIL[-\s]?([A-D]|QM)/i);
+  return m ? `ASIL-${m[1].toUpperCase()}` : undefined;
+}
+
+function isOpenIssue(text: string, status: GSNNodeStatus): boolean {
+  const t = text.toLowerCase();
+  return status !== 'achieved' ||
+    t.includes('open') ||
+    t.includes('未解決') ||
+    t.includes('要対応') ||
+    t.includes('対策中') ||
+    t.includes('検討中') ||
+    t.includes('未完了');
+}
+
+function hasFailedVerification(text: string): boolean {
+  const t = text.toLowerCase();
+  return t.includes('fail') ||
+    t.includes('不合格') ||
+    t.includes('failed') ||
+    t.includes('検証失敗') ||
+    t.includes('ng');
+}
+
+function isUnverifiedRequirement(text: string, status: GSNNodeStatus): boolean {
+  const t = text.toLowerCase();
+  return (
+    (t.includes('requirement') || t.includes('安全要件') || t.includes('安全要求')) &&
+    (status === 'partial' || status === 'unachieved' || t.includes('未検証') || t.includes('未完了'))
+  );
+}
+
+// ============================================================
+// テーブルからのノード抽出
+// ============================================================
+
+function parseTableRows(section: string): GSNNode[] {
+  const nodes: GSNNode[] = [];
+  const lines = section.split('\n');
+
+  let headerFound = false;
+  let headers: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('|')) continue;
+
+    const cells = trimmed.split('|').map(c => c.trim()).filter(c => c.length > 0);
+
+    // ヘッダー行の検出
+    if (!headerFound && cells.some(c =>
+      /ノードID|NodeID|ID/i.test(c) || /種別|Type/i.test(c)
+    )) {
+      headers = cells.map(c => c.toLowerCase());
+      headerFound = true;
+      continue;
+    }
+
+    // 区切り行スキップ
+    if (cells.every(c => /^[-:]+$/.test(c))) continue;
+
+    if (!headerFound) continue;
+
+    // ノードIDらしいセルを探す
+    const idColIdx = headers.findIndex(h => h.includes('id') || h.includes('ノード'));
+    const typeColIdx = headers.findIndex(h => h.includes('種別') || h.includes('type'));
+    const descColIdx = headers.findIndex(h =>
+      h.includes('内容') || h.includes('content') || h.includes('description')
+    );
+    const statusColIdx = headers.findIndex(h =>
+      h.includes('達成') || h.includes('status') || h.includes('有効')
+    );
+    const parentColIdx = headers.findIndex(h => h.includes('親') || h.includes('parent'));
+    const evidenceColIdx = headers.findIndex(h =>
+      h.includes('根拠') || h.includes('evidence') || h.includes('参照')
+    );
+
+    const nodeIdRaw = idColIdx >= 0 ? cells[idColIdx] : cells[0];
+    if (!nodeIdRaw || !/^[GSCASEJUsnGgSsCcAaEeJjUu]/.test(nodeIdRaw)) continue;
+
+    // IDをクリーニング
+    const nodeId = nodeIdRaw.replace(/\s+/g, '').replace(/[^\w.]/g, '');
+    if (!nodeId) continue;
+
+    const typeHint = typeColIdx >= 0 ? cells[typeColIdx] : '';
+    const description = descColIdx >= 0 ? (cells[descColIdx] || '') : '';
+    const statusText = statusColIdx >= 0 ? (cells[statusColIdx] || '') : '';
+    const parentText = parentColIdx >= 0 ? (cells[parentColIdx] || '') : '';
+    const evidenceText = evidenceColIdx >= 0 ? (cells[evidenceColIdx] || '') : '';
+
+    const allText = [nodeId, typeHint, description, statusText, parentText, evidenceText].join(' ');
+    const status = detectStatus(statusText || description);
+    const severity = detectSeverity(allText);
+
+    // 親ノードID抽出
+    const parentIds: string[] = [];
+    const parentMatches = parentText.match(/[GSCASEJUsnGgSsCcAaEeJjUu]\d+(\.\d+)*/g);
+    if (parentMatches) parentIds.push(...parentMatches);
+
+    nodes.push({
+      id: nodeId,
+      type: detectNodeType(nodeId, typeHint),
+      description,
+      status,
+      severity,
+      asilLevel: detectASIL(allText),
+      parentIds,
+      childIds: [],
+      evidenceRefs: evidenceText ? [evidenceText] : [],
+      isOpenIssue: isOpenIssue(allText, status),
+      hasFailedVerification: hasFailedVerification(allText),
+      isUnverifiedRequirement: isUnverifiedRequirement(allText, status),
+      depth: (nodeId.match(/\./g) || []).length + 1,
+      rawText: allText,
+    });
+  }
+
+  return nodes;
+}
+
+// ============================================================
+// メインパース関数
+// ============================================================
+
+export function parseGSN(text: string): ParsedGSN {
+  const nodes = new Map<string, GSNNode>();
+  const nodesByType = new Map<GSNNodeType, GSNNode[]>();
+
+  // 1. テーブルセクションからノードを抽出
+  const tableNodes = parseTableRows(text);
+  for (const node of tableNodes) {
+    if (!nodes.has(node.id)) {
+      nodes.set(node.id, node);
+    }
+  }
+
+  // 2. ツリー表現からノードIDを補完（テーブルに登録されていないもの）
+  const treePattern = /([GSCgscSn][n\d]+(?:\.\d+)*)\s*\[(Goal|Sub-Goal|Strategy|Context|Assumption|Solution\/Evidence|Solution|Evidence|Undeveloped)\]/gi;
+  let match;
+  while ((match = treePattern.exec(text)) !== null) {
+    const id = match[1];
+    if (nodes.has(id)) continue;
+
+    // 説明テキストを近傍から取得
+    const lineStart = text.lastIndexOf('\n', match.index) + 1;
+    const lineEnd = text.indexOf('\n', match.index);
+    const line = text.slice(lineStart, lineEnd > 0 ? lineEnd : undefined);
+    const descMatch = line.match(/「([^」]+)」/);
+    const description = descMatch ? descMatch[1] : '';
+
+    nodes.set(id, {
+      id,
+      type: detectNodeType(id, match[2]),
+      description,
+      status: 'unknown',
+      severity: 'unknown',
+      parentIds: [],
+      childIds: [],
+      evidenceRefs: [],
+      isOpenIssue: false,
+      hasFailedVerification: false,
+      isUnverifiedRequirement: false,
+      depth: (id.match(/\./g) || []).length + 1,
+    });
+  }
+
+  // 3. 未解決事項セクションからopen issueを補完
+  const openIssueSection = text.match(/未解決事項[\s\S]{0,2000}/);
+  if (openIssueSection) {
+    const issuePattern = /([GSCgscSn][n\d]+(?:\.\d+)*)/g;
+    while ((match = issuePattern.exec(openIssueSection[0])) !== null) {
+      const id = match[1];
+      const node = nodes.get(id);
+      if (node) {
+        node.isOpenIssue = true;
+        if (node.status === 'unknown' || node.status === 'achieved') {
+          node.status = 'partial';
+        }
+      }
+    }
+  }
+
+  // 4. 高severity情報をhazard analysisテキストから補完
+  const hazardPattern = /H-\d+[\s\S]{0,300}?(?=H-\d+|$)/g;
+  while ((match = hazardPattern.exec(text)) !== null) {
+    const hazardText = match[0];
+    const severity = detectSeverity(hazardText);
+    if (severity === 'high' || severity === 'critical') {
+      // 関連するGoalノードにseverityを反映
+      const nodeRefs = hazardText.match(/[GSCgsc]\d+(\.\d+)*/g);
+      if (nodeRefs) {
+        for (const ref of nodeRefs) {
+          const node = nodes.get(ref);
+          if (node && (node.severity === 'unknown' || node.severity === 'low')) {
+            node.severity = severity;
+          }
+        }
+      }
+    }
+  }
+
+  // 5. 親子関係からdepthを計算し、childIdsを更新
+  for (const [, node] of nodes) {
+    for (const parentId of node.parentIds) {
+      const parent = nodes.get(parentId);
+      if (parent && !parent.childIds.includes(node.id)) {
+        parent.childIds.push(node.id);
+      }
+    }
+  }
+
+  // 6. 型別インデックスを構築
+  for (const [, node] of nodes) {
+    const list = nodesByType.get(node.type) || [];
+    list.push(node);
+    nodesByType.set(node.type, list);
+  }
+
+  // 7. ルートノード（親がいない）を特定
+  const rootNodeIds: string[] = [];
+  for (const [id, node] of nodes) {
+    if (node.parentIds.length === 0) {
+      rootNodeIds.push(id);
+    }
+  }
+
+  // 8. 全体ステータスを計算（ルートノードのステータスから）
+  let overallStatus: GSNNode['status'] = 'unknown';
+  if (rootNodeIds.length > 0) {
+    const rootStatuses = rootNodeIds.map(id => nodes.get(id)?.status || 'unknown');
+    if (rootStatuses.every(s => s === 'achieved')) overallStatus = 'achieved';
+    else if (rootStatuses.some(s => s === 'unachieved')) overallStatus = 'unachieved';
+    else overallStatus = 'partial';
+  }
+
+  return { nodes, rootNodeIds, nodesByType, overallStatus };
+}
