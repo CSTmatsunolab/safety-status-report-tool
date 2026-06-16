@@ -28,11 +28,24 @@ import {
 } from './lib/rhetoric-strategies';
 
 // RAGモジュールのインポート
-import { 
+import {
   performAdaptiveRRFSearch,
+  performGSNSubtreeAwareSearch,
   generateNamespace,
   debugQueryEnhancement
 } from './lib/rag';
+
+// GSNモジュールのインポート
+import {
+  parseGSN,
+  extractMandatorySafetyCore,
+  formatMandatorySafetyCore,
+  getMandatoryCoreSummary,
+  generateStakeholderGSNView,
+  gsnViewToContextText,
+  generateOutlineFromGSNView,
+  GSNView,
+} from './lib/gsn';
 
 // クライアント初期化
 const anthropic = new Anthropic({
@@ -197,32 +210,6 @@ async function streamHandler(
       });
     }
 
-    // RRF検索を実行
-    const ragResult = await performAdaptiveRRFSearch(
-      openai,
-      pinecone,
-      stakeholder,
-      namespace,
-      indexName,
-      {
-        enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
-        debug: DEBUG_LOGGING === 'true'
-      }
-    );
-
-    const ragContent = ragResult.content;
-
-    // 検索結果のログ
-    if (DEBUG_LOGGING) {
-      console.log('RRF Search completed:', {
-        documentsFound: ragResult.documents.length,
-        dynamicK: ragResult.metadata.dynamicK,
-        queriesUsed: ragResult.metadata.queriesUsed.length,
-        totalChunks: ragResult.metadata.totalChunks,
-        searchDuration: ragResult.metadata.searchDuration,
-        hybridEnabled: ragResult.metadata.hybridSearchEnabled
-      });
-    }
     // ステップ3: コンテキスト準備
     sendMessage({
       type: 'progress',
@@ -233,9 +220,10 @@ async function streamHandler(
 
     const contextParts: string[] = [];
     let hasGSNFile = false;
+    let mandatoryCoreText = '';
 
     // 全文ファイル処理
-    const fullTextFiles = files.filter(f => 
+    const fullTextFiles = files.filter(f =>
       fullTextFileIds.includes(f.name) || f.useFullText
     );
 
@@ -245,7 +233,7 @@ async function streamHandler(
         content = await getS3FileContent(file.s3Key, file.name);
       }
       if (content) {
-        const truncatedContent = content.length > MAX_CONTENT_CHARS_PER_FILE 
+        const truncatedContent = content.length > MAX_CONTENT_CHARS_PER_FILE
           ? content.substring(0, MAX_CONTENT_CHARS_PER_FILE) + '\n\n[内容が大きすぎるため省略されました]'
           : content;
         contextParts.push(`=== ファイル: ${file.name} (全文) ===\n\n${truncatedContent}`);
@@ -258,8 +246,134 @@ async function streamHandler(
       hasGSNFile = files.some(f => f.isGSN);
     }
 
+    // ステップ3.5: RAG検索（GSNファイルの有無で方式を切り替え）
+    //
+    // [hasGSNFile = true の場合] GSN構造を活用した高精度検索（以下の if ブロック）
+    //   手順:
+    //   (1) GSNファイル群のテキストを収集し、全文ファイル中のGSN記法も補完追加
+    //   (2) parseGSN: 生テキスト → GSNグラフ（ノード・エッジの構造体）に変換
+    //   (3) extractMandatorySafetyCore: 全ステークホルダー共通の必須安全根拠ノードを抽出
+    //   (4) generateStakeholderGSNView: 現在のステークホルダーに関係するサブツリーへ絞り込み
+    //   (5) performGSNSubtreeAwareSearch: 絞り込んだサブツリーをクエリ重み付けに活用し
+    //       Pinecone から関連文書を検索（標準 RRF より高精度）
+    //   (6) gsnViewToContextText: ステークホルダー向けGSNビューをテキスト化して contextParts に追加
+    //   ※ エラー時は gsnSearchUsed を false のままにして標準RRFへフォールバック
+    //
+    // [hasGSNFile = false の場合] 後の if (!gsnSearchUsed) ブロックで標準RRF検索を実行
+    let ragContent: string | null = null;
+    let gsnSearchUsed = false;
+    let gsnView: GSNView | null = null;
+
+    if (hasGSNFile) {
+      try {
+        // (1) GSNファイルの生テキストを収集
+        let gsnRawText = '';
+        const gsnFiles = files.filter(f => f.isGSN || f.type === 'gsn');
+        for (const gsnFile of gsnFiles) {
+          let content = gsnFile.content;
+          if (gsnFile.s3Key && (!content || content.length < 100)) {
+            content = await getS3FileContent(gsnFile.s3Key, gsnFile.name);
+          }
+          if (content) gsnRawText += '\n\n' + content;
+        }
+        // 全文ファイルの中にGSN記法（"GSN" / "[Goal]" / "[Strategy]"）が含まれる場合も追加補完
+        for (const part of contextParts) {
+          if (part.includes('GSN') || part.includes('[Goal]') || part.includes('[Strategy]')) {
+            gsnRawText += '\n\n' + part;
+          }
+        }
+
+        if (gsnRawText.trim().length > 50) {
+          // (2) 生テキスト → GSNグラフ構造に変換
+          const parsedGSN = parseGSN(gsnRawText);
+          // (3) 全ステークホルダー共通の必須安全根拠ノードを抽出
+          const mandatoryCore = extractMandatorySafetyCore(parsedGSN);
+          // (4) 現在のステークホルダーに関係するサブツリーへ絞り込み
+          gsnView = generateStakeholderGSNView(stakeholder.id, parsedGSN, mandatoryCore);
+
+          mandatoryCoreText = formatMandatorySafetyCore(mandatoryCore);
+
+          if (DEBUG_LOGGING) {
+            console.log('GSN parsed:', {
+              totalNodes: parsedGSN.nodes.size,
+              selectedNodes: gsnView.selectedNodes.length,
+              mandatoryCoreSummary: getMandatoryCoreSummary(mandatoryCore),
+            });
+          }
+
+          // (5) GSNサブツリーを考慮した高精度RAG検索
+          const gsnRagResult = await performGSNSubtreeAwareSearch(
+            openai,
+            pinecone,
+            stakeholder,
+            gsnView,
+            namespace,
+            indexName,
+            {
+              enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
+              debug: DEBUG_LOGGING === 'true'
+            }
+          );
+
+          if (DEBUG_LOGGING) {
+            console.log('GSN subtree-aware search completed:', {
+              documentsFound: gsnRagResult.documents.length,
+              gsnNodesUsed: gsnRagResult.metadata.gsnNodesUsed,
+              mandatoryCoreItemsFound: gsnRagResult.metadata.mandatoryCoreItemsFound,
+            });
+          }
+
+          ragContent = gsnRagResult.content;
+          gsnSearchUsed = true;
+
+          // (6) ステークホルダー向けGSNビューをコンテキストに追加
+          const gsnViewCtx = gsnViewToContextText(gsnView);
+          if (gsnViewCtx) {
+            contextParts.push(`=== GSN ステークホルダービュー ===\n\n${gsnViewCtx}`);
+          }
+        }
+      } catch (gsnError) {
+        console.warn('GSN-aware search failed, falling back to standard RAG:', gsnError);
+      }
+    }
+
+    if (!gsnSearchUsed) {
+      // 標準RRF検索にフォールバック
+      const ragResult = await performAdaptiveRRFSearch(
+        openai,
+        pinecone,
+        stakeholder,
+        namespace,
+        indexName,
+        {
+          enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
+          debug: DEBUG_LOGGING === 'true'
+        }
+      );
+
+      if (DEBUG_LOGGING) {
+        console.log('RRF Search completed:', {
+          documentsFound: ragResult.documents.length,
+          dynamicK: ragResult.metadata.dynamicK,
+          queriesUsed: ragResult.metadata.queriesUsed.length,
+          totalChunks: ragResult.metadata.totalChunks,
+          searchDuration: ragResult.metadata.searchDuration,
+          hybridEnabled: ragResult.metadata.hybridSearchEnabled,
+        });
+      }
+
+      ragContent = ragResult.content;
+    }
+
+    const ragLabel = gsnSearchUsed ? 'GSN Subtree-Aware RAG抽出内容' : 'RAG抽出内容';
     if (ragContent) {
-      contextParts.push(`=== RAG抽出内容 ===\n\n${ragContent}`);
+      contextParts.push(`=== ${ragLabel} ===\n\n${ragContent}`);
+    }
+
+    // hasGSNFile = true かつ必須安全根拠が抽出できた場合のみ、
+    // そのテキストをコンテキストに追加してAIが参照できるようにする
+    if (mandatoryCoreText) {
+      contextParts.push(mandatoryCoreText);
     }
 
     if (contextParts.length === 0) {
@@ -287,12 +401,16 @@ async function streamHandler(
     });
 
     const strategy = determineAdvancedRhetoricStrategy(stakeholder);
-    
-    // GSNファイルがある場合、動的にセクションを追加
-    const finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+
+    // GSNビューが取得できた場合: GSN構造からアウトラインを動的生成
+    // GSNなし / GSN解析失敗の場合: 固定テンプレートにフォールバック
+    const finalSections = (hasGSNFile && gsnView !== null)
+      ? generateOutlineFromGSNView(gsnView, stakeholder.id, language)
+      : buildFinalReportStructure(reportStructure, hasGSNFile);
     if (DEBUG_LOGGING) {
       console.log('Final sections:', finalSections);
       console.log('Has GSN:', hasGSNFile);
+      console.log('Outline source:', (hasGSNFile && gsnView !== null) ? 'GSN-derived' : 'template');
     }
     const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
     const promptContent = promptBuilder({
@@ -301,7 +419,8 @@ async function streamHandler(
       contextContent,
       reportSections: finalSections,
       hasGSN: hasGSNFile,
-      structureDescription: reportStructure.description
+      structureDescription: reportStructure.description,
+      hasMandatoryCore: hasGSNFile && mandatoryCoreText.length > 0,
     });
 
     // ステップ5: Claude APIストリーミング呼び出し
