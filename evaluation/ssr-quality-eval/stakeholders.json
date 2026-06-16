@@ -103,7 +103,8 @@
       {"id": "relevance", "name_ja": "関連性", "description": "入力文書の要点・重要情報を落としていないか"},
       {"id": "informativeness", "name_ja": "情報性", "description": "意思決定に必要な情報が網羅されているか"},
       {"id": "simplification", "name_ja": "単純化", "description": "専門知識レベルに合わせて記述が調整されているか"},
-      {"id": "gsn_alignment", "name_ja": "GSN対応度", "description": "GSNの構造要件を満たすか"}
+      {"id": "gsn_alignment", "name_ja": "GSN対応度", "description": "GSNの構造要件を満たすか"},
+      {"id": "mandatory_core_coverage", "name_ja": "必須コア網羅率", "description": "Mandatory Safety Core（高severity hazard、未検証要件、open issue等）が全ステークホルダーレポートに漏れなく記載されているか"}
     ],
     "scale": {"min": 1, "max": 5},
     "temperature": 0

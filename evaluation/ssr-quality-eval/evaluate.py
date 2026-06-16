@@ -504,8 +504,8 @@ class SSREvaluator:
             "",
             "## 評価結果サマリー",
             "",
-            "| ステークホルダー | 総合スコア | Faithfulness | Consistency | Coherence | Answer Relevance | Fluency | Relevance | Informativeness | Simplification | GSN Alignment |",
-            "|-----------------|-----------|--------------|-------------|-----------|------------------|---------|-----------|-----------------|----------------|---------------|"
+            "| ステークホルダー | 総合スコア | Faithfulness | Consistency | Coherence | Answer Relevance | Fluency | Relevance | Informativeness | Simplification | GSN Alignment | Mandatory Core |",
+            "|-----------------|-----------|--------------|-------------|-----------|------------------|---------|-----------|-----------------|----------------|---------------|----------------|"
         ]
         
         for eval_result in results.get("evaluations", []):
@@ -514,8 +514,9 @@ class SSREvaluator:
             scores = eval_result.get("scores", {})
             
             row = f"| {stakeholder} | {total_score} |"
-            for metric in ["faithfulness", "consistency", "coherence", "answer_relevance", 
-                          "fluency", "relevance", "informativeness", "simplification", "gsn_alignment"]:
+            for metric in ["faithfulness", "consistency", "coherence", "answer_relevance",
+                          "fluency", "relevance", "informativeness", "simplification",
+                          "gsn_alignment", "mandatory_core_coverage"]:
                 score = scores.get(metric, {}).get("score", "N/A")
                 row += f" {score} |"
             
