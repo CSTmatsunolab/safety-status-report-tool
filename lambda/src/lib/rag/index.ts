@@ -36,5 +36,6 @@ export {
 export {
   performAdaptiveRRFSearch,
   performRAGSearch,
-  performRAGSearchWithHybrid
+  performRAGSearchWithHybrid,
+  performGSNSubtreeAwareSearch,
 } from './rrf-fusion';

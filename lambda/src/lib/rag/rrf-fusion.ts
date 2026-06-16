@@ -3,22 +3,23 @@
 
 import { Pinecone } from '@pinecone-database/pinecone';
 import OpenAI from 'openai';
-import { 
-  Stakeholder, 
-  DocumentWithScore, 
-  RRFConfig, 
+import {
+  Stakeholder,
+  DocumentWithScore,
+  RRFConfig,
   RRFStatistics
 } from './types';
 import { CustomStakeholderQueryEnhancer } from './query-enhancer';
-import { 
-  getDynamicK, 
-  getWeightsForStakeholder, 
+import {
+  getDynamicK,
+  getWeightsForStakeholder,
   getRRFStatistics,
   debugRRFResults,
   formatSearchResults,
   logKAchievementRate
 } from './rag-utils';
 import { createSparseVectorAuto } from './sparse-vector-utils';
+import type { GSNView } from '../gsn/types';
 
 // ============================================================
 // 設定
@@ -360,6 +361,188 @@ export async function performRAGSearch(
   );
   
   return result.content;
+}
+
+// ============================================================
+// GSN Subtree-Aware 検索
+// ============================================================
+
+/**
+ * GSNビューを活用したSubtree-aware RRF検索
+ *
+ * system_design.md の実装案:
+ * 1. stakeholderごとにtraversal depth・node type・必須ノード種別を定義
+ * 2. 選択されたGSN viewからlinked evidenceを取得
+ * 3. GSN viewをreport outlineに変換
+ *
+ * 従来のflat RAGとの違い:
+ * - GSNノード記述からクエリを生成（構造を活用）
+ * - Mandatory Safety Coreをクエリセットに優先追加
+ * - RRFウェイトをGSN達成状況で調整
+ */
+export async function performGSNSubtreeAwareSearch(
+  openai: OpenAI,
+  pinecone: Pinecone,
+  stakeholder: Stakeholder,
+  gsnView: GSNView,
+  namespace: string,
+  indexName: string = 'safety-status-report-tool',
+  options: {
+    enableHybridSearch?: boolean;
+    config?: RRFConfig;
+    debug?: boolean;
+  } = {}
+): Promise<{
+  content: string | null;
+  documents: DocumentWithScore[];
+  statistics: RRFStatistics;
+  metadata: {
+    dynamicK: number;
+    queriesUsed: string[];
+    totalChunks: number;
+    searchDuration: number;
+    hybridSearchEnabled: boolean;
+    gsnNodesUsed: number;
+    mandatoryCoreItemsFound: number;
+  };
+}> {
+  const startTime = Date.now();
+  const { enableHybridSearch = false, config = {}, debug = false } = options;
+
+  try {
+    const index = pinecone.index(indexName);
+    const stats = await index.describeIndexStats();
+    const namespaceStats = stats.namespaces?.[namespace];
+
+    if (!namespaceStats || namespaceStats.recordCount === 0) {
+      return {
+        content: null,
+        documents: [],
+        statistics: getRRFStatistics([]),
+        metadata: {
+          dynamicK: 0, queriesUsed: [], totalChunks: 0,
+          searchDuration: Date.now() - startTime,
+          hybridSearchEnabled: enableHybridSearch,
+          gsnNodesUsed: 0, mandatoryCoreItemsFound: 0,
+        }
+      };
+    }
+
+    const totalChunks = namespaceStats.recordCount;
+    const dynamicK = getDynamicK(totalChunks, stakeholder, 'pinecone');
+
+    // ============================================================
+    // GSNビューからクエリを構築
+    // ============================================================
+
+    // 1. GSNノード記述から直接クエリを生成
+    const gsnNodeQueries: string[] = [];
+
+    // 未達成・部分達成ノードを優先（これらが最も重要な検索対象）
+    const priorityNodes = gsnView.selectedNodes
+      .filter(n => n.status !== 'achieved' && n.description.trim().length > 0)
+      .slice(0, 3);
+
+    for (const node of priorityNodes) {
+      gsnNodeQueries.push(`${node.id} ${node.description}`);
+    }
+
+    // Mandatory Safety Core からのクエリ
+    const coreNodes = [
+      ...gsnView.mandatoryCore.highSeverityHazards,
+      ...gsnView.mandatoryCore.openIssues,
+      ...gsnView.mandatoryCore.unverifiedRequirements,
+      ...gsnView.mandatoryCore.failedVerifications,
+    ].slice(0, 3);
+
+    for (const node of coreNodes) {
+      if (node.description.trim().length > 0) {
+        gsnNodeQueries.push(`${node.id} ${node.description}`);
+      }
+    }
+
+    // 2. GSNビューのクエリヒントを追加
+    const hintQueries = gsnView.queryHints.slice(0, 2);
+
+    // 3. 従来のステークホルダークエリ拡張も組み合わせる
+    const queryEnhancer = new CustomStakeholderQueryEnhancer();
+    const stakeholderQueries = queryEnhancer.enhanceQuery(stakeholder, {
+      maxQueries: 3,
+      includeEnglish: false,
+      includeSynonyms: true,
+      includeRoleTerms: true
+    });
+
+    // クエリを統合（GSNクエリを先頭に置いてRRFで重み付け）
+    const allQueries = [
+      ...new Set([...gsnNodeQueries, ...hintQueries, ...stakeholderQueries])
+    ].filter(q => q.trim().length > 0).slice(0, 8);
+
+    // 重みを設定: GSNノードクエリを高め、ステークホルダークエリを通常
+    const weights = allQueries.map((_, idx) => {
+      if (idx < gsnNodeQueries.length) return 1.5;   // GSNノードクエリ: 高重み
+      if (idx < gsnNodeQueries.length + hintQueries.length) return 1.2; // ヒント: 中重み
+      return 1.0;                                     // ステークホルダークエリ: 通常
+    });
+
+    const { rrfConstant = 60, searchK } = config;
+    const actualSearchK = searchK || Math.max(20, Math.ceil(dynamicK * 1.5));
+
+    const documents = await executeRRFSearch(
+      openai,
+      index,
+      namespace,
+      allQueries,
+      weights,
+      dynamicK,
+      actualSearchK,
+      rrfConstant,
+      enableHybridSearch
+    );
+
+    const searchDuration = Date.now() - startTime;
+
+    if (debug) {
+      debugRRFResults(documents, allQueries);
+    }
+
+    logKAchievementRate(documents.length, dynamicK, stakeholder);
+
+    const mandatoryCoreItemsFound = coreNodes.filter(cn =>
+      documents.some(doc =>
+        doc.content.includes(cn.id) || doc.content.includes(cn.description.slice(0, 20))
+      )
+    ).length;
+
+    return {
+      content: documents.length > 0 ? formatSearchResults(documents) : null,
+      documents,
+      statistics: getRRFStatistics(documents),
+      metadata: {
+        dynamicK,
+        queriesUsed: allQueries,
+        totalChunks,
+        searchDuration,
+        hybridSearchEnabled: enableHybridSearch,
+        gsnNodesUsed: gsnNodeQueries.length,
+        mandatoryCoreItemsFound,
+      }
+    };
+
+  } catch (error) {
+    console.error('GSN subtree-aware search error:', error);
+    return {
+      content: null,
+      documents: [],
+      statistics: getRRFStatistics([]),
+      metadata: {
+        dynamicK: 0, queriesUsed: [], totalChunks: 0,
+        searchDuration: Date.now() - startTime,
+        hybridSearchEnabled: enableHybridSearch,
+        gsnNodesUsed: 0, mandatoryCoreItemsFound: 0,
+      }
+    };
+  }
 }
 
 /**
