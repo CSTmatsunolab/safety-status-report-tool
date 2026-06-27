@@ -922,7 +922,7 @@ export function generateMandatoryCorePromptEN(hasMandatoryCore: boolean): string
 The following items MUST be included in every report regardless of stakeholder role or expertise level.
 
 ### Required Items
-Extract and explicitly state the following from provided documents:
+Extract the following from provided documents and write them in the "Mandatory Safety Core" section listed in the report structure:
 
 1. **High-Severity Hazards** (High/Critical)
    - Hazard ID, description, countermeasure status, residual risk
@@ -1034,9 +1034,43 @@ ${sectionsFormatted}`;
       ? '\n\nNote: Keep GSN analysis within 1 page.'
       : '\n\nNote: Include GSN analysis section as GSN files are provided.';
 
-    const hasNodeIdSections = reportSections.some(s => /^G\d+:/.test(s));
+    const hasNodeIdSections = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
     if (hasNodeIdSections) {
-      prompt += '\n\nFor sections beginning with a GSN node ID (e.g., G1: ...), focus on that node\'s content, achievement status, and supporting evidence.';
+      prompt += `
+
+### Writing Guide for GSN Node Sections
+
+The main sections of this report are structured with GSN nodes as headings,
+following the tree hierarchy of the safety argument. Each section must focus on
+the safety argumentation element that its node represents.
+
+**Goal nodes (G~) — Safety Goals**
+- The safety claim this goal makes and its scope
+- Achievement status (achieved/partial/unachieved) with justification (evidence reference required)
+- References to supporting child nodes (SubGoal, Strategy, Evidence)
+- Unresolved issues / argumentation gaps (only if documented)
+
+**SubGoal nodes — Specific Safety Goals**
+- Relationship to the parent goal and the intent of decomposition
+- Achievement status and supporting evidence
+- Residual issues (only if documented)
+
+**Strategy nodes (S~) — Argumentation Strategy**
+- How the parent goal is decomposed and argued, and why this is valid
+- Coverage assessment (are there gaps in the decomposition?)
+- Relationship to associated Context and Assumption nodes
+
+**Context nodes (C~) / Assumption nodes (A~) — Preconditions**
+- Content and applicability scope of the precondition
+- Validity assessment of the precondition (only if documented)
+- Impact on the safety argument if the precondition fails
+
+**Solution nodes (Sn~) / Evidence nodes (E~) — Evidence**
+- Type of evidence (test results, analysis, review records, etc.) and its strength
+- Coverage and limitations (what is proven and what is not)
+- Completion plan or alternative measures if incomplete (only if documented)
+
+Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solution/Evidence, U=Undeveloped`;
     }
   }
 
@@ -1044,14 +1078,38 @@ ${sectionsFormatted}`;
     prompt += `\n\nStructure Description: ${structureDescription.slice(0, 500)}`;
   }
 
-  prompt += `
+  const hasNodeIdSectionsForRule = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
+
+  if (hasNodeIdSectionsForRule) {
+    prompt += `
+
+### STRUCTURE COMPLIANCE RULES (MANDATORY) — GSN-Derived Report
+- **Create ONLY the sections listed above**
+- The following sections and any others NOT in the list above are STRICTLY PROHIBITED:
+  - Executive Summary
+  - Risk Analysis
+  - Recommendations
+  - Conclusion / Summary
+  - Test Results (as a standalone section)
+  - Improvement Proposals
+  - GSN Overview / GSN Analysis (as a standalone section)
+  - Traceability Analysis, Glossary, References, etc.
+- Write risk assessments, recommendations, and evidence within each GSN node section
+- Chapter numbers must strictly follow the numbering above
+- Do NOT reorder the sections
+- Appendix is PROHIBITED in GSN-derived reports`;
+  } else {
+    prompt += `
 
 ### STRUCTURE COMPLIANCE RULES (MANDATORY)
 - **Create ONLY the sections listed above**
 - Do NOT add any sections not listed above (e.g., Traceability Analysis, Glossary, References, etc.)
 - Chapter numbers must strictly follow the numbering above
 - Do NOT reorder the sections
-- Exception: An "Appendix" may be added after the final chapter ONLY if supplementary information (e.g., abbreviation list, referenced documents list) would aid reader comprehension
+- Exception: An "Appendix" may be added after the final chapter ONLY if supplementary information (e.g., abbreviation list, referenced documents list) would aid reader comprehension`;
+  }
+
+  prompt += `
 
 ### ADDITIONAL NOTES
 - Include "Root Cause Analysis", "5 Whys Analysis" sections ONLY when documented analysis records exist in source materials (see Anti-Hallucination Rules, Section 2)`;
