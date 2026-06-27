@@ -113,8 +113,8 @@ function parseTableRows(section: string): GSNNode[] {
 
     const cells = trimmed.split('|').map(c => c.trim()).filter(c => c.length > 0);
 
-    // ヘッダー行の検出
-    if (!headerFound && cells.some(c =>
+    // ヘッダー行の検出（複数テーブルに対応: 新しいヘッダーが現れたら列マッピングをリセット）
+    if (cells.some(c =>
       /ノードID|NodeID|ID/i.test(c) || /種別|Type/i.test(c)
     )) {
       headers = cells.map(c => c.toLowerCase());
@@ -131,7 +131,8 @@ function parseTableRows(section: string): GSNNode[] {
     const idColIdx = headers.findIndex(h => h.includes('id') || h.includes('ノード'));
     const typeColIdx = headers.findIndex(h => h.includes('種別') || h.includes('type'));
     const descColIdx = headers.findIndex(h =>
-      h.includes('内容') || h.includes('content') || h.includes('description')
+      h.includes('内容') || h.includes('content') || h.includes('description') ||
+      h.includes('安全目標') || h.includes('説明') || h.includes('証拠')
     );
     const statusColIdx = headers.findIndex(h =>
       h.includes('達成') || h.includes('status') || h.includes('有効')
@@ -147,6 +148,10 @@ function parseTableRows(section: string): GSNNode[] {
     // IDをクリーニング
     const nodeId = nodeIdRaw.replace(/\s+/g, '').replace(/[^\w.]/g, '');
     if (!nodeId) continue;
+
+    // 標準GSNノードIDパターンのみ受け付ける（AEB・ASIL等の誤検出を防止）
+    // 有効パターン: G0, G1.1, S1, Sn01, C0, A0, J1, E1, U1 等
+    if (!/^(G\d+(\.\d+)*|S(?:n\d+|\d+)|C\d+(\.\d+)*|A\d+(\.\d+)*|J\d+|E\d+|U\d+)$/i.test(nodeId)) continue;
 
     const typeHint = typeColIdx >= 0 ? cells[typeColIdx] : '';
     const description = descColIdx >= 0 ? (cells[descColIdx] || '') : '';
@@ -205,14 +210,29 @@ export function parseGSN(text: string): ParsedGSN {
   let match;
   while ((match = treePattern.exec(text)) !== null) {
     const id = match[1];
-    if (nodes.has(id)) continue;
 
     // 説明テキストを近傍から取得
     const lineStart = text.lastIndexOf('\n', match.index) + 1;
     const lineEnd = text.indexOf('\n', match.index);
     const line = text.slice(lineStart, lineEnd > 0 ? lineEnd : undefined);
-    const descMatch = line.match(/「([^」]+)」/);
+
+    // 同じ行で説明を探し、見つからない場合は次の行も確認（G0 [Goal] の次行に説明がある場合等）
+    let descMatch = line.match(/「([^」]+)」/);
+    if (!descMatch && lineEnd > 0) {
+      const nextLineEnd = text.indexOf('\n', lineEnd + 1);
+      const nextLine = text.slice(lineEnd + 1, nextLineEnd > 0 ? nextLineEnd : undefined);
+      descMatch = nextLine.match(/「([^」]+)」/);
+    }
     const description = descMatch ? descMatch[1] : '';
+
+    // テーブルに登録済みでdescriptionが空の場合はツリーの説明で補完
+    if (nodes.has(id)) {
+      const existing = nodes.get(id)!;
+      if (!existing.description && description) {
+        existing.description = description;
+      }
+      continue;
+    }
 
     nodes.set(id, {
       id,
