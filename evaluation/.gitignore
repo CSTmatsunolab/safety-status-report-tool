@@ -5,6 +5,9 @@ __pycache__/
 .env
 .env.local
 
+#inputs
+ssr-quality-eval/inputs/
+
 # Node
 rag-evaluation/node_modules/
 
@@ -13,3 +16,4 @@ rag-evaluation/all-chunks-check.csv
 
 # OS
 .DS_Store
+
