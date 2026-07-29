@@ -20,8 +20,8 @@ import {
   Stakeholder,
   ReportStructureTemplate,
 } from './types';
-import { buildCompleteUserPrompt } from './lib/report-prompts';
-import { buildCompleteUserPromptEN } from './lib/report-prompts-en';
+import { buildCompleteUserPrompt, generateSystemPrompt } from './lib/report-prompts';
+import { buildCompleteUserPromptEN, generateSystemPromptEN } from './lib/report-prompts-en';
 import { 
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
@@ -44,6 +44,7 @@ import {
   generateStakeholderGSNView,
   gsnViewToContextText,
   generateOutlineFromGSNView,
+  getOutlineNodes,
   GSNView,
 } from './lib/gsn';
 
@@ -302,6 +303,8 @@ async function streamHandler(
           }
 
           // (5) GSNサブツリーを考慮した高精度RAG検索
+          // アウトライン（見出し）になるノードを特定し、全てのノードにクエリを生成させる
+          const outlineNodesForSearch = getOutlineNodes(gsnView, stakeholder.id);
           const gsnRagResult = await performGSNSubtreeAwareSearch(
             openai,
             pinecone,
@@ -311,7 +314,8 @@ async function streamHandler(
             indexName,
             {
               enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
-              debug: DEBUG_LOGGING === 'true'
+              debug: DEBUG_LOGGING === 'true',
+              outlineNodes: outlineNodesForSearch,
             }
           );
 
@@ -437,10 +441,13 @@ async function streamHandler(
     // Claude APIをストリーミングで呼び出し
     let fullReportContent = '';
     
+    const systemPrompt = language === 'en' ? generateSystemPromptEN() : generateSystemPrompt();
+
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 20000,
       temperature: 0.3,
+      system: systemPrompt,
       messages: [
         {
           role: 'user',

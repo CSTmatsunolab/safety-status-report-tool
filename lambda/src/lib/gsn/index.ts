@@ -14,4 +14,4 @@ export {
   gsnViewToQueryText,
   gsnViewToContextText,
 } from './stakeholder-view';
-export { generateOutlineFromGSNView, isGSNDerivedOutline } from './outline-generator';
+export { generateOutlineFromGSNView, getOutlineNodes, isGSNDerivedOutline } from './outline-generator';

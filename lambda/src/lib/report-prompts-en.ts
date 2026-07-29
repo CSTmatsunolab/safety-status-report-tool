@@ -1070,7 +1070,16 @@ the safety argumentation element that its node represents.
 - Coverage and limitations (what is proven and what is not)
 - Completion plan or alternative measures if incomplete (only if documented)
 
-Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solution/Evidence, U=Undeveloped`;
+Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solution/Evidence, U=Undeveloped
+
+### Heading Format (MANDATORY)
+- Headings (\`##\`/\`###\` lines) must NOT contain the raw node ID (G1, G1.1, S2, Sn3, etc.) or the colon that follows it. The structure list above is an internal mapping to GSN nodes, not literal heading text to copy.
+- Keep only the chapter number (1. / 1.1, etc.) in the heading; replace the node ID with a noun-phrase summary of the node's content.
+- Write the heading as a noun phrase (title-style), not a full sentence — do not end it with a verb/predicate (e.g., avoid "...protects occupants").
+- Example:
+  - Wrong: \`## 1. G1: The brake system protects occupants during a collision\`
+  - Right: \`## 1. Occupant Protection During Collision (Brake System)\`
+- If the node ID needs to be mentioned, do so in the body text, not in the heading.`;
     }
   }
 
@@ -1141,11 +1150,9 @@ export function buildCompleteUserPromptEN(params: {
   } = params;
 
   // Prompt assembly order (by importance — no duplicates)
+  // Note: Role definition (generateSystemPromptEN) is passed via API system parameter, excluded here
   const parts = [
-    // 1. Role definition
-    generateSystemPromptEN(),
-
-    // 2. Anti-hallucination + fidelity/consistency (single authoritative source)
+    // 1. Anti-hallucination + fidelity/consistency (single authoritative source)
     generateAntiHallucinationPromptEN(stakeholder),
 
     // 3. Output constraints (format, style, volume)

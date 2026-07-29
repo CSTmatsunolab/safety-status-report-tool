@@ -166,6 +166,21 @@ function buildFallbackOutline(language: 'ja' | 'en'): string[] {
 }
 
 /**
+ * アウトラインに含まれるGSNノードオブジェクトを返す（文字列変換前）。
+ * RAGクエリ生成で「見出しになるノード全てにクエリを生成」するために使用する。
+ */
+export function getOutlineNodes(
+  view: GSNView,
+  stakeholderId: string,
+): GSNNode[] {
+  const { selectedNodes } = view;
+  const frame = resolveFrame(stakeholderId);
+  const orderedNodes = orderNodesByHierarchy(selectedNodes, frame);
+  const nodeLimit = getNodeLimit(frame);
+  return orderedNodes.slice(0, nodeLimit);
+}
+
+/**
  * 生成されたアウトラインがGSN由来かどうかを判定する。
  * generateStructurePrompt での追加注記に使用。
  */

@@ -19,7 +19,7 @@ import {
   logKAchievementRate
 } from './rag-utils';
 import { createSparseVectorAuto } from './sparse-vector-utils';
-import type { GSNView } from '../gsn/types';
+import type { GSNView, GSNNode } from '../gsn/types';
 
 // ============================================================
 // 設定
@@ -29,6 +29,26 @@ const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 const DEFAULT_RRF_CONSTANT = 60;
 const DEFAULT_SEARCH_K_MULTIPLIER = 1.5;
 const MIN_SEARCH_K = 20;
+
+// ============================================================
+// Mandatory Safety Core フォールバック固定クエリ
+// GSNから該当カテゴリのノードが取得できなかった場合に使用する
+// ============================================================
+
+const MANDATORY_CORE_FALLBACK_QUERIES = {
+  highSeverityHazards:
+    '高Severityハザード Critical High リスク 対策状況 残存リスク hazard critical high severity countermeasure residual risk',
+  asilDItems:
+    'ASIL-D ASIL-C 最高安全整合性レベル 機能安全要件 検証状況 safety integrity level highest requirement verification',
+  unverifiedRequirements:
+    '未検証安全要件 検証未完了 検証pending 安全要件ステータス unverified safety requirement verification incomplete pending',
+  openIssues:
+    '未解決事項 未解決課題 open issue 対応計画 未対処 未クローズ pending action plan unresolved',
+  failedVerifications:
+    'テスト失敗 検証失敗 FAIL FAILED 不合格 再試験条件 是正措置 test failure verification failed retest corrective action',
+  criticalAssumptions:
+    'Safety Case 前提条件 Assumption Context 成立条件 重要仮定 前提崩壊 critical assumption precondition validity',
+} as const;
 
 // ============================================================
 // メインのRRF検索関数
@@ -391,6 +411,7 @@ export async function performGSNSubtreeAwareSearch(
     enableHybridSearch?: boolean;
     config?: RRFConfig;
     debug?: boolean;
+    outlineNodes?: GSNNode[];
   } = {}
 ): Promise<{
   content: string | null;
@@ -407,7 +428,7 @@ export async function performGSNSubtreeAwareSearch(
   };
 }> {
   const startTime = Date.now();
-  const { enableHybridSearch = false, config = {}, debug = false } = options;
+  const { enableHybridSearch = false, config = {}, debug = false, outlineNodes = [] } = options;
 
   try {
     const index = pinecone.index(indexName);
@@ -438,27 +459,57 @@ export async function performGSNSubtreeAwareSearch(
     // 1. GSNノード記述から直接クエリを生成
     const gsnNodeQueries: string[] = [];
 
-    // 未達成・部分達成ノードを優先（これらが最も重要な検索対象）
-    const priorityNodes = gsnView.selectedNodes
-      .filter(n => n.status !== 'achieved' && n.description.trim().length > 0)
-      .slice(0, 3);
+    // アウトライン（見出し）になるノード全てに対してクエリを生成（必須）
+    // 未達成・部分達成を先頭に置き、達成済みノードも含める
+    const outlineNodeIds = new Set(outlineNodes.map(n => n.id));
+    const outlineUnachieved = outlineNodes.filter(
+      n => n.status !== 'achieved' && n.description.trim().length > 0
+    );
+    const outlineAchieved = outlineNodes.filter(
+      n => n.status === 'achieved' && n.description.trim().length > 0
+    );
+    for (const node of [...outlineUnachieved, ...outlineAchieved]) {
+      gsnNodeQueries.push(`${node.id} ${node.description}`);
+    }
 
-    for (const node of priorityNodes) {
+    // アウトラインにない未達成・部分達成ノードを補完（最大2件）
+    const extraPriorityNodes = gsnView.selectedNodes
+      .filter(n => n.status !== 'achieved' && !outlineNodeIds.has(n.id) && n.description.trim().length > 0)
+      .slice(0, 2);
+    for (const node of extraPriorityNodes) {
       gsnNodeQueries.push(`${node.id} ${node.description}`);
     }
 
     // Mandatory Safety Core からのクエリ
-    const coreNodes = [
-      ...gsnView.mandatoryCore.highSeverityHazards,
-      ...gsnView.mandatoryCore.openIssues,
-      ...gsnView.mandatoryCore.unverifiedRequirements,
-      ...gsnView.mandatoryCore.failedVerifications,
-    ].slice(0, 3);
+    // ノードが取得できたカテゴリはノード記述をクエリ化し、
+    // 取得できなかったカテゴリは固定フォールバッククエリを適用する
+    const mc = gsnView.mandatoryCore;
+    const mandatoryCoreCategories: Array<{
+      nodes: typeof mc.highSeverityHazards;
+      fallback: string;
+    }> = [
+      { nodes: mc.highSeverityHazards,     fallback: MANDATORY_CORE_FALLBACK_QUERIES.highSeverityHazards },
+      { nodes: mc.asilDItems,              fallback: MANDATORY_CORE_FALLBACK_QUERIES.asilDItems },
+      { nodes: mc.unverifiedRequirements,  fallback: MANDATORY_CORE_FALLBACK_QUERIES.unverifiedRequirements },
+      { nodes: mc.openIssues,              fallback: MANDATORY_CORE_FALLBACK_QUERIES.openIssues },
+      { nodes: mc.failedVerifications,     fallback: MANDATORY_CORE_FALLBACK_QUERIES.failedVerifications },
+      { nodes: mc.criticalAssumptions,     fallback: MANDATORY_CORE_FALLBACK_QUERIES.criticalAssumptions },
+    ];
 
-    for (const node of coreNodes) {
-      if (node.description.trim().length > 0) {
-        gsnNodeQueries.push(`${node.id} ${node.description}`);
+    for (const category of mandatoryCoreCategories) {
+      // アウトラインに未収録のノードだけ抽出
+      const availableNodes = category.nodes.filter(
+        n => !outlineNodeIds.has(n.id) && n.description.trim().length > 0
+      );
+
+      if (availableNodes.length > 0) {
+        // ノードが取得できた場合: 先頭1件のノード記述をクエリ化
+        gsnNodeQueries.push(`${availableNodes[0].id} ${availableNodes[0].description}`);
+      } else if (category.nodes.length === 0) {
+        // ノードが一件も取得できなかった場合: フォールバック固定クエリを適用
+        gsnNodeQueries.push(category.fallback);
       }
+      // アウトライン収録済みのみでフィルタ後ゼロの場合はスキップ（アウトラインで既にカバー済み）
     }
 
     // 2. GSNビューのクエリヒントを追加
@@ -474,15 +525,20 @@ export async function performGSNSubtreeAwareSearch(
     });
 
     // クエリを統合（GSNクエリを先頭に置いてRRFで重み付け）
+    // アウトラインノード数に応じて上限を動的に設定
+    const queryLimit = Math.max(15, outlineNodes.length + 5);
     const allQueries = [
       ...new Set([...gsnNodeQueries, ...hintQueries, ...stakeholderQueries])
-    ].filter(q => q.trim().length > 0).slice(0, 8);
+    ].filter(q => q.trim().length > 0).slice(0, queryLimit);
 
-    // 重みを設定: GSNノードクエリを高め、ステークホルダークエリを通常
+    // 重みを設定: アウトライン未達成 > アウトライン達成済み > 補完ノード > ヒント > ステークホルダー
+    const outlineQueryCount = outlineUnachieved.length + outlineAchieved.length;
     const weights = allQueries.map((_, idx) => {
-      if (idx < gsnNodeQueries.length) return 1.5;   // GSNノードクエリ: 高重み
-      if (idx < gsnNodeQueries.length + hintQueries.length) return 1.2; // ヒント: 中重み
-      return 1.0;                                     // ステークホルダークエリ: 通常
+      if (idx < outlineUnachieved.length) return 1.5;          // アウトライン未達成: 最高重み
+      if (idx < outlineQueryCount) return 1.3;                  // アウトライン達成済み: 高重み
+      if (idx < gsnNodeQueries.length) return 1.2;              // 補完・Core: 中重み
+      if (idx < gsnNodeQueries.length + hintQueries.length) return 1.1; // ヒント
+      return 1.0;                                               // ステークホルダークエリ: 通常
     });
 
     const { rrfConstant = 60, searchK } = config;
@@ -508,7 +564,15 @@ export async function performGSNSubtreeAwareSearch(
 
     logKAchievementRate(documents.length, dynamicK, stakeholder);
 
-    const mandatoryCoreItemsFound = coreNodes.filter(cn =>
+    const allCoreNodes = [
+      ...mc.highSeverityHazards,
+      ...mc.asilDItems,
+      ...mc.unverifiedRequirements,
+      ...mc.openIssues,
+      ...mc.failedVerifications,
+      ...mc.criticalAssumptions,
+    ];
+    const mandatoryCoreItemsFound = allCoreNodes.filter(cn =>
       documents.some(doc =>
         doc.content.includes(cn.id) || doc.content.includes(cn.description.slice(0, 20))
       )
