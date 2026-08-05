@@ -74,3 +74,6 @@ docs/
 
 # .vscode/.gitignore
 .vscode/
+
+#claude.md
+CLAUDE.md
