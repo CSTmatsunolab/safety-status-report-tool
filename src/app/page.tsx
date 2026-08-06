@@ -11,6 +11,7 @@ import { GenerationProgress } from './components/GenerationProgress';
 import { StreamingPreview } from './components/StreamingPreview';
 import { UploadedFile, Stakeholder, Report } from '@/types';
 import ReportStructureSelector from './components/ReportStructureSelector';
+import GSNStructureView from './components/GSNStructureView';
 import { KnowledgeBaseManager } from './components/KnowledgeBaseManager';
 import { ReportStructureTemplate } from '@/types';
 import { getSimpleRecommendedStructure } from '@/lib/report-structures';
@@ -196,6 +197,19 @@ export default function Home() {
           : file
       )
     );
+  };
+
+  // GSN構造エディタでの編集結果を反映（file.contentを編集後の正規テーブルで置き換える）
+  const handleUpdateGSNStructure = (fileId: string, newContent: string) => {
+    setFiles(prev =>
+      prev.map(file =>
+        file.id === fileId
+          ? { ...file, content: newContent }
+          : file
+      )
+    );
+    // GSNファイルはナレッジベースの構築対象に含まれるため、再構築を促す
+    setKnowledgeBaseStatus('idle');
   };
 
   const handleToggleGSN = (fileId: string, isGSN: boolean) => {
@@ -704,10 +718,13 @@ export default function Home() {
                 onRemove={handleFileRemove}
                 onToggleFullText={handleToggleFullText}
                 onToggleGSN={handleToggleGSN}
-                files={files} 
+                files={files}
               />
             </div>
-            
+
+            {/* GSN構造の解析結果（GSNとしてマークされたファイルがある場合のみ表示） */}
+            <GSNStructureView files={files} onUpdateContent={handleUpdateGSNStructure} />
+
             {/* 2. ステークホルダー選択 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">
               <h2 className={`text-lg sm:text-xl font-semibold mb-4 transition-colors ${

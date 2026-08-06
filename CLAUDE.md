@@ -81,6 +81,9 @@ This is the newer subsystem (see `GSN_STAKEHOLDER_VIEW_CHANGES.md` and `system_d
 
 If GSN parsing fails or no GSN file is provided, every one of these paths has a designed fallback to the pre-GSN flat behavior — preserve that fallback when changing this module.
 
+### GSN structure display (frontend, `src/lib/gsn/` + `GSNStructureView.tsx`)
+So the user can see what the Lambda will actually parse, `parser.ts`, `types.ts` and `extractMandatorySafetyCore` are **duplicated** into `src/lib/gsn/` (same manual-sync arrangement as `sparse-vector-utils.ts` — the two halves are independent builds). `src/lib/gsn/analyze.ts` adds display-only logic (tree building from `parentIds`/`childIds`, type/status counts, root counting) and `analyzeGSNFiles()` runs it over every uploaded file flagged as GSN; `src/app/components/GSNStructureView.tsx` renders the tree, the type/status summary, and the Mandatory Safety Core panel in the left column of `page.tsx`, and explains the flat-RAG fallback when no nodes are detected. **If you change `lambda/src/lib/gsn/parser.ts` or the core-extraction conditions, mirror the change into `src/lib/gsn/` or the UI will show a structure the report generator doesn't use.**
+
 ### Document ingestion pipeline (frontend, `src/lib/`)
 `md-converter/` unifies DOCX/HTML/TXT/Excel/PDF into Markdown; then `chunking-strategies.ts` + `table-aware-chunking.ts` + `max-min-chunking.ts` do structure-aware chunking (split at headings, protect Markdown tables and safety IDs like `H-001`/`SR-101`, min 300 / max 1200 chars per section). `embeddings.ts` + `vector-store.ts` (Pinecone via `VectorStoreFactory`) build the knowledge base; `sparse-vector-utils.ts` exists in both `src/lib` and `lambda/src/lib/rag` (kept in sync manually — there's no shared package between the two builds).
 

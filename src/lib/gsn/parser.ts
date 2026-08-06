@@ -1,5 +1,9 @@
-// lambda/src/lib/gsn/parser.ts
+// src/lib/gsn/parser.ts
 // GSNテキストをパースしてノード構造を抽出
+//
+// ⚠️ lambda/src/lib/gsn/parser.ts のコピー（フロントエンド表示用）。
+// UI に表示する構造が Lambda 側の実際の解析結果と一致している必要があるため、
+// パースロジックを変更する場合は必ず両方を同じ内容に保つこと。
 
 import {
   GSNNode,
@@ -8,6 +12,10 @@ import {
   RiskSeverity,
   ParsedGSN,
 } from './types';
+
+// 標準GSNノードIDパターン（例: G0, G1.1, S1, Sn01, C0, A0, J1, E1, U1）
+// テーブル抽出・フォーム編集・シリアライズで共通利用する
+export const GSN_NODE_ID_PATTERN = /^(G\d+(\.\d+)*|S(?:n\d+|\d+)|C\d+(\.\d+)*|A\d+(\.\d+)*|J\d+|E\d+|U\d+)$/i;
 
 // ============================================================
 // ノード種別判定
@@ -96,9 +104,8 @@ function isUnverifiedRequirement(text: string, status: GSNNodeStatus): boolean {
   );
 }
 
-// フロントエンドのGSNStructureEditorが「内容」セルへ埋め込むタグ
-// （severity/ASIL/open issue/検証失敗）と空セル用の目印「-」を、
-// 表示・生成に使うdescriptionから取り除く（キーワード検出には生テキストのまま使う）
+// GSNStructureEditorが「内容」セルへ埋め込むタグ（serialize.tsのbuildContentCell参照）と
+// 空セル用の目印（EMPTY_CELL_PLACEHOLDER）を、表示用のdescriptionから取り除く
 const EDITOR_TAG_PATTERN = /\s*\[(?:Severity:(?:Critical|High|Medium|Low)|ASIL-(?:QM|[A-D])|未解決|検証失敗)\]/gi;
 
 function cleanDescriptionForDisplay(rawDescription: string): string {
@@ -160,8 +167,7 @@ function parseTableRows(section: string): GSNNode[] {
     if (!nodeId) continue;
 
     // 標準GSNノードIDパターンのみ受け付ける（AEB・ASIL等の誤検出を防止）
-    // 有効パターン: G0, G1.1, S1, Sn01, C0, A0, J1, E1, U1 等
-    if (!/^(G\d+(\.\d+)*|S(?:n\d+|\d+)|C\d+(\.\d+)*|A\d+(\.\d+)*|J\d+|E\d+|U\d+)$/i.test(nodeId)) continue;
+    if (!GSN_NODE_ID_PATTERN.test(nodeId)) continue;
 
     const typeHint = typeColIdx >= 0 ? cells[typeColIdx] : '';
     const descriptionRaw = descColIdx >= 0 ? (cells[descColIdx] || '') : '';
@@ -172,6 +178,8 @@ function parseTableRows(section: string): GSNNode[] {
     const allText = [nodeId, typeHint, descriptionRaw, statusText, parentText, evidenceText].join(' ');
     const status = detectStatus(statusText || descriptionRaw);
     const severity = detectSeverity(allText);
+    // GSNStructureEditorが「内容」セルに埋め込むタグ（severity/ASIL/open issue/検証失敗）は
+    // 上のキーワード検出にのみ使い、表示用のdescriptionからは取り除く
     const description = cleanDescriptionForDisplay(descriptionRaw);
 
     // 親ノードID抽出
@@ -206,7 +214,6 @@ function parseTableRows(section: string): GSNNode[] {
 
 export function parseGSN(text: string): ParsedGSN {
   const nodes = new Map<string, GSNNode>();
-  const nodesByType = new Map<GSNNodeType, GSNNode[]>();
 
   // 1. テーブルセクションからノードを抽出
   const tableNodes = parseTableRows(text);
@@ -296,7 +303,28 @@ export function parseGSN(text: string): ParsedGSN {
     }
   }
 
-  // 5. 親子関係からdepthを計算し、childIdsを更新
+  // 5〜8. 親子関係・型別インデックス・ルート判定・全体ステータスの構築
+  return buildParsedGSN(Array.from(nodes.values()));
+}
+
+// ============================================================
+// ノード配列からのParsedGSN構築（親子関係・インデックス・全体ステータス）
+//
+// テキストパース結果（上のparseGSN）とフォーム編集結果（GSNStructureEditor）の
+// 両方から共通で使う。childIdsとparentIdsの整合性はここで作り直すため、
+// 渡されたノードのchildIdsは無視して良い（parentIdsのみが信頼できる入力）。
+// ============================================================
+
+export function buildParsedGSN(nodeList: GSNNode[]): ParsedGSN {
+  const nodes = new Map<string, GSNNode>();
+  const nodesByType = new Map<GSNNodeType, GSNNode[]>();
+
+  // 0. childIdsをリセットしてMapに登録（parentIdsのみを信頼できる入力として扱う）
+  for (const node of nodeList) {
+    nodes.set(node.id, { ...node, childIds: [] });
+  }
+
+  // 1. 親子関係からchildIdsを更新
   for (const [, node] of nodes) {
     for (const parentId of node.parentIds) {
       const parent = nodes.get(parentId);
@@ -306,14 +334,14 @@ export function parseGSN(text: string): ParsedGSN {
     }
   }
 
-  // 6. 型別インデックスを構築
+  // 2. 型別インデックスを構築
   for (const [, node] of nodes) {
     const list = nodesByType.get(node.type) || [];
     list.push(node);
     nodesByType.set(node.type, list);
   }
 
-  // 7. ルートノード（親がいない）を特定
+  // 3. ルートノード（親がいない）を特定
   const rootNodeIds: string[] = [];
   for (const [id, node] of nodes) {
     if (node.parentIds.length === 0) {
@@ -321,7 +349,7 @@ export function parseGSN(text: string): ParsedGSN {
     }
   }
 
-  // 8. 全体ステータスを計算（ルートノードのステータスから）
+  // 4. 全体ステータスを計算（ルートノードのステータスから）
   let overallStatus: GSNNode['status'] = 'unknown';
   if (rootNodeIds.length > 0) {
     const rootStatuses = rootNodeIds.map(id => nodes.get(id)?.status || 'unknown');
