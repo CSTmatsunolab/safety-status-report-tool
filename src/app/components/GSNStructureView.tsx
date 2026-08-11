@@ -3,7 +3,7 @@
 // 表示内容は Lambda がレポート生成時に認識する GSN 構造と同じパーサーから生成される。
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FiAlertTriangle,
   FiCheckCircle,
@@ -15,14 +15,16 @@ import {
   FiShare2,
   FiXCircle,
 } from 'react-icons/fi';
-import { UploadedFile } from '@/types';
+import { Stakeholder, UploadedFile } from '@/types';
 import {
   analyzeGSNFiles,
+  buildHiCaseView,
   GSNAnalysis,
   GSNNode,
   GSNNodeStatus,
   GSNNodeType,
   GSNTreeNode,
+  HiCaseNode,
   MandatorySafetyCore,
 } from '@/lib/gsn';
 import { useI18n } from './I18nProvider';
@@ -31,6 +33,7 @@ import GSNStructureEditor from './GSNStructureEditor';
 interface GSNStructureViewProps {
   files: UploadedFile[];
   onUpdateContent?: (fileId: string, newContent: string) => void;
+  stakeholders?: Stakeholder[];
 }
 
 // ============================================================
@@ -87,9 +90,10 @@ export const SEVERITY_STYLES: Record<string, string> = {
 // ルートコンポーネント
 // ============================================================
 
-export default function GSNStructureView({ files, onUpdateContent }: GSNStructureViewProps) {
+export default function GSNStructureView({ files, onUpdateContent, stakeholders = [] }: GSNStructureViewProps) {
   const { language } = useI18n();
   const analyses = useMemo(() => analyzeGSNFiles(files), [files]);
+  const [previewStakeholderId, setPreviewStakeholderId] = useState<string | null>(null);
 
   if (analyses.length === 0) return null;
 
@@ -113,6 +117,15 @@ export default function GSNStructureView({ files, onUpdateContent }: GSNStructur
           : 'GSNとしてマークしたファイルから解析した構造です。レポート生成でも同じ構造からアウトラインとMandatory Safety Coreが作られます。'}
       </p>
 
+      {stakeholders.length > 0 && (
+        <HiCasePreviewSelector
+          stakeholders={stakeholders}
+          selectedId={previewStakeholderId}
+          onSelect={setPreviewStakeholderId}
+          language={language}
+        />
+      )}
+
       <div className="space-y-4">
         {analyses.map((analysis, index) => (
           <GSNFilePanel
@@ -121,9 +134,70 @@ export default function GSNStructureView({ files, onUpdateContent }: GSNStructur
             language={language}
             defaultOpen={index === 0}
             onUpdateContent={onUpdateContent}
+            previewStakeholderId={previewStakeholderId}
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ステークホルダー別 hicase プレビュー選択
+// ============================================================
+
+function HiCasePreviewSelector({
+  stakeholders,
+  selectedId,
+  onSelect,
+  language,
+}: {
+  stakeholders: Stakeholder[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  language: string;
+}) {
+  return (
+    <div className="mb-4 space-y-2">
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+        {language === 'en'
+          ? 'Preview report structure for a stakeholder (hicase open/closed)'
+          : 'ステークホルダー別のレポート構造プレビュー（hicase open/closed）'}
+      </h4>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onSelect(null)}
+          className={`text-sm px-3 py-1 rounded-full border transition-colors ${
+            selectedId === null
+              ? 'border-blue-500 bg-blue-50 text-blue-800 dark:border-blue-500 dark:bg-blue-900/50 dark:text-blue-200'
+              : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600'
+          }`}
+        >
+          {language === 'en' ? 'No preview (full structure)' : 'プレビューなし（全体構造）'}
+        </button>
+        {stakeholders.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => onSelect(s.id)}
+            className={`text-sm px-3 py-1 rounded-full border transition-colors ${
+              selectedId === s.id
+                ? 'border-blue-500 bg-blue-50 text-blue-800 dark:border-blue-500 dark:bg-blue-900/50 dark:text-blue-200'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-gray-700 dark:text-gray-300 dark:hover:border-gray-600'
+            }`}
+          >
+            {s.role}
+          </button>
+        ))}
+      </div>
+      {selectedId !== null && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {language === 'en'
+            ? 'Badges below show whether each node is expanded ("open"), collapsed to a one-paragraph summary ("closed"), or forced open because it is part of the Mandatory Safety Core.'
+            : '以下のバッジは各ノードが展開される（open）か、要約のみに圧縮される（closed）か、Mandatory Safety Coreのため強制的に開かれる（強制開放）かを示します。'}
+        </p>
+      )}
     </div>
   );
 }
@@ -137,16 +211,23 @@ function GSNFilePanel({
   language,
   defaultOpen,
   onUpdateContent,
+  previewStakeholderId,
 }: {
   analysis: GSNAnalysis;
   language: string;
   defaultOpen: boolean;
   onUpdateContent?: (fileId: string, newContent: string) => void;
+  previewStakeholderId?: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [showEditor, setShowEditor] = useState(false);
   const parsed = analysis.nodeCount > 0;
   const editable = !analysis.isPreviewOnly && !analysis.hasNoContent && !!onUpdateContent;
+
+  const hicaseView = useMemo(() => {
+    if (!previewStakeholderId || !parsed) return null;
+    return buildHiCaseView(analysis.parsed, analysis.core, previewStakeholderId);
+  }, [analysis.parsed, analysis.core, previewStakeholderId, parsed]);
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -223,7 +304,7 @@ function GSNFilePanel({
             <>
               <SummarySection analysis={analysis} language={language} />
               <MandatoryCoreSection analysis={analysis} language={language} />
-              <TreeSection analysis={analysis} language={language} />
+              <TreeSection analysis={analysis} language={language} hicaseView={hicaseView} />
             </>
           )}
         </div>
@@ -468,7 +549,15 @@ export function MandatoryCoreSection({ analysis, language }: { analysis: GSNAnal
 // ツリー表示
 // ============================================================
 
-export function TreeSection({ analysis, language }: { analysis: GSNAnalysis; language: string }) {
+export function TreeSection({
+  analysis,
+  language,
+  hicaseView,
+}: {
+  analysis: GSNAnalysis;
+  language: string;
+  hicaseView?: { roots: HiCaseNode[] } | null;
+}) {
   // Mandatory Safety Core に含まれるノードはツリー上でも印を付ける
   const coreIds = useMemo(() => {
     const ids = new Set<string>();
@@ -477,6 +566,18 @@ export function TreeSection({ analysis, language }: { analysis: GSNAnalysis; lan
     }
     return ids;
   }, [analysis.core]);
+
+  // hicaseView がある場合、ノードid -> HiCaseNode のマップを作る（バッジ・展開状態に使用）
+  const hicaseById = useMemo(() => {
+    if (!hicaseView) return null;
+    const map = new Map<string, HiCaseNode>();
+    const walk = (n: HiCaseNode) => {
+      map.set(n.node.id, n);
+      n.children.forEach(walk);
+    };
+    hicaseView.roots.forEach(walk);
+    return map;
+  }, [hicaseView]);
 
   // 展開可能なノード（子を持つノード）のID
   const expandableIds = useMemo(() => {
@@ -489,18 +590,33 @@ export function TreeSection({ analysis, language }: { analysis: GSNAnalysis; lan
     return ids;
   }, [analysis.trees]);
 
-  // 初期状態では2階層目までを展開
+  // 初期展開状態: hicaseViewがあればisOpen(=子が実際に存在する)ノードを展開、なければ従来通り2階層目まで
   const initialExpanded = useMemo(() => {
     const ids = new Set<string>();
+    if (hicaseById) {
+      const walk = (t: GSNTreeNode) => {
+        const hc = hicaseById.get(t.node.id);
+        if (t.children.length > 0 && hc && hc.children.length > 0) ids.add(t.node.id);
+        t.children.forEach(walk);
+      };
+      analysis.trees.forEach(walk);
+      return ids;
+    }
     const walk = (t: GSNTreeNode, depth: number) => {
       if (t.children.length > 0 && depth < 2) ids.add(t.node.id);
       t.children.forEach(c => walk(c, depth + 1));
     };
     analysis.trees.forEach(t => walk(t, 0));
     return ids;
-  }, [analysis.trees]);
+  }, [analysis.trees, hicaseById]);
 
   const [expanded, setExpanded] = useState<Set<string>>(initialExpanded);
+
+  // プレビュー対象ステークホルダーの切り替え時は展開状態を再計算する
+  useEffect(() => {
+    setExpanded(initialExpanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hicaseById]);
 
   const toggle = (id: string) => {
     setExpanded(prev => {
@@ -548,6 +664,7 @@ export function TreeSection({ analysis, language }: { analysis: GSNAnalysis; lan
             onToggle={toggle}
             coreIds={coreIds}
             language={language}
+            hicaseById={hicaseById}
           />
         ))}
       </div>
@@ -562,6 +679,7 @@ function TreeNodeRow({
   onToggle,
   coreIds,
   language,
+  hicaseById,
 }: {
   tree: GSNTreeNode;
   path: string;
@@ -569,11 +687,13 @@ function TreeNodeRow({
   onToggle: (id: string) => void;
   coreIds: Set<string>;
   language: string;
+  hicaseById?: Map<string, HiCaseNode> | null;
 }) {
   const { node, children } = tree;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(node.id);
   const isCore = coreIds.has(node.id);
+  const hicaseNode = hicaseById?.get(node.id) ?? null;
 
   return (
     <div>
@@ -646,8 +766,53 @@ function TreeNodeRow({
               Core
             </span>
           )}
+          {hicaseNode?.isMandatoryCoreForced && (
+            <span
+              className="text-sm px-1.5 rounded bg-amber-500 text-white dark:bg-amber-600"
+              title={
+                language === 'en'
+                  ? 'Forced open because it is part of the Mandatory Safety Core'
+                  : 'Mandatory Safety Coreのため強制的に開かれています'
+              }
+            >
+              {language === 'en' ? 'forced open' : '強制開放'}
+            </span>
+          )}
+          {hicaseNode && (
+            <span
+              className={`text-sm px-1.5 rounded ${
+                hicaseNode.children.length > 0
+                  ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200'
+                  : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              }`}
+              title={
+                language === 'en'
+                  ? hicaseNode.children.length > 0
+                    ? 'Expanded in this stakeholder\'s report'
+                    : 'Collapsed to a one-paragraph summary in this stakeholder\'s report'
+                  : hicaseNode.children.length > 0
+                    ? 'このステークホルダー向けレポートでは展開されます'
+                    : 'このステークホルダー向けレポートでは要約のみに圧縮されます'
+              }
+            >
+              {hicaseNode.children.length > 0
+                ? (language === 'en' ? 'open' : '展開')
+                : (language === 'en' ? 'closed' : '要約')}
+            </span>
+          )}
         </span>
       </div>
+
+      {hicaseNode?.mandatoryCoreAnnotation && (
+        <p className="ml-6 text-sm text-amber-700 dark:text-amber-300">
+          ⚠ mandatory core:{' '}
+          {hicaseNode.mandatoryCoreAnnotation.oneSentenceItems.length > 0
+            ? hicaseNode.mandatoryCoreAnnotation.oneSentenceItems.map(i => `${i.id}: ${i.text}`).join('; ')
+            : language === 'en'
+              ? `${hicaseNode.mandatoryCoreAnnotation.count} item(s)`
+              : `${hicaseNode.mandatoryCoreAnnotation.count}件`}
+        </p>
+      )}
 
       {tree.truncated && (
         <p className="ml-6 text-sm text-amber-600 dark:text-amber-400">
@@ -668,6 +833,7 @@ function TreeNodeRow({
               onToggle={onToggle}
               coreIds={coreIds}
               language={language}
+              hicaseById={hicaseById}
             />
           ))}
         </div>

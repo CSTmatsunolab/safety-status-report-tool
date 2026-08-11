@@ -44,8 +44,11 @@ import {
   generateStakeholderGSNView,
   gsnViewToContextText,
   generateOutlineFromGSNView,
+  generateOutlineFromHiCaseView,
   getOutlineNodes,
+  buildHiCaseView,
   GSNView,
+  HiCaseView,
 } from './lib/gsn';
 
 // クライアント初期化
@@ -264,6 +267,7 @@ async function streamHandler(
     let ragContent: string | null = null;
     let gsnSearchUsed = false;
     let gsnView: GSNView | null = null;
+    let hicaseView: HiCaseView | null = null;
 
     if (hasGSNFile) {
       try {
@@ -292,7 +296,11 @@ async function streamHandler(
           // (4) 現在のステークホルダーに関係するサブツリーへ絞り込み
           gsnView = generateStakeholderGSNView(stakeholder.id, parsedGSN, mandatoryCore);
 
-          mandatoryCoreText = formatMandatorySafetyCore(mandatoryCore);
+          // hicase: ステークホルダー別のhinode(higoal/histrategy/hievidence) open/closed判定
+          // （RAG検索の絞り込み(gsnView)には影響しない。レポートのアウトライン生成にのみ使う）
+          hicaseView = buildHiCaseView(parsedGSN, mandatoryCore, stakeholder.id);
+
+          mandatoryCoreText = formatMandatorySafetyCore(mandatoryCore, hicaseView.mandatoryCoreDetail);
 
           if (DEBUG_LOGGING) {
             console.log('GSN parsed:', {
@@ -406,15 +414,32 @@ async function streamHandler(
 
     const strategy = determineAdvancedRhetoricStrategy(stakeholder);
 
-    // GSNビューが取得できた場合: GSN構造からアウトラインを動的生成
+    // hicaseビューが取得できた場合: ステークホルダー別hinode open/closed判定を反映したアウトラインを生成
+    // hicase生成に失敗/空だった場合: 従来のフラットなGSNビュー由来アウトラインにフォールバック
     // GSNなし / GSN解析失敗の場合: 固定テンプレートにフォールバック
-    const finalSections = (hasGSNFile && gsnView !== null)
-      ? generateOutlineFromGSNView(gsnView, stakeholder.id, language)
-      : buildFinalReportStructure(reportStructure, hasGSNFile);
+    let outlineSource: 'hicase' | 'gsn-flat' | 'template' = 'template';
+    let finalSections: string[];
+    if (hasGSNFile && hicaseView !== null) {
+      const hicaseSections = generateOutlineFromHiCaseView(hicaseView, language);
+      if (hicaseSections.length > 0) {
+        finalSections = hicaseSections;
+        outlineSource = 'hicase';
+      } else if (gsnView !== null) {
+        finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language);
+        outlineSource = 'gsn-flat';
+      } else {
+        finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+      }
+    } else if (hasGSNFile && gsnView !== null) {
+      finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language);
+      outlineSource = 'gsn-flat';
+    } else {
+      finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+    }
     if (DEBUG_LOGGING) {
       console.log('Final sections:', finalSections);
       console.log('Has GSN:', hasGSNFile);
-      console.log('Outline source:', (hasGSNFile && gsnView !== null) ? 'GSN-derived' : 'template');
+      console.log('Outline source:', outlineSource);
     }
     const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
     const promptContent = promptBuilder({

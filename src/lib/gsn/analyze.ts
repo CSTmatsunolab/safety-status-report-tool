@@ -6,7 +6,7 @@
 
 import { UploadedFile } from '@/types';
 import { GSNNode, GSNNodeStatus, GSNNodeType, MandatorySafetyCore, ParsedGSN } from './types';
-import { parseGSN } from './parser';
+import { compareNodeIds, parseGSN } from './parser';
 import { extractMandatorySafetyCore } from './mandatory-core';
 
 // 表示用のツリーノード
@@ -100,26 +100,9 @@ function buildTrees(parsed: ParsedGSN): GSNTreeNode[] {
   return trees.sort((a, b) => compareNodeIds(a.node.id, b.node.id));
 }
 
-/** G0 → G1 → G1.1 → G2 の順に並ぶよう、数値部分を数値として比較する */
-export function compareNodeIds(a: string, b: string): number {
-  const split = (id: string) => id.match(/\d+|[^\d]+/g) || [id];
-  const pa = split(a);
-  const pb = split(b);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const x = pa[i];
-    const y = pb[i];
-    if (x === undefined) return -1;
-    if (y === undefined) return 1;
-    const nx = Number(x);
-    const ny = Number(y);
-    if (!Number.isNaN(nx) && !Number.isNaN(ny)) {
-      if (nx !== ny) return nx - ny;
-    } else if (x !== y) {
-      return x < y ? -1 : 1;
-    }
-  }
-  return 0;
-}
+// ID順の比較は parser.ts（Lambdaと同期するファイル）に一本化した。
+// 既存の import 経路を保つためここから再エクスポートする。
+export { compareNodeIds };
 
 /** Mandatory Safety Core に含まれるノードのユニーク件数 */
 export function countCoreNodes(core: MandatorySafetyCore): number {

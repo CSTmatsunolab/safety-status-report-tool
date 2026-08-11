@@ -2,7 +2,7 @@
 // Mandatory Safety Coreの抽出
 // 全ステークホルダーレポートに必ず含めるべき重要安全情報
 
-import { GSNNode, MandatorySafetyCore, ParsedGSN } from './types';
+import { GSNNode, HiCaseMandatoryCoreDetail, MandatorySafetyCore, ParsedGSN } from './types';
 
 /**
  * パース済みGSNからMandatory Safety Coreを抽出する
@@ -61,15 +61,35 @@ export function extractMandatorySafetyCore(parsedGSN: ParsedGSN): MandatorySafet
 
 /**
  * Mandatory Safety Coreを人間が読めるテキストに変換
+ *
+ * detailLevel はステークホルダーのhicase設定（HiCaseStakeholderConfig.mandatoryCoreDetail）に対応する:
+ * - 'count': カテゴリ名+件数のみ（CxO向け。項目列挙なし）
+ * - 'one-sentence': 現行の1行/項目形式（Business/Product向け）
+ * - 'full': 1行/項目形式、変更なし（Technical Fellows/Architect向け）
+ * - 'full-with-reverification': full + 各項目の再検証条件（evidenceRefs）を追記（R&D向け）
  */
-export function formatMandatorySafetyCore(core: MandatorySafetyCore): string {
+export function formatMandatorySafetyCore(
+  core: MandatorySafetyCore,
+  detailLevel: HiCaseMandatoryCoreDetail = 'full'
+): string {
   const sections: string[] = [];
 
-  const formatNodes = (nodes: GSNNode[]): string => {
-    if (nodes.length === 0) return '（なし）';
-    return nodes
-      .map(n => `- **${n.id}**: ${n.description || '記載なし'}${n.asilLevel ? ` [${n.asilLevel}]` : ''}`)
-      .join('\n');
+  const categories: { title: string; nodes: GSNNode[] }[] = [
+    { title: '高Severityハザード（High/Critical）', nodes: core.highSeverityHazards },
+    { title: 'ASIL-D相当の最高リスク項目', nodes: core.asilDItems },
+    { title: '未検証の安全要求（Unverified Safety Requirements）', nodes: core.unverifiedRequirements },
+    { title: 'Open Issues（未解決事項）', nodes: core.openIssues },
+    { title: 'Failed Verification（検証失敗）', nodes: core.failedVerifications },
+    { title: 'Safety Caseに影響するAssumption/Context', nodes: core.criticalAssumptions },
+  ];
+
+  const formatNode = (n: GSNNode): string => {
+    const asil = n.asilLevel ? ` [${n.asilLevel}]` : '';
+    const reverification =
+      detailLevel === 'full-with-reverification' && n.evidenceRefs.length > 0
+        ? ` [再検証条件: ${n.evidenceRefs.join(', ')}]`
+        : '';
+    return `- **${n.id}**: ${n.description || '記載なし'}${asil}${reverification}`;
   };
 
   sections.push('## [Mandatory Safety Core] 全ステークホルダー共通の重要安全情報');
@@ -77,49 +97,14 @@ export function formatMandatorySafetyCore(core: MandatorySafetyCore): string {
   sections.push('> この情報はステークホルダーに関わらず全レポートに必ず含めること。');
   sections.push('');
 
-  if (core.highSeverityHazards.length > 0) {
-    sections.push('### 高Severityハザード（High/Critical）');
-    sections.push(formatNodes(core.highSeverityHazards));
+  for (const { title, nodes } of categories) {
+    if (nodes.length === 0) continue;
+    sections.push(`### ${title}`);
+    sections.push(detailLevel === 'count' ? `${nodes.length}件` : nodes.map(formatNode).join('\n'));
     sections.push('');
   }
 
-  if (core.asilDItems.length > 0) {
-    sections.push('### ASIL-D相当の最高リスク項目');
-    sections.push(formatNodes(core.asilDItems));
-    sections.push('');
-  }
-
-  if (core.unverifiedRequirements.length > 0) {
-    sections.push('### 未検証の安全要求（Unverified Safety Requirements）');
-    sections.push(formatNodes(core.unverifiedRequirements));
-    sections.push('');
-  }
-
-  if (core.openIssues.length > 0) {
-    sections.push('### Open Issues（未解決事項）');
-    sections.push(formatNodes(core.openIssues));
-    sections.push('');
-  }
-
-  if (core.failedVerifications.length > 0) {
-    sections.push('### Failed Verification（検証失敗）');
-    sections.push(formatNodes(core.failedVerifications));
-    sections.push('');
-  }
-
-  if (core.criticalAssumptions.length > 0) {
-    sections.push('### Safety Caseに影響するAssumption/Context');
-    sections.push(formatNodes(core.criticalAssumptions));
-    sections.push('');
-  }
-
-  const totalItems =
-    core.highSeverityHazards.length +
-    core.asilDItems.length +
-    core.unverifiedRequirements.length +
-    core.openIssues.length +
-    core.failedVerifications.length +
-    core.criticalAssumptions.length;
+  const totalItems = categories.reduce((sum, c) => sum + c.nodes.length, 0);
 
   if (totalItems === 0) {
     sections.push('### 重大な未解決事項なし');

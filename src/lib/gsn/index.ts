@@ -21,3 +21,9 @@ export {
   suggestNextNodeId,
   EMPTY_CELL_PLACEHOLDER,
 } from './serialize';
+export {
+  HICASE_STAKEHOLDER_CONFIGS,
+  getHiCaseStakeholderConfig,
+  categoryOfNodeType,
+  buildHiCaseView,
+} from './hicase-view';

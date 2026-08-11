@@ -3,7 +3,7 @@
 // GSN木構造の深さ優先順序でノードを見出しとして展開し、
 // 固定テンプレートセクションを最小限（冒頭・末尾のみ）に抑える
 
-import { GSNView, GSNNode, GSNNodeType, AbstractionLevel, MandatorySafetyCore } from './types';
+import { GSNView, GSNNode, GSNNodeType, AbstractionLevel, MandatorySafetyCore, HiCaseNode, HiCaseView } from './types';
 
 const MAX_SECTIONS = 25;
 const NODE_DESC_MAX_CHARS = 60;
@@ -157,6 +157,82 @@ export function generateOutlineFromGSNView(
 
   // 重複除去・上限適用
   return [...new Set(sections)].slice(0, MAX_SECTIONS);
+}
+
+/**
+ * hicaseノード1件分の見出しに付与するマーカーを組み立てる。
+ * - 子が0件（要約のみで展開しない）の場合: [要約のみ]
+ * - mandatory core強制開放の場合: [Mandatory Core - 強制開放]
+ * - mandatory coreに該当するが自然に表示されている場合: [Mandatory Core]
+ */
+function hiCaseMarkers(node: HiCaseNode, language: 'ja' | 'en'): string {
+  const markers: string[] = [];
+  if (node.children.length === 0) {
+    markers.push(label('要約のみ', 'summary only', language));
+  }
+  if (node.isMandatoryCoreForced) {
+    markers.push(label('Mandatory Core - 強制開放', 'Mandatory Core - forced open', language));
+  } else if (node.isMandatoryCoreMember) {
+    markers.push('Mandatory Core');
+  }
+  return markers.length > 0 ? ` [${markers.join(' / ')}]` : '';
+}
+
+/**
+ * count/one-sentence層で、木に現れなかったmandatory coreノードの圧縮注記を末尾に付与する。
+ */
+function hiCaseAnnotationSuffix(node: HiCaseNode, language: 'ja' | 'en'): string {
+  const annotation = node.mandatoryCoreAnnotation;
+  if (!annotation) return '';
+  if (annotation.oneSentenceItems.length > 0) {
+    const text = annotation.oneSentenceItems.map(item => `${item.id}: ${item.text}`).join('; ');
+    return ` ⚠ mandatory core: ${text}`;
+  }
+  return label(` ⚠ mandatory core: ${annotation.count}件`, ` ⚠ mandatory core: ${annotation.count} item(s)`, language);
+}
+
+function hiCaseNodeToSection(node: HiCaseNode, numberStr: string, language: 'ja' | 'en'): string {
+  const base = node.node.description
+    ? `${numberStr} ${node.node.id}: ${truncateDesc(node.node.description)}`
+    : `${numberStr} ${node.node.id}`;
+  return `${base}${hiCaseAnnotationSuffix(node, language)}${hiCaseMarkers(node, language)}`;
+}
+
+/**
+ * hicaseビュー（ステークホルダー別のhinode open/closed判定済み木構造）から
+ * 階層採番付きのレポートアウトラインを生成する。
+ * 各見出しは既に "1", "2.1", "2.1.1" のようなドット番号を含むため、
+ * generateStructurePrompt側では追加の連番を付与しない（report-prompts.ts参照）。
+ */
+export function generateOutlineFromHiCaseView(
+  hicaseView: HiCaseView,
+  language: 'ja' | 'en' = 'ja'
+): string[] {
+  if (hicaseView.roots.length === 0) {
+    return buildFallbackOutline(language);
+  }
+
+  const sections: string[] = [];
+
+  function walk(nodes: HiCaseNode[], prefix: number[]) {
+    nodes.forEach((node, index) => {
+      if (sections.length >= MAX_SECTIONS) return;
+      const numberStr = [...prefix, index + 1].join('.');
+      sections.push(hiCaseNodeToSection(node, numberStr, language));
+      if (node.children.length > 0) {
+        walk(node.children, [...prefix, index + 1]);
+      }
+    });
+  }
+
+  walk(hicaseView.roots, []);
+
+  // 深いR&Dビュー等でMAX_SECTIONSを超える場合は打ち切られる
+  // （既存のgenerateOutlineFromGSNViewと同じ上限・同じ挙動）
+  if (sections.length === 0) {
+    return buildFallbackOutline(language);
+  }
+  return sections.slice(0, MAX_SECTIONS);
 }
 
 function buildFallbackOutline(language: 'ja' | 'en'): string[] {

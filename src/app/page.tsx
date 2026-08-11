@@ -723,7 +723,7 @@ export default function Home() {
             </div>
 
             {/* GSN構造の解析結果（GSNとしてマークされたファイルがある場合のみ表示） */}
-            <GSNStructureView files={files} onUpdateContent={handleUpdateGSNStructure} />
+            <GSNStructureView files={files} onUpdateContent={handleUpdateGSNStructure} stakeholders={stakeholders} />
 
             {/* 2. ステークホルダー選択 */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm dark:shadow-lg p-6 transition-all">

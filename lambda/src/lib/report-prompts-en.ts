@@ -1020,8 +1020,11 @@ export function generateStructurePromptEN(
   structureDescription?: string
 ): string {
   const role = stakeholder?.role || 'Safety Engineer';
-  const sectionsFormatted = reportSections.map((section, index) => 
-    `\n${index + 1}. ${section}`
+  // hicase-derived headings already contain hierarchical numbering ("1", "2.1", "2.1.1", etc.);
+  // use them as-is to avoid double numbering. Static-template headings (no numbering) still get
+  // the legacy sequential prefix.
+  const sectionsFormatted = reportSections.map((section, index) =>
+    /^\d+(\.\d+)*\s/.test(section) ? `\n${section}` : `\n${index + 1}. ${section}`
   ).join('');
 
   let prompt = `
@@ -1034,7 +1037,11 @@ ${sectionsFormatted}`;
       ? '\n\nNote: Keep GSN analysis within 1 page.'
       : '\n\nNote: Include GSN analysis section as GSN files are provided.';
 
-    const hasNodeIdSections = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
+    // hicase-derived headings look like "2.1 S1: ..." — the node ID follows the numbering
+    // prefix rather than starting the string, so also match that shape.
+    const hasNodeIdSections = reportSections.some(s =>
+      /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+    );
     if (hasNodeIdSections) {
       prompt += `
 
@@ -1079,7 +1086,14 @@ Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solutio
 - Example:
   - Wrong: \`## 1. G1: The brake system protects occupants during a collision\`
   - Right: \`## 1. Occupant Protection During Collision (Brake System)\`
-- If the node ID needs to be mentioned, do so in the body text, not in the heading.`;
+- If the node ID needs to be mentioned, do so in the body text, not in the heading.
+
+### Meaning of Heading-End Markers (hicase structure)
+Some headings in the structure above carry a marker at the end. These reflect the argumentation detail level adapted to this stakeholder's role, and MUST be honored:
+- \`[summary only]\`: Do not expand this heading's content into further sub-headings — write a single summary paragraph only.
+- \`[Mandatory Core]\`: A safety-critical item required in every stakeholder's report regardless of role. Do not omit it.
+- \`[Mandatory Core - forced open]\`: This item would normally be collapsed under this role's detail settings, but is shown as its own heading because it is a mandatory safety item. Reflect it in the body without omission.
+- A heading annotated with \`⚠ mandatory core: ...\` carries a compressed summary (a count or one-sentence digest) of mandatory safety items hidden beneath it. This annotation's content MUST be reflected in the section's summary text.`;
     }
   }
 
@@ -1087,7 +1101,9 @@ Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solutio
     prompt += `\n\nStructure Description: ${structureDescription.slice(0, 500)}`;
   }
 
-  const hasNodeIdSectionsForRule = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
+  const hasNodeIdSectionsForRule = reportSections.some(s =>
+    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+  );
 
   if (hasNodeIdSectionsForRule) {
     prompt += `

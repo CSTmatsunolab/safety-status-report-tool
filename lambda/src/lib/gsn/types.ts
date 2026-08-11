@@ -71,3 +71,47 @@ export interface ParsedGSN {
   nodesByType: Map<GSNNodeType, GSNNode[]>;
   overallStatus: GSNNodeStatus;
 }
+
+// hicase: 階層的セーフティケースのノード種別
+// higoal = Goal/SubGoal連鎖、histrategy = Strategy連鎖、hievidence = Solution/Evidence連鎖
+// Context/Assumption/Justification/Undeveloped は型を持たず、常に親のopen/closed状態を継承する（null）
+export type HiNodeType = 'higoal' | 'histrategy' | 'hievidence';
+
+// mandatory safety coreを強制開放する際の、ステークホルダ別の詳細度
+export type HiCaseMandatoryCoreDetail = 'count' | 'one-sentence' | 'full' | 'full-with-reverification';
+
+// ステークホルダー別のhinode open/closed設定
+export interface HiCaseStakeholderConfig {
+  stakeholderId: string;
+  higoal: 'open' | 'closed';
+  histrategy: 'open' | 'closed';
+  hievidence: 'open' | 'closed';
+  maxDepth: number;
+  mandatoryCoreDetail: HiCaseMandatoryCoreDetail;
+  description: string;
+}
+
+// mandatory coreの強制開放先が見つからない場合に、直近の表示済み祖先へ付与する圧縮注記
+export interface HiCaseMandatoryCoreAnnotation {
+  count: number;
+  oneSentenceItems: { id: string; text: string }[];
+}
+
+// hicaseビュー内の1ノード（開閉判定済み）
+export interface HiCaseNode {
+  node: GSNNode;
+  hiNodeType: HiNodeType | null;
+  isOpen: boolean;
+  isMandatoryCoreMember: boolean;
+  isMandatoryCoreForced: boolean;
+  mandatoryCoreAnnotation: HiCaseMandatoryCoreAnnotation | null;
+  depth: number;
+  children: HiCaseNode[];
+}
+
+// ステークホルダー別に構築されたhicaseビュー（複数ルート対応）
+export interface HiCaseView {
+  stakeholderId: string;
+  roots: HiCaseNode[];
+  mandatoryCoreDetail: HiCaseMandatoryCoreDetail;
+}

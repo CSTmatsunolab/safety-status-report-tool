@@ -1025,8 +1025,10 @@ export function generateStructurePrompt(
   structureDescription?: string
 ): string {
   const role = stakeholder?.role || 'Safety Engineer';
-  const sectionsFormatted = reportSections.map((section, index) => 
-    `\n${index + 1}. ${section}`
+  // hicase由来の見出し（"1", "2.1", "2.1.1" 等の階層採番を既に含む）はそのまま使用し、
+  // 二重採番を避ける。静的テンプレート由来の見出し（採番なし）は従来通り連番を付与する。
+  const sectionsFormatted = reportSections.map((section, index) =>
+    /^\d+(\.\d+)*\s/.test(section) ? `\n${section}` : `\n${index + 1}. ${section}`
   ).join('');
 
   let prompt = `
@@ -1039,7 +1041,11 @@ ${sectionsFormatted}`;
       ? '\n\n注意: GSN分析は1ページ以内で簡潔にまとめること。'
       : '\n\n注意: GSNファイルが含まれているため、GSN分析セクションを含めること。';
 
-    const hasNodeIdSections = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
+    // hicase由来の見出しは "2.1 S1: ..." のように階層採番が先頭に付くため、
+    // ノードIDが文字列の先頭ではなく採番の後に来る形式も検出する。
+    const hasNodeIdSections = reportSections.some(s =>
+      /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+    );
     if (hasNodeIdSections) {
       prompt += `
 
@@ -1083,7 +1089,14 @@ ${sectionsFormatted}`;
 - 例:
   - 誤: \`## 1. G1: ブレーキシステムは衝突時に乗員を保護する\`
   - 正: \`## 1. 衝突時における乗員保護（ブレーキシステム）\`
-- ノードIDへの言及が必要な場合は本文中で行い、見出しには含めないこと。`;
+- ノードIDへの言及が必要な場合は本文中で行い、見出しには含めないこと。
+
+### 見出し末尾のマーカーの意味（hicase構成）
+上記構成の一部の見出しには末尾に以下のマーカーが付与されている。これはステークホルダーの役職に応じて安全論証の展開粒度を調整した結果であり、必ず反映すること:
+- \`[要約のみ]\`: この見出しの配下は展開せず、1段落の要約のみで記述し、それ以上の下位見出しを作らないこと。
+- \`[Mandatory Core]\`: 役職に関わらず全レポート共通で必須の安全項目。省略しないこと。
+- \`[Mandatory Core - 強制開放]\`: 本来はこの役職の展開設定では見出しにならない項目だが、必須安全項目であるため例外的に見出しとして開かれている。省略せず本文に反映すること。
+- \`⚠ mandatory core: ...\`という注記がある見出しは、配下に隠れている必須安全項目の圧縮要約（件数または1文）である。この注記の内容を要約文中に必ず反映すること。`;
     }
   }
 
@@ -1091,7 +1104,9 @@ ${sectionsFormatted}`;
     prompt += `\n\n構成説明: ${structureDescription.slice(0, 500)}`;
   }
 
-  const hasNodeIdSectionsForRule = reportSections.some(s => /^[GSCASEJUsn]\d/.test(s));
+  const hasNodeIdSectionsForRule = reportSections.some(s =>
+    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+  );
 
   if (hasNodeIdSectionsForRule) {
     prompt += `
