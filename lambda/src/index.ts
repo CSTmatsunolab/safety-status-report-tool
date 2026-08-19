@@ -49,6 +49,7 @@ import {
   buildHiCaseView,
   GSNView,
   HiCaseView,
+  MandatorySafetyCore,
 } from './lib/gsn';
 
 // クライアント初期化
@@ -268,6 +269,8 @@ async function streamHandler(
     let gsnSearchUsed = false;
     let gsnView: GSNView | null = null;
     let hicaseView: HiCaseView | null = null;
+    // アウトライン生成（Mandatory Safety Coreセクションの要否判定）で使うため外側に保持する
+    let mandatoryCoreForOutline: MandatorySafetyCore | null = null;
 
     if (hasGSNFile) {
       try {
@@ -293,6 +296,7 @@ async function streamHandler(
           const parsedGSN = parseGSN(gsnRawText);
           // (3) 全ステークホルダー共通の必須安全根拠ノードを抽出
           const mandatoryCore = extractMandatorySafetyCore(parsedGSN);
+          mandatoryCoreForOutline = mandatoryCore;
           // (4) 現在のステークホルダーに関係するサブツリーへ絞り込み
           gsnView = generateStakeholderGSNView(stakeholder.id, parsedGSN, mandatoryCore);
 
@@ -420,7 +424,11 @@ async function streamHandler(
     let outlineSource: 'hicase' | 'gsn-flat' | 'template' = 'template';
     let finalSections: string[];
     if (hasGSNFile && hicaseView !== null) {
-      const hicaseSections = generateOutlineFromHiCaseView(hicaseView, language);
+      const hicaseSections = generateOutlineFromHiCaseView(
+        hicaseView,
+        language,
+        mandatoryCoreForOutline ?? undefined
+      );
       if (hicaseSections.length > 0) {
         finalSections = hicaseSections;
         outlineSource = 'hicase';
@@ -450,6 +458,9 @@ async function streamHandler(
       hasGSN: hasGSNFile,
       structureDescription: reportStructure.description,
       hasMandatoryCore: hasGSNFile && mandatoryCoreText.length > 0,
+      // hicaseの圧縮設定をMandatory Coreプロンプトにも反映させる
+      // （渡さないとCxO等の 'count' 設定でも詳細表が生成される）
+      mandatoryCoreDetail: hicaseView?.mandatoryCoreDetail ?? 'full',
     });
 
     // ステップ5: Claude APIストリーミング呼び出し

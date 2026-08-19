@@ -203,20 +203,29 @@ function hiCaseNodeToSection(node: HiCaseNode, numberStr: string, language: 'ja'
  * 階層採番付きのレポートアウトラインを生成する。
  * 各見出しは既に "1", "2.1", "2.1.1" のようなドット番号を含むため、
  * generateStructurePrompt側では追加の連番を付与しない（report-prompts.ts参照）。
+ *
+ * mandatoryCore を渡した場合、generateOutlineFromGSNView と同様に
+ * 末尾へ「Mandatory Safety Core」セクションを追加する。
+ * generateMandatoryCorePrompt が「レポート構成に含まれるMandatory Safety Coreセクション」
+ * への記述を指示するため、これを省くとAIが構成外セクションを自作する。
  */
 export function generateOutlineFromHiCaseView(
   hicaseView: HiCaseView,
-  language: 'ja' | 'en' = 'ja'
+  language: 'ja' | 'en' = 'ja',
+  mandatoryCore?: MandatorySafetyCore
 ): string[] {
   if (hicaseView.roots.length === 0) {
     return buildFallbackOutline(language);
   }
 
   const sections: string[] = [];
+  const needsCoreSection = mandatoryCore !== undefined && hasMandatoryCoreItems(mandatoryCore);
+  // Mandatory Safety Core セクション分の枠を確保してからノードを展開する
+  const nodeSectionLimit = needsCoreSection ? MAX_SECTIONS - 1 : MAX_SECTIONS;
 
   function walk(nodes: HiCaseNode[], prefix: number[]) {
     nodes.forEach((node, index) => {
-      if (sections.length >= MAX_SECTIONS) return;
+      if (sections.length >= nodeSectionLimit) return;
       const numberStr = [...prefix, index + 1].join('.');
       sections.push(hiCaseNodeToSection(node, numberStr, language));
       if (node.children.length > 0) {
@@ -232,6 +241,16 @@ export function generateOutlineFromHiCaseView(
   if (sections.length === 0) {
     return buildFallbackOutline(language);
   }
+
+  if (needsCoreSection) {
+    // ルート直後の最上位章番号を採番し、hicase見出しと同じ「番号+スペース」形式に揃える
+    const coreNumber = hicaseView.roots.length + 1;
+    sections.push(
+      `${coreNumber} ` +
+        label('Mandatory Safety Core（必須安全コア）', 'Mandatory Safety Core', language)
+    );
+  }
+
   return sections.slice(0, MAX_SECTIONS);
 }
 

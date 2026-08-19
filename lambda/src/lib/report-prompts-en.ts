@@ -9,6 +9,7 @@
 
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
+import { HiCaseMandatoryCoreDetail } from './gsn/types';
 
 // ============================================================================
 // Utility Functions (Stakeholder Detection)
@@ -45,6 +46,46 @@ function isTechnicalExpertRole(role: string): boolean {
 
 function isNonExpertRole(role: string): boolean {
   return !isTechnicalExpertRole(role) && !isRegulatorRole(role);
+}
+
+/**
+ * Whether the outline is derived from GSN node headings (including hicase).
+ * Detects both the bare "G1: ..." form and the numbered "1.5 S1: ..." form.
+ */
+function isGSNNodeOutline(reportSections: string[]): boolean {
+  return reportSections.some(s =>
+    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+  );
+}
+
+/**
+ * Number of sections that can host a figure/table. Sections marked
+ * `[summary only]` are a single summary paragraph and cannot host one.
+ */
+function countFigureHostSections(reportSections: string[]): number {
+  return reportSections.filter(s => !s.includes('summary only')).length;
+}
+
+/**
+ * On a GSN-derived (hicase) outline these content guides are read as a second,
+ * competing section specification and are the main reason the model invents
+ * chapters. Strip the heading and present them as body-content guidance instead.
+ */
+function frameAsContentGuidance(
+  spec: string,
+  gsnDerivedOutline: boolean,
+  forbiddenSectionNames: string
+): string {
+  if (!gsnDerivedOutline) return spec;
+  const withoutHeading = spec.replace(/^##[^\n]*\n/m, '');
+  return `
+## CONTENT GUIDANCE (NOT A SECTION SPECIFICATION)
+
+The report's sections MUST follow only the headings given under "REPORT STRUCTURE".
+The following describes **what to write inside those sections** and is never grounds
+for creating a new chapter or subsection. In particular, do NOT create a standalone
+"${forbiddenSectionNames}" section.
+${withoutHeading}`;
 }
 
 /**
@@ -685,18 +726,25 @@ function appendGSNCommonNote(prompt: string): string {
 ※ Gap causes and reasons for non-achievement must comply with Anti-Hallucination Rules (Section 2); describe only when documented. If not documented, state "[CAUSE UNKNOWN]" or "[INVESTIGATION REQUIRED]".`;
 }
 
-export function generateGSNAnalysisPromptEN(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
+export function generateGSNAnalysisPromptEN(
+  hasGSNFile: boolean,
+  stakeholder?: Stakeholder,
+  gsnDerivedOutline: boolean = false
+): string {
   if (!hasGSNFile) {
     return '';
   }
 
   const role = stakeholder?.role || 'Safety Engineer';
   const gsnPrimer = isNonExpertRole(role) ? generateGSNPrimerForNonExperts() : '';
+  const frame = (spec: string) =>
+    appendGSNCommonNote(
+      gsnPrimer + frameAsContentGuidance(spec, gsnDerivedOutline, 'GSN Analysis / GSN Overview')
+    );
   
   // Executive version (concise)
   if (isExecutiveRole(role)) {
-    return appendGSNCommonNote(`
-${gsnPrimer}
+    return frame(`
 ## GSN ANALYSIS (Executive — Within 1 Page)
 
 Consolidate into one section as follows. Do NOT create separate subsections for each node.
@@ -717,7 +765,7 @@ PROHIBITED: Do not create separate subsections for each node; do not use more th
   
   // Regulator version
   if (isRegulatorRole(role)) {
-    return appendGSNCommonNote(`
+    return frame(`
 ## GSN ANALYSIS (Regulatory Authority)
 
 1. GSN Structure and Standards Compliance
@@ -734,7 +782,7 @@ PROHIBITED: Do not create separate subsections for each node; do not use more th
   
   // Architect version (detailed)
   if (isArchitectRole(role)) {
-    return appendGSNCommonNote(`
+    return frame(`
 ## GSN DETAILED ANALYSIS (For Designers)
 
 1. GSN Structure Visualization
@@ -759,8 +807,7 @@ PROHIBITED: Do not create separate subsections for each node; do not use more th
 
   // Non-expert audience (business divisions, other general)
   if (isNonExpertRole(role)) {
-    return appendGSNCommonNote(`
-${gsnPrimer}
+    return frame(`
 ## GSN ANALYSIS (For ${role})
 
 Using the symbols (G, S, Sn, etc.) introduced in the reading guide above, structure the analysis as follows.
@@ -789,7 +836,7 @@ Note: Do not use GSN jargon; consistently use the plain language expressions def
   }
   
   // Default (Safety Engineer)
-  return appendGSNCommonNote(`
+  return frame(`
 ## GSN DETAILED ANALYSIS
 
 1. GSN Structure Visualization
@@ -815,9 +862,22 @@ Note: Do not use GSN jargon; consistently use the plain language expressions def
 // 9. Figure Requirements (By Stakeholder)
 // ============================================================================
 
-export function generateFigureRequirementsPromptEN(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
+export function generateFigureRequirementsPromptEN(
+  hasGSNFile: boolean,
+  stakeholder?: Stakeholder,
+  options?: { gsnDerivedOutline?: boolean; figureHostSectionCount?: number }
+): string {
   const role = stakeholder?.role || 'Safety Engineer';
-  const minFigures = getMinimumFigureCount(role, hasGSNFile);
+  const gsnDerivedOutline = options?.gsnDerivedOutline ?? false;
+  const hostSections = options?.figureHostSectionCount;
+
+  // On a compressed hicase outline (e.g. CxO) only a couple of sections can host a
+  // table. Demanding a fixed minimum figure count there makes the model invent
+  // chapters just to have somewhere to put them, so cap the minimum accordingly.
+  let minFigures = getMinimumFigureCount(role, hasGSNFile);
+  if (gsnDerivedOutline && hostSections !== undefined) {
+    minFigures = Math.max(2, Math.min(minFigures, hostSections));
+  }
   
   let prompt = `
 ## FIGURE/TABLE REQUIREMENTS
@@ -881,6 +941,17 @@ Assign sequential numbers and titles to all figures and tables.
 - State "Cannot illustrate due to insufficient information" when data is lacking
 - All figure/table data must be from documents (see Anti-Hallucination Rules, Section 2)`;
 
+  if (gsnDerivedOutline) {
+    prompt += `
+
+### FIGURE PLACEMENT CONSTRAINTS (GSN-Derived Report — MANDATORY)
+- Place figures/tables ONLY inside the sections listed under "REPORT STRUCTURE"
+- **Never create a new chapter, section, or appendix in order to host a figure or table**
+- Do NOT place figures/tables under a heading marked \`[summary only]\` (those are a single summary paragraph)
+- If the required/recommended figures do not fit in the existing sections, **reduce the number of figures rather than adding a chapter**
+- If the minimum figure count (${minFigures}) conflicts with the structure compliance rules, the structure compliance rules win`;
+  }
+
   return prompt;
 }
 
@@ -897,8 +968,9 @@ function getMinimumFigureCount(role: string, hasGSN: boolean): number {
 // 10. Risk Analysis
 // ============================================================================
 
-export function generateRiskAnalysisPromptEN(): string {
-  return `
+export function generateRiskAnalysisPromptEN(gsnDerivedOutline: boolean = false): string {
+  return frameAsContentGuidance(
+    `
 ## RISK ANALYSIS
 Organize identified risks from these perspectives:
 - Risk content and occurrence mechanism (only those documented)
@@ -906,15 +978,51 @@ Organize identified risks from these perspectives:
 - Implemented/planned countermeasures
 - Residual risks and acceptability
 
-※ Estimation of probability/impact and fabrication of causal analysis are prohibited per Anti-Hallucination Rules (Section 2).`;
+※ Estimation of probability/impact and fabrication of causal analysis are prohibited per Anti-Hallucination Rules (Section 2).`,
+    gsnDerivedOutline,
+    'Risk Analysis'
+  );
 }
 
 // ============================================================================
 // 10b. Mandatory Safety Core (All Stakeholders)
 // ============================================================================
 
-export function generateMandatoryCorePromptEN(hasMandatoryCore: boolean): string {
+/**
+ * detailLevel corresponds to hicase's HiCaseStakeholderConfig.mandatoryCoreDetail.
+ * The "never omit an item" principle applies at every level, but the amount of
+ * detail per item follows the stakeholder's compression setting. Without this,
+ * a 'count'-level stakeholder (e.g. CxO) still gets full detail tables and
+ * hicase's granularity control is defeated.
+ */
+export function generateMandatoryCorePromptEN(
+  hasMandatoryCore: boolean,
+  detailLevel: HiCaseMandatoryCoreDetail = 'full'
+): string {
   if (!hasMandatoryCore) return '';
+
+  const detailRule = (() => {
+    switch (detailLevel) {
+      case 'count':
+        return `### Level of Detail (reader setting for this report: COUNT level)
+- For each item, state ONLY the count plus the one or two most critical IDs with a few words of status
+- Do NOT produce tables enumerating every entry, and do NOT break an item into detailed sub-listings
+- Example: "High-severity hazards: 2 (H-201 Catastrophic, mitigation in progress / H-204 Critical, mitigation in progress)"
+- You may add one sentence noting that a more detailed stakeholder edition of this report exists`;
+      case 'one-sentence':
+        return `### Level of Detail (reader setting for this report: ONE-SENTENCE level)
+- Limit each item to a one-sentence summary with the relevant IDs cited
+- Do NOT produce tables enumerating every entry, and do NOT expand a single item into multiple paragraphs`;
+      case 'full-with-reverification':
+        return `### Level of Detail (reader setting for this report: FULL + re-verification)
+- Describe each item in detail per ID (tables are acceptable)
+- Additionally, state the re-verification conditions, retest pass/fail criteria, and completion criteria for each item`;
+      case 'full':
+      default:
+        return `### Level of Detail (reader setting for this report: FULL)
+- Describe each item in detail per ID (tables are acceptable)`;
+    }
+  })();
 
   return `
 ## Mandatory Safety Core (Required for ALL Stakeholders)
@@ -942,9 +1050,16 @@ Extract the following from provided documents and write them in the "Mandatory S
 6. **Assumptions/Contexts Affecting the Safety Case**
    - Node ID, assumption content, validity conditions
 
+${detailRule}
+
 ### Omission Prohibition
-If any of the 6 items above exist in the provided documents, they MUST NOT be omitted regardless of the stakeholder's abstraction level setting.
+If any of the 6 items above exist in the provided documents, **the item itself** MUST NOT be omitted regardless of the stakeholder's abstraction level setting.
+However, the amount written for each item MUST follow the "Level of Detail" rule above — the omission prohibition governs whether an item appears, and is never grounds for increasing its level of detail.
 If information is completely absent, state: "N/A (not documented)".
+
+### Scope of This Instruction
+This instruction governs the content written INSIDE the "Mandatory Safety Core" section listed in the report structure.
+Do NOT use this instruction as grounds for creating any section, chapter, or appendix that is absent from the report structure.
 
 ※ All judgments and descriptions must fully comply with Anti-Hallucination Rules (Section 2).`;
 }
@@ -1039,9 +1154,7 @@ ${sectionsFormatted}`;
 
     // hicase-derived headings look like "2.1 S1: ..." — the node ID follows the numbering
     // prefix rather than starting the string, so also match that shape.
-    const hasNodeIdSections = reportSections.some(s =>
-      /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
-    );
+    const hasNodeIdSections = isGSNNodeOutline(reportSections);
     if (hasNodeIdSections) {
       prompt += `
 
@@ -1090,7 +1203,7 @@ Node ID prefix meanings: G=Goal, S=Strategy, C=Context, A=Assumption, Sn=Solutio
 
 ### Meaning of Heading-End Markers (hicase structure)
 Some headings in the structure above carry a marker at the end. These reflect the argumentation detail level adapted to this stakeholder's role, and MUST be honored:
-- \`[summary only]\`: Do not expand this heading's content into further sub-headings — write a single summary paragraph only.
+- \`[summary only]\`: Write a single summary paragraph only. The nodes beneath this heading (sub-goals, strategies, evidence, etc.) MUST NOT be raised as sub-headings **nor as standalone chapters/sections elsewhere in the report** — promoting them to sibling chapters instead of sub-headings is equally prohibited.
 - \`[Mandatory Core]\`: A safety-critical item required in every stakeholder's report regardless of role. Do not omit it.
 - \`[Mandatory Core - forced open]\`: This item would normally be collapsed under this role's detail settings, but is shown as its own heading because it is a mandatory safety item. Reflect it in the body without omission.
 - A heading annotated with \`⚠ mandatory core: ...\` carries a compressed summary (a count or one-sentence digest) of mandatory safety items hidden beneath it. This annotation's content MUST be reflected in the section's summary text.`;
@@ -1101,15 +1214,23 @@ Some headings in the structure above carry a marker at the end. These reflect th
     prompt += `\n\nStructure Description: ${structureDescription.slice(0, 500)}`;
   }
 
-  const hasNodeIdSectionsForRule = reportSections.some(s =>
-    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
-  );
+  const hasNodeIdSectionsForRule = isGSNNodeOutline(reportSections);
 
   if (hasNodeIdSectionsForRule) {
+    // Keep the appendix rule consistent with the "Appendix Rules" emitted by
+    // generateOutputConstraintsEN (same isExpertStakeholder predicate). Non-expert
+    // readers are told to include a glossary appendix, so a blanket ban here would
+    // contradict that instruction within the same prompt.
+    const appendixRule = isExpertStakeholder(stakeholder)
+      ? `- At most ONE appendix is allowed: an "Abbreviation List" (only when the project uses many project-specific abbreviations). No other appendix is permitted`
+      : `- At most ONE appendix is allowed: a "Glossary". No other appendix (Traceability Analysis, References, etc.) is permitted`;
+
     prompt += `
 
 ### STRUCTURE COMPLIANCE RULES (MANDATORY) — GSN-Derived Report
 - **Create ONLY the sections listed above**
+- Do NOT copy the chapter structure of the provided documents (e.g. a project status report's "Issues & Risks", "Escalations", "Approval", "Next Month's Plan") into this report. The provided documents are a source of content, not of structure
+- Do NOT raise any GSN node absent from the structure above (sub-goals, strategies, evidence, etc.) into a standalone chapter or section. Those nodes are intentionally compressed for this reader's role and must be addressed within the body of the corresponding higher-level section
 - The following sections and any others NOT in the list above are STRICTLY PROHIBITED:
   - Executive Summary
   - Risk Analysis
@@ -1118,11 +1239,11 @@ Some headings in the structure above carry a marker at the end. These reflect th
   - Test Results (as a standalone section)
   - Improvement Proposals
   - GSN Overview / GSN Analysis (as a standalone section)
-  - Traceability Analysis, Glossary, References, etc.
+  - Traceability Analysis, References, etc.
 - Write risk assessments, recommendations, and evidence within each GSN node section
 - Chapter numbers must strictly follow the numbering above
 - Do NOT reorder the sections
-- Appendix is PROHIBITED in GSN-derived reports`;
+${appendixRule}`;
   } else {
     prompt += `
 
@@ -1154,6 +1275,7 @@ export function buildCompleteUserPromptEN(params: {
   hasGSN: boolean;
   structureDescription?: string;
   hasMandatoryCore?: boolean;
+  mandatoryCoreDetail?: HiCaseMandatoryCoreDetail;
 }): string {
   const {
     stakeholder,
@@ -1163,7 +1285,12 @@ export function buildCompleteUserPromptEN(params: {
     hasGSN,
     structureDescription,
     hasMandatoryCore = hasGSN,
+    mandatoryCoreDetail = 'full',
   } = params;
+
+  // On a GSN (hicase)-derived outline, present the content guides as guidance so they
+  // are not read as a second, competing section specification.
+  const gsnDerivedOutline = hasGSN && isGSNNodeOutline(reportSections);
 
   // Prompt assembly order (by importance — no duplicates)
   // Note: Role definition (generateSystemPromptEN) is passed via API system parameter, excluded here
@@ -1187,12 +1314,15 @@ export function buildCompleteUserPromptEN(params: {
     generateReportGuidelinesEN(stakeholder),
 
     // 8. Content generation guides
-    generateGSNAnalysisPromptEN(hasGSN, stakeholder),
-    generateFigureRequirementsPromptEN(hasGSN, stakeholder),
-    generateRiskAnalysisPromptEN(),
+    generateGSNAnalysisPromptEN(hasGSN, stakeholder, gsnDerivedOutline),
+    generateFigureRequirementsPromptEN(hasGSN, stakeholder, {
+      gsnDerivedOutline,
+      figureHostSectionCount: countFigureHostSections(reportSections),
+    }),
+    generateRiskAnalysisPromptEN(gsnDerivedOutline),
 
     // 8b. Mandatory Safety Core (applies to all stakeholders when GSN present)
-    generateMandatoryCorePromptEN(hasMandatoryCore),
+    generateMandatoryCorePromptEN(hasMandatoryCore, mandatoryCoreDetail),
 
     // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),

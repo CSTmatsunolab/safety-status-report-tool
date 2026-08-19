@@ -9,6 +9,7 @@
 
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
+import { HiCaseMandatoryCoreDetail } from './gsn/types';
 
 // ============================================================================
 // ユーティリティ関数（ステークホルダー判定）
@@ -45,6 +46,24 @@ function isTechnicalExpertRole(role: string): boolean {
 
 function isNonExpertRole(role: string): boolean {
   return !isTechnicalExpertRole(role) && !isRegulatorRole(role);
+}
+
+/**
+ * アウトラインがGSNノード見出し（hicase含む）由来かどうか。
+ * "G1: ..." のような素の形式と、"1.5 S1: ..." のような階層採番付き形式の両方を検出する。
+ */
+function isGSNNodeOutline(reportSections: string[]): boolean {
+  return reportSections.some(s =>
+    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
+  );
+}
+
+/**
+ * 図表を配置できるセクション数。
+ * `[要約のみ]` が付いたセクションは1段落の要約のみとするため、図表の置き場所にならない。
+ */
+function countFigureHostSections(reportSections: string[]): number {
+  return reportSections.filter(s => !s.includes('要約のみ')).length;
 }
 
 /**
@@ -686,18 +705,46 @@ function appendGSNCommonNote(prompt: string): string {
 ※ ギャップの原因・未達成の原因はハルシネーション防止規則（第2項）に準拠し、文書記載がある場合のみ記述すること。文書に記載がなければ「【原因不明】」または「【要調査】」と明記する。`;
 }
 
-export function generateGSNAnalysisPrompt(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
+/**
+ * GSN由来（hicase）アウトラインでは、この関数が返す構成案が
+ * 「レポート構成」と競合する第2のセクション定義として読まれ、
+ * AIが構成外の章を作る主要因になる。
+ * そのため見出しを外し、「与えられたセクションの本文に何を書くか」の指針として提示する。
+ */
+function frameAsContentGuidance(
+  spec: string,
+  gsnDerivedOutline: boolean,
+  forbiddenSectionNames: string
+): string {
+  if (!gsnDerivedOutline) return spec;
+  // 先頭の "## 見出し" 行を取り除き、セクション定義に見えないようにする
+  const withoutHeading = spec.replace(/^##[^\n]*\n/m, '');
+  return `
+## 記述内容の指針（セクション定義ではない）
+
+レポートのセクション構成は「レポート構成」で与えられた見出しのみに従うこと。
+以下は**各セクションの本文に何を書くか**の指針であり、新しい章・節を作る根拠にしてはならない。
+特に「${forbiddenSectionNames}」等の独立セクションを作ることは禁止する。
+${withoutHeading}`;
+}
+
+export function generateGSNAnalysisPrompt(
+  hasGSNFile: boolean,
+  stakeholder?: Stakeholder,
+  gsnDerivedOutline: boolean = false
+): string {
   if (!hasGSNFile) {
     return '';
   }
 
   const role = stakeholder?.role || 'Safety Engineer';
   const gsnPrimer = isNonExpertRole(role) ? generateGSNPrimerForNonExperts() : '';
-  
+  const frame = (spec: string) =>
+    appendGSNCommonNote(gsnPrimer + frameAsContentGuidance(spec, gsnDerivedOutline, 'GSN分析 / GSN概要'));
+
   // 経営層向け（簡潔版）
   if (isExecutiveRole(role)) {
-    return appendGSNCommonNote(`
-${gsnPrimer}
+    return frame(`
 ## GSN分析（経営層向け・1ページ以内）
 
 以下の形式で1つのセクションにまとめること。各ノードを個別サブセクションにしないこと。
@@ -718,7 +765,7 @@ ${gsnPrimer}
   
   // 規制当局向け
   if (isRegulatorRole(role)) {
-    return appendGSNCommonNote(`
+    return frame(`
 ## GSN分析（規制当局向け）
 
 1. GSN構造と規格適合状況
@@ -735,7 +782,7 @@ ${gsnPrimer}
   
   // 設計者向け（詳細版）
   if (isArchitectRole(role)) {
-    return appendGSNCommonNote(`
+    return frame(`
 ## GSN詳細分析（設計者向け）
 
 1. GSN構造の可視化
@@ -760,8 +807,7 @@ ${gsnPrimer}
 
   // 非専門家向け（ビジネス部門、その他一般）
   if (isNonExpertRole(role)) {
-    return appendGSNCommonNote(`
-${gsnPrimer}
+    return frame(`
 ## GSN分析（${role}向け）
 
 冒頭の読み方ガイドで紹介した記号（G, S, Sn等）を使い、以下の構成で分析を記述する。
@@ -790,7 +836,7 @@ ${gsnPrimer}
   }
   
   // デフォルト（Safety Engineer向け）
-  return appendGSNCommonNote(`
+  return frame(`
 ## GSN詳細分析
 
 1. GSN構造の可視化
@@ -816,10 +862,24 @@ ${gsnPrimer}
 // 9. 図表要件（ステークホルダー別）
 // ============================================================================
 
-export function generateFigureRequirementsPrompt(hasGSNFile: boolean, stakeholder?: Stakeholder): string {
+export function generateFigureRequirementsPrompt(
+  hasGSNFile: boolean,
+  stakeholder?: Stakeholder,
+  options?: { gsnDerivedOutline?: boolean; figureHostSectionCount?: number }
+): string {
   const role = stakeholder?.role || 'Safety Engineer';
-  const minFigures = getMinimumFigureCount(role, hasGSNFile);
-  
+  const gsnDerivedOutline = options?.gsnDerivedOutline ?? false;
+  const hostSections = options?.figureHostSectionCount;
+
+  // 圧縮されたhicaseアウトライン（CxO等）では、表を置ける本文セクションが
+  // ごく少数（[要約のみ]でないセクションのみ）しかない。
+  // そこへ固定の最低図表数を要求すると、AIは図表の置き場所を作るために
+  // 構成外の章を新設する。よって図表数の下限を置き場所の数に合わせる。
+  let minFigures = getMinimumFigureCount(role, hasGSNFile);
+  if (gsnDerivedOutline && hostSections !== undefined) {
+    minFigures = Math.max(2, Math.min(minFigures, hostSections));
+  }
+
   let prompt = `
 ## 図表の要件
 
@@ -882,6 +942,17 @@ export function generateFigureRequirementsPrompt(hasGSNFile: boolean, stakeholde
 - 情報不足の場合は「情報不足のため図示不可」と明記
 - 図表内のデータは全て文書由来であること（ハルシネーション防止規則第2項参照）`;
 
+  if (gsnDerivedOutline) {
+    prompt += `
+
+### 図表の配置制約（GSN由来レポート・厳守）
+- 図表は「レポート構成」に列挙されたセクションの内部にのみ配置すること
+- **図表を配置するために新しい章・節・付録を作ってはならない**
+- \`[要約のみ]\` が付いたセクションには図表を置かないこと（1段落の要約のみとする）
+- 上記の必須図表・推奨図表が既存セクションに収まらない場合は、**章を追加せず図表の方を減らすこと**
+- 図表数の下限（${minFigures}個）と構成遵守ルールが衝突する場合は、構成遵守ルールを優先する`;
+  }
+
   return prompt;
 }
 
@@ -898,8 +969,9 @@ function getMinimumFigureCount(role: string, hasGSN: boolean): number {
 // 10. リスク分析
 // ============================================================================
 
-export function generateRiskAnalysisPrompt(): string {
-  return `
+export function generateRiskAnalysisPrompt(gsnDerivedOutline: boolean = false): string {
+  return frameAsContentGuidance(
+    `
 ## リスク分析
 識別されたリスクを以下の観点で整理：
 - リスクの内容と発生メカニズム（文書記載のもののみ）
@@ -907,7 +979,10 @@ export function generateRiskAnalysisPrompt(): string {
 - 実施済み/計画中の対策
 - 残存リスクとその受容可能性
 
-※ 発生確率・影響度の推定、および原因分析の創作はハルシネーション防止規則（第2項）により禁止。`;
+※ 発生確率・影響度の推定、および原因分析の創作はハルシネーション防止規則（第2項）により禁止。`,
+    gsnDerivedOutline,
+    'リスク分析 / Risk Analysis'
+  );
 }
 
 // ============================================================================
@@ -977,9 +1052,40 @@ export function getStrategyGuidelines(strategy: RhetoricStrategy): string {
 /**
  * Mandatory Safety Core セクションのプロンプト
  * 全ステークホルダーのレポートに必ず含めること（system_design.md 設計方針）
+ *
+ * detailLevel は hicase の HiCaseStakeholderConfig.mandatoryCoreDetail に対応する。
+ * 「6項目を省略しない」という原則は全レベル共通だが、各項目の記述粒度は
+ * ステークホルダーの圧縮設定（count / one-sentence / full / full-with-reverification）に従う。
+ * これを渡さないと、CxO等の圧縮設定でも詳細表が生成されhicaseの粒度制御が無効化される。
  */
-export function generateMandatoryCorePrompt(hasMandatoryCore: boolean): string {
+export function generateMandatoryCorePrompt(
+  hasMandatoryCore: boolean,
+  detailLevel: HiCaseMandatoryCoreDetail = 'full'
+): string {
   if (!hasMandatoryCore) return '';
+
+  const detailRule = (() => {
+    switch (detailLevel) {
+      case 'count':
+        return `### 記述粒度（本レポートの読者設定: 件数レベル）
+- 各項目は**件数と、最も重大な1〜2件のID＋一言の状態**のみを記載すること
+- 表形式での全件列挙・項目ごとの詳細な内訳は作成しないこと
+- 例: 「高Severityハザード: 2件（H-201 Catastrophic・対策実施中／H-204 Critical・対策実施中）」
+- 詳細が必要な読者向けには別ステークホルダー版レポートが存在することを1文で補足してよい`;
+      case 'one-sentence':
+        return `### 記述粒度（本レポートの読者設定: 1文要約レベル）
+- 各項目は**1項目あたり1文の要約**にとどめ、該当IDを併記すること
+- 表形式での全件列挙や、1項目を複数段落へ展開することは行わないこと`;
+      case 'full-with-reverification':
+        return `### 記述粒度（本レポートの読者設定: 詳細＋再検証条件）
+- 各項目を該当ID単位で詳細に記載すること（表形式可）
+- さらに各項目について、**再検証条件・再試験の合否基準・完了判定条件**まで記載すること`;
+      case 'full':
+      default:
+        return `### 記述粒度（本レポートの読者設定: 詳細）
+- 各項目を該当ID単位で詳細に記載すること（表形式可）`;
+    }
+  })();
 
   return `
 ## Mandatory Safety Core（必須安全コア）
@@ -1007,9 +1113,16 @@ export function generateMandatoryCorePrompt(hasMandatoryCore: boolean): string {
 6. **Safety Caseに影響するAssumption/Context**
    - ノードID、前提条件の内容、成立条件を記載
 
+${detailRule}
+
 ### 省略禁止規則
-上記6項目のいずれかが提供文書に存在する場合、ステークホルダーの抽象度設定に関わらず省略してはならない。
+上記6項目のいずれかが提供文書に存在する場合、ステークホルダーの抽象度設定に関わらず**項目そのものを省略してはならない**。
+ただし各項目の記述量は上記「記述粒度」に従うこと（省略禁止は項目の有無に対する規則であり、詳細度を引き上げる根拠にはならない）。
 情報が全くない場合は「該当なし（文書記載なし）」と明記すること。
+
+### セクション作成範囲
+この指示は「レポート構成」に列挙された Mandatory Safety Core セクション**内**の記述に関するものである。
+この指示を根拠に、レポート構成に無いセクション・章・付録を新設してはならない。
 
 ※ 上記の判断・記述はハルシネーション防止規則（第2項）に完全準拠すること。`;
 }
@@ -1043,9 +1156,7 @@ ${sectionsFormatted}`;
 
     // hicase由来の見出しは "2.1 S1: ..." のように階層採番が先頭に付くため、
     // ノードIDが文字列の先頭ではなく採番の後に来る形式も検出する。
-    const hasNodeIdSections = reportSections.some(s =>
-      /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
-    );
+    const hasNodeIdSections = isGSNNodeOutline(reportSections);
     if (hasNodeIdSections) {
       prompt += `
 
@@ -1093,7 +1204,7 @@ ${sectionsFormatted}`;
 
 ### 見出し末尾のマーカーの意味（hicase構成）
 上記構成の一部の見出しには末尾に以下のマーカーが付与されている。これはステークホルダーの役職に応じて安全論証の展開粒度を調整した結果であり、必ず反映すること:
-- \`[要約のみ]\`: この見出しの配下は展開せず、1段落の要約のみで記述し、それ以上の下位見出しを作らないこと。
+- \`[要約のみ]\`: この見出しの配下は展開せず、1段落の要約のみで記述すること。配下のノード（下位ゴール・戦略・エビデンス等）を、**下位見出しとしても独立した章・節としても起こしてはならない**。「下位見出しを作らない代わりに同格の章として立てる」ことも禁止する。
 - \`[Mandatory Core]\`: 役職に関わらず全レポート共通で必須の安全項目。省略しないこと。
 - \`[Mandatory Core - 強制開放]\`: 本来はこの役職の展開設定では見出しにならない項目だが、必須安全項目であるため例外的に見出しとして開かれている。省略せず本文に反映すること。
 - \`⚠ mandatory core: ...\`という注記がある見出しは、配下に隠れている必須安全項目の圧縮要約（件数または1文）である。この注記の内容を要約文中に必ず反映すること。`;
@@ -1104,15 +1215,22 @@ ${sectionsFormatted}`;
     prompt += `\n\n構成説明: ${structureDescription.slice(0, 500)}`;
   }
 
-  const hasNodeIdSectionsForRule = reportSections.some(s =>
-    /^[GSCASEJUsn]\d/.test(s) || /^\d+(\.\d+)*\s+[GSCASEJUsn]\d/.test(s)
-  );
+  const hasNodeIdSectionsForRule = isGSNNodeOutline(reportSections);
 
   if (hasNodeIdSectionsForRule) {
+    // 付録の扱いは generateOutputConstraints の「付録に関するルール」と一致させる
+    // （同じ isExpertStakeholder 判定を使う）。非専門家向けは用語集付録を要求しているため、
+    // ここで一律禁止すると同一プロンプト内で指示が矛盾する。
+    const appendixRule = isExpertStakeholder(stakeholder)
+      ? `- 付録は「略語一覧」1つのみ許可する（プロジェクト固有の略語が多数ある場合に限る）。それ以外の付録は禁止`
+      : `- 付録は「用語集（Glossary）」1つのみ許可する。それ以外の付録（トレーサビリティ分析・参考文献一覧等）は禁止`;
+
     prompt += `
 
 ### 構成遵守ルール（厳守）【GSN由来レポート】
 - **上記の構成に記載されたセクションのみを作成すること**
+- 提供文書（プロジェクト状況報告書等）に含まれる章立て（課題・リスク、エスカレーション事項、承認、来月の計画 等）を、そのままレポートの章として転記してはならない。提供文書は本文の情報源であり、章構成の情報源ではない
+- 上記構成に含まれないGSNノード（下位ゴール・戦略・エビデンス等）を、独立した章・節として起こしてはならない。それらは読者の役職設定に応じて意図的に圧縮されており、該当する上位セクションの本文中で言及すること
 - 以下のセクションをはじめ、上記一覧にないセクションを独自に追加することは絶対に禁止する:
   - エグゼクティブサマリー / Executive Summary
   - リスク分析 / Risk Analysis
@@ -1121,11 +1239,11 @@ ${sectionsFormatted}`;
   - テスト結果 / Test Results
   - 改善提案 / Improvement Proposals
   - GSN概要 / GSN分析 / GSN Analysis（独立セクションとして）
-  - トレーサビリティ分析、用語集、参考文献一覧等
+  - トレーサビリティ分析、参考文献一覧等
 - 各GSNノードセクションの中でリスク・評価・推奨事項・エビデンスを記述すること
 - 章番号は上記の番号に厳密に従うこと
 - セクションの順序を入れ替えないこと
-- 付録は禁止（GSN由来レポートでは付録セクションを設けない）`;
+${appendixRule}`;
   } else {
     prompt += `
 
@@ -1157,6 +1275,7 @@ export function buildCompleteUserPrompt(params: {
   hasGSN: boolean;
   structureDescription?: string;
   hasMandatoryCore?: boolean;
+  mandatoryCoreDetail?: HiCaseMandatoryCoreDetail;
 }): string {
   const {
     stakeholder,
@@ -1166,7 +1285,12 @@ export function buildCompleteUserPrompt(params: {
     hasGSN,
     structureDescription,
     hasMandatoryCore = hasGSN,
+    mandatoryCoreDetail = 'full',
   } = params;
+
+  // GSN(hicase)由来アウトラインでは、内容ガイド系プロンプトが
+  // 「レポート構成」と競合する第2のセクション定義にならないよう指針として提示する
+  const gsnDerivedOutline = hasGSN && isGSNNodeOutline(reportSections);
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   // 注: 役割定義（generateSystemPrompt）はAPIのsystemパラメータで渡すため除外
@@ -1190,12 +1314,15 @@ export function buildCompleteUserPrompt(params: {
     generateReportGuidelines(stakeholder),
 
     // 8. コンテンツ生成ガイド
-    generateGSNAnalysisPrompt(hasGSN, stakeholder),
-    generateFigureRequirementsPrompt(hasGSN, stakeholder),
-    generateRiskAnalysisPrompt(),
+    generateGSNAnalysisPrompt(hasGSN, stakeholder, gsnDerivedOutline),
+    generateFigureRequirementsPrompt(hasGSN, stakeholder, {
+      gsnDerivedOutline,
+      figureHostSectionCount: countFigureHostSections(reportSections),
+    }),
+    generateRiskAnalysisPrompt(gsnDerivedOutline),
 
     // 8b. Mandatory Safety Core（GSNがある場合は全ステークホルダーに適用）
-    generateMandatoryCorePrompt(hasMandatoryCore),
+    generateMandatoryCorePrompt(hasMandatoryCore, mandatoryCoreDetail),
 
     // 9. 不適切ファイル対応（参考）
     generateInvalidFileGuidelines(),
