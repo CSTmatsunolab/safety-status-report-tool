@@ -292,7 +292,50 @@ and data within tables MUST be transcribed verbatim from provided documents.
 // 3. Output Constraints (Format, Style, Volume)
 // ============================================================================
 
-export function generateOutputConstraintsEN(stakeholder?: Stakeholder): string {
+/**
+ * Volume rules for a GSN (hicase) derived outline.
+ * Lists no fixed section names (Executive Summary, Test Results, ...) and derives
+ * the total from the already-fixed heading count instead.
+ * The static "Section guidelines" list names exactly the sections that the
+ * structure-compliance rules in generateStructurePromptEN forbid, so within a single
+ * prompt it contradicts them and is a primary cause of invented sections.
+ */
+function generateOutlineDerivedVolumeRulesEN(reportSections: string[], executive: boolean): string {
+  const total = reportSections.length;
+  const summaryOnly = reportSections.filter(s => s.includes('summary only')).length;
+  const expanded = Math.max(0, total - summaryOnly);
+
+  // Per-section word budget (executives get a tighter one)
+  const expandedLo = executive ? 250 : 400;
+  const expandedHi = executive ? 450 : 700;
+  const summaryLo = 80;
+  const summaryHi = executive ? 150 : 200;
+
+  const round100 = (n: number) => Math.max(200, Math.round(n / 100) * 100);
+  const totalLo = round100(expanded * expandedLo + summaryOnly * summaryLo);
+  const totalHi = round100(expanded * expandedHi + summaryOnly * summaryHi);
+
+  const summaryLine = summaryOnly > 0
+    ? `\n- \`[summary only]\` headings: ${summaryOnly} → approx. ${summaryLo}-${summaryHi} words each (one paragraph)`
+    : '';
+
+  return `
+
+### Volume (GSN-Derived Structure)
+The volume of this report is determined by the heading count fixed in "Report Structure".
+**Never add a chapter, section, or appendix in order to reach a word count target.**
+- Expanded sections (headings without markers): ${expanded} → approx. ${expandedLo}-${expandedHi} words each${summaryLine}
+- Total word count: approx. ${totalLo}-${totalHi} words (a derived consequence of the heading count, NOT a target to hit)
+- If the report falls short, increase analytical density (rationale, figures, evidence references) in existing sections — do NOT add sections
+- If the report runs long, cut redundancy using cross-references ("see Section X")
+- When the volume guidance conflicts with the structure-compliance rules, the structure-compliance rules win
+- MUST complete report through final section`;
+}
+
+export function generateOutputConstraintsEN(
+  stakeholder?: Stakeholder,
+  options?: { gsnDerivedOutline?: boolean; reportSections?: string[] }
+): string {
   const role = stakeholder?.role || 'Safety Engineer';
   const expert = isExpertStakeholder(stakeholder);
   
@@ -380,6 +423,16 @@ When about to write \`## number.\`:
 - In the body, add brief annotations at first occurrence and direct readers to "See Appendix: Glossary" for details`;
 
   // Volume constraints by stakeholder
+  // A GSN (hicase) derived outline switches to the variant that names no fixed sections
+  if (options?.gsnDerivedOutline && options.reportSections) {
+    return (
+      formatRules +
+      appendixRules +
+      generateOutlineDerivedVolumeRulesEN(options.reportSections, isExecutiveRole(role)) +
+      accessibilityHook
+    );
+  }
+
   if (isExecutiveRole(role)) {
     return formatRules + appendixRules + `
 
@@ -414,7 +467,10 @@ When about to write \`## number.\`:
 // 4. Redundancy Prevention Rules + Information Density Optimization
 // ============================================================================
 
-export function generateRedundancyPreventionPromptEN(stakeholder?: Stakeholder): string {
+export function generateRedundancyPreventionPromptEN(
+  stakeholder?: Stakeholder,
+  gsnDerivedOutline: boolean = false
+): string {
   const expert = isExpertStakeholder(stakeholder);
 
   const basePart = `
@@ -452,7 +508,26 @@ Describing the same information multiple times is PROHIBITED. State information 
 5. **Duplicating figure/table content in text** → "See Table X for details" and state only key points in text`;
 
   // ★ Section role distribution by expertise level
-  const sectionRoles = expert
+  // On a GSN-derived structure a table of fixed section names reads as a second
+  // section specification and causes invented sections, so it is replaced with a
+  // node-type based role distribution.
+  const gsnSectionRoles = `
+
+### Role Distribution Between Sections (GSN-Derived Structure)
+The sections of this report correspond to GSN nodes. There are no fixed section names
+(Executive Summary, Technical Overview, Test Results, Improvement Proposals, etc.),
+so follow the per-node-type role distribution below.
+
+| Node Type | Content to Include | Content to Omit |
+|-----------|-------------------|-----------------|
+| Goal / SubGoal | The safety claim, achievement status, and its rationale | Details of child nodes (defer to their sections) |
+| Strategy | Adequacy and completeness of the decomposition | Restating each subgoal's achievement status |
+| Context / Assumption | The premise, whether it holds, impact if it breaks | Design/implementation detail unrelated to the premise |
+| Solution / Evidence | Evidence type, strength, coverage and limits | Restating the parent goal's claim |
+| Mandatory Safety Core | Consolidated must-report safety items shared by all readers | Repeating detail already given in node sections |
+| \`[summary only]\` sections | One paragraph compressing the subtree's key points | Expanding child nodes (no sub-headings, no new chapters) |`;
+
+  const staticSectionRoles = expert
     ? `
 
 ### Role Distribution Between Sections
@@ -484,6 +559,22 @@ Describing the same information multiple times is PROHIBITED. State information 
 #### Non-Expert Reader Focus Rules
 - Convert technical terms to impacts/outcomes (e.g., ✗ "Latency exceeds threshold" → ✓ "Response time does not meet requirements")
 - Each section should provide unique decision-making material; do not repeat the same fact from different angles`;
+
+  // The expert / non-expert focus rules name no sections, so they are kept in GSN mode too
+  const focusRules = expert
+    ? `
+
+#### Expert Reader Focus Rules
+- Do NOT include concept definitions in the form "XX is a method that..." (readers have equivalent expertise)
+- Explanations of industry-standard terms (FMEA, FTA, ASIL, CI/CD, etc.) are unnecessary
+- Expand project-specific abbreviations only once at first occurrence`
+    : `
+
+#### Non-Expert Reader Focus Rules
+- Convert technical terms to impacts/outcomes (e.g., \u2717 "Latency exceeds threshold" \u2192 \u2713 "Response time does not meet requirements")
+- Each section should provide unique decision-making material; do not repeat the same fact from different angles`;
+
+  const sectionRoles = gsnDerivedOutline ? gsnSectionRoles + focusRules : staticSectionRoles;
 
   return basePart + sectionRoles + `
 
@@ -1299,10 +1390,10 @@ export function buildCompleteUserPromptEN(params: {
     generateAntiHallucinationPromptEN(stakeholder),
 
     // 3. Output constraints (format, style, volume)
-    generateOutputConstraintsEN(stakeholder),
+    generateOutputConstraintsEN(stakeholder, { gsnDerivedOutline, reportSections }),
 
     // 4. Redundancy prevention + information density optimization
-    generateRedundancyPreventionPromptEN(stakeholder),
+    generateRedundancyPreventionPromptEN(stakeholder, gsnDerivedOutline),
 
     // 5. Document usage principles (citation rules, comprehensiveness, quantification merged)
     generateDocumentUsagePrinciplesEN(),

@@ -270,7 +270,50 @@ export function generateAntiHallucinationPrompt(stakeholder?: Stakeholder): stri
 // 3. 出力形式の制約（フォーマット・文体・分量）
 // ============================================================================
 
-export function generateOutputConstraints(stakeholder?: Stakeholder): string {
+/**
+ * GSN(hicase)由来アウトライン用の分量規則。
+ * 固定セクション名（エグゼクティブサマリー・テスト結果等）を一切列挙せず、
+ * 確定済みの見出し数から総量を導出する。
+ * 静的な「セクション目安」は generateStructurePrompt の構成遵守ルールが禁止している
+ * セクション名をそのまま提示しており、同一プロンプト内で矛盾して
+ * 構成外セクション生成の原因になるため、GSN由来構成では使用しない。
+ */
+function generateOutlineDerivedVolumeRules(reportSections: string[], executive: boolean): string {
+  const total = reportSections.length;
+  const summaryOnly = reportSections.filter(s => s.includes('要約のみ')).length;
+  const expanded = Math.max(0, total - summaryOnly);
+
+  // 1セクションあたりの目安文字数（経営層向けはより簡潔に）
+  const expandedLo = executive ? 500 : 800;
+  const expandedHi = executive ? 900 : 1400;
+  const summaryLo = 150;
+  const summaryHi = executive ? 300 : 400;
+
+  const round500 = (n: number) => Math.max(500, Math.round(n / 500) * 500);
+  const totalLo = round500(expanded * expandedLo + summaryOnly * summaryLo);
+  const totalHi = round500(expanded * expandedHi + summaryOnly * summaryHi);
+
+  const summaryLine = summaryOnly > 0
+    ? `\n- \`[要約のみ]\` の見出し: ${summaryOnly}個 → 1セクションあたり ${summaryLo}〜${summaryHi}文字程度（1段落）`
+    : '';
+
+  return `
+
+### 分量（GSN由来構成）
+本レポートの分量は「レポート構成」で確定した見出し数によって決まる。
+**目安の文字数に届かないことを理由に、章・節・付録を追加してはならない。**
+- 展開セクション（マーカーなしの見出し）: ${expanded}個 → 1セクションあたり ${expandedLo}〜${expandedHi}文字程度${summaryLine}
+- 総文字数: 約${totalLo}〜${totalHi}文字（見出し数から算出した結果値であり、達成すべき目標値ではない）
+- 分量が不足する場合は、章を増やすのではなく既存セクションの分析密度（根拠・数値・エビデンス参照）を高めること
+- 分量が超過する場合は、相互参照（「第X項参照」）で重複を削減すること
+- 分量目安と構成遵守ルールが衝突する場合は、構成遵守ルールを優先すること
+- 必ず最終セクションまで完結させること`;
+}
+
+export function generateOutputConstraints(
+  stakeholder?: Stakeholder,
+  options?: { gsnDerivedOutline?: boolean; reportSections?: string[] }
+): string {
   const role = stakeholder?.role || 'Safety Engineer';
   const expert = isExpertStakeholder(stakeholder);
   
@@ -358,6 +401,16 @@ Markdown記法を使用してレポートを構造化すること。
 - 本文中では初出時に簡潔な補足を付け、詳細は「付録: 用語集を参照」と案内する`;
 
   // ステークホルダー別の分量制約
+  // GSN(hicase)由来アウトラインでは固定セクション名を列挙しない版に切り替える
+  if (options?.gsnDerivedOutline && options.reportSections) {
+    return (
+      formatRules +
+      appendixRules +
+      generateOutlineDerivedVolumeRules(options.reportSections, isExecutiveRole(role)) +
+      accessibilityHook
+    );
+  }
+
   if (isExecutiveRole(role)) {
     return formatRules + appendixRules + `
 
@@ -392,7 +445,10 @@ Markdown記法を使用してレポートを構造化すること。
 // 4. 冗長防止規則 + 情報密度最適化
 // ============================================================================
 
-export function generateRedundancyPreventionPrompt(stakeholder?: Stakeholder): string {
+export function generateRedundancyPreventionPrompt(
+  stakeholder?: Stakeholder,
+  gsnDerivedOutline: boolean = false
+): string {
   const expert = isExpertStakeholder(stakeholder);
 
   const basePart = `
@@ -429,8 +485,24 @@ export function generateRedundancyPreventionPrompt(stakeholder?: Stakeholder): s
 4. **GSN情報の重複** → 「表X: GSN達成状況（第Y項）を参照」
 5. **図表内容の本文での重複** → 「詳細は表Xを参照」とし、本文では要点のみ`;
 
+  // GSN由来構成では固定セクション名の役割分担表が「第2のセクション定義」として読まれ、
+  // 構成外セクション生成の原因になるため、ノード種別ベースの役割分担に差し替える。
+  const gsnSectionRoles = `
+
+### セクション間の役割分担（GSN由来構成）
+本レポートのセクションはGSNノードに対応する。固定のセクション名（エグゼクティブサマリー・技術概要・テスト結果・改善提案等）は存在しないため、以下のノード種別ごとの役割分担に従うこと。
+
+| ノード種別 | 記述すべき内容 | 省くべき内容 |
+|------------|---------------|-------------|
+| Goal / SubGoal | 主張する安全性の内容・達成状況・判断根拠 | 下位ノードの詳細（該当セクションに委ねる） |
+| Strategy | 分解方針の妥当性・網羅性評価 | 各下位ゴールの達成状況の再掲 |
+| Context / Assumption | 前提の内容・成立状況・崩れた場合の影響 | 前提と無関係な設計・実装の詳細 |
+| Solution / Evidence | エビデンスの種類・強度・カバレッジと限界 | 上位ゴールの主張の再掲 |
+| Mandatory Safety Core | 全読者共通の必須安全項目の集約 | 各ノードセクションで既述の詳細の反復 |
+| \`[要約のみ]\` セクション | 配下の要点を1段落に圧縮 | 配下ノードの個別展開（見出し化・章立ては禁止） |`;
+
   // ★ 専門レベルに応じたセクション役割分担
-  const sectionRoles = expert
+  const staticSectionRoles = expert
     ? `
 
 ### セクション間の役割分担
@@ -462,6 +534,22 @@ export function generateRedundancyPreventionPrompt(stakeholder?: Stakeholder): s
 #### 非専門家読者向けの重点ルール
 - 技術用語は影響・結果に変換して記述する（例: ×「レイテンシが閾値超過」→ ○「応答速度が要件未達」）
 - 各セクションは独自の判断材料を提供し、同じ事実を角度を変えて繰り返さない`;
+
+  // GSNモードでも「専門家/非専門家向けの重点ルール」（セクション名を含まない）は維持する
+  const focusRules = expert
+    ? `
+
+#### 専門家読者向けの重点ルール
+- 「○○とは～である」形式の概念定義は含めない（読者は同等の専門知識を持つ）
+- 業界標準用語（FMEA, FTA, ASIL, CI/CD等）の説明は不要
+- プロジェクト固有の略語のみ初出時に1回だけ展開する`
+    : `
+
+#### 非専門家読者向けの重点ルール
+- 技術用語は影響・結果に変換して記述する（例: ×「レイテンシが閾値超過」→ ○「応答速度が要件未達」）
+- 各セクションは独自の判断材料を提供し、同じ事実を角度を変えて繰り返さない`;
+
+  const sectionRoles = gsnDerivedOutline ? gsnSectionRoles + focusRules : staticSectionRoles;
 
   return basePart + sectionRoles + `
 
@@ -1299,10 +1387,10 @@ export function buildCompleteUserPrompt(params: {
     generateAntiHallucinationPrompt(stakeholder),
 
     // 3. 出力制約（フォーマット・文体・分量）
-    generateOutputConstraints(stakeholder),
+    generateOutputConstraints(stakeholder, { gsnDerivedOutline, reportSections }),
 
     // 4. 冗長防止規則 + 情報密度最適化
-    generateRedundancyPreventionPrompt(stakeholder),
+    generateRedundancyPreventionPrompt(stakeholder, gsnDerivedOutline),
 
     // 5. 文書活用原則（引用ルール・網羅性・定量化を統合）
     generateDocumentUsagePrinciples(),
