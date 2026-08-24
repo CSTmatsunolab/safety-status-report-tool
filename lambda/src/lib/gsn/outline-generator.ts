@@ -7,6 +7,9 @@ import { GSNView, GSNNode, GSNNodeType, AbstractionLevel, MandatorySafetyCore, H
 
 const MAX_SECTIONS = 25;
 const NODE_DESC_MAX_CHARS = 60;
+// closedなhinodeに吸収された前提・文脈の注記に載せる最大件数と、その説明の最大文字数
+const ABSORBED_ITEMS_MAX = 4;
+const ABSORBED_DESC_MAX_CHARS = 40;
 
 function label(ja: string, en: string, language: 'ja' | 'en'): string {
   return language === 'en' ? en : ja;
@@ -22,6 +25,11 @@ function resolveFrame(stakeholderId: string): AbstractionLevel {
 function truncateDesc(desc: string): string {
   if (desc.length <= NODE_DESC_MAX_CHARS) return desc;
   return desc.substring(0, NODE_DESC_MAX_CHARS) + '…';
+}
+
+function truncateAbsorbedDesc(desc: string): string {
+  if (desc.length <= ABSORBED_DESC_MAX_CHARS) return desc;
+  return desc.substring(0, ABSORBED_DESC_MAX_CHARS) + '…';
 }
 
 function hasMandatoryCoreItems(mc: MandatorySafetyCore): boolean {
@@ -164,6 +172,7 @@ export function generateOutlineFromGSNView(
  * - 子が0件（要約のみで展開しない）の場合: [要約のみ]
  * - mandatory core強制開放の場合: [Mandatory Core - 強制開放]
  * - mandatory coreに該当するが自然に表示されている場合: [Mandatory Core]
+ * - hievidenceがclosed設定だが証拠連鎖が未完成のため開かれた場合: [未完成の証拠連鎖 - 展開]
  */
 function hiCaseMarkers(node: HiCaseNode, language: 'ja' | 'en'): string {
   const markers: string[] = [];
@@ -175,7 +184,32 @@ function hiCaseMarkers(node: HiCaseNode, language: 'ja' | 'en'): string {
   } else if (node.isMandatoryCoreMember) {
     markers.push('Mandatory Core');
   }
+  if (node.isForcedOpenByIncompleteEvidence) {
+    markers.push(label('未完成の証拠連鎖 - 展開', 'incomplete evidence chain - expanded', language));
+  }
   return markers.length > 0 ? ` [${markers.join(' / ')}]` : '';
+}
+
+/**
+ * closedなhinodeに吸収されたContext/Assumption/Justificationを、
+ * 見出し末尾の注記として列挙する（独立見出しにはせず、親の要約で触れさせるため）。
+ */
+function hiCaseAbsorbedSuffix(node: HiCaseNode, language: 'ja' | 'en'): string {
+  const absorbed = node.absorbedNodes;
+  if (absorbed.length === 0) return '';
+
+  const shown = absorbed.slice(0, ABSORBED_ITEMS_MAX);
+  const items = shown
+    .map(a => (a.description ? `${a.id}: ${truncateAbsorbedDesc(a.description)}` : a.id))
+    .join('; ');
+  const rest = absorbed.length - shown.length;
+  const more = rest > 0 ? label(` 他${rest}件`, ` +${rest} more`, language) : '';
+
+  return label(
+    ` ◇ 内包する前提・文脈: ${items}${more}`,
+    ` ◇ embedded context/assumptions: ${items}${more}`,
+    language
+  );
 }
 
 /**
@@ -195,7 +229,7 @@ function hiCaseNodeToSection(node: HiCaseNode, numberStr: string, language: 'ja'
   const base = node.node.description
     ? `${numberStr} ${node.node.id}: ${truncateDesc(node.node.description)}`
     : `${numberStr} ${node.node.id}`;
-  return `${base}${hiCaseAnnotationSuffix(node, language)}${hiCaseMarkers(node, language)}`;
+  return `${base}${hiCaseAnnotationSuffix(node, language)}${hiCaseAbsorbedSuffix(node, language)}${hiCaseMarkers(node, language)}`;
 }
 
 /**

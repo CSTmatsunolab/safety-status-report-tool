@@ -74,7 +74,9 @@ export interface ParsedGSN {
 
 // hicase: 階層的セーフティケースのノード種別
 // higoal = Goal/SubGoal連鎖、histrategy = Strategy連鎖、hievidence = Solution/Evidence連鎖
-// Context/Assumption/Justification/Undeveloped は型を持たず、常に親のopen/closed状態を継承する（null）
+// Context/Assumption/Justification/Undeveloped は型を持たず（null）、
+// 論文どおり hinode の内部要素として扱うため、親（それを内包する hinode）の
+// open/closed 状態を継承する。親が closed の場合は見出しにせず、親の要約へ吸収する。
 export type HiNodeType = 'higoal' | 'histrategy' | 'hievidence';
 
 // mandatory safety coreを強制開放する際の、ステークホルダ別の詳細度
@@ -97,14 +99,26 @@ export interface HiCaseMandatoryCoreAnnotation {
   oneSentenceItems: { id: string; text: string }[];
 }
 
+// closedなhinodeの内部に吸収された非hinode要素（Context/Assumption/Justification/Undeveloped）
+// 見出しにはしないが、親セクションの要約で触れるべき内容として保持する
+export interface HiCaseAbsorbedNode {
+  id: string;
+  type: GSNNodeType;
+  description: string;
+}
+
 // hicaseビュー内の1ノード（開閉判定済み）
 export interface HiCaseNode {
   node: GSNNode;
   hiNodeType: HiNodeType | null;
+  // 型を持たないノード（Context/Assumption等）は親の状態を継承した結果が入る
   isOpen: boolean;
   isMandatoryCoreMember: boolean;
   isMandatoryCoreForced: boolean;
+  // hievidenceがclosed設定でも、証拠連鎖が完全展開済みでないため開かれた場合にtrue
+  isForcedOpenByIncompleteEvidence: boolean;
   mandatoryCoreAnnotation: HiCaseMandatoryCoreAnnotation | null;
+  absorbedNodes: HiCaseAbsorbedNode[];
   depth: number;
   children: HiCaseNode[];
 }

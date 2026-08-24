@@ -24,6 +24,7 @@ export {
   HICASE_STAKEHOLDER_CONFIGS,
   getHiCaseStakeholderConfig,
   categoryOfNodeType,
+  isFullyDevelopedEvidenceChain,
   collectMandatoryCoreIds,
   collectForcedPathIds,
   buildHiCaseView,

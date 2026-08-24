@@ -579,6 +579,18 @@ export function TreeSection({
     return map;
   }, [hicaseView]);
 
+  // closedなhinodeの要約に吸収され、レポートでは独立見出しにならないノード
+  const absorbedIds = useMemo(() => {
+    if (!hicaseView) return null;
+    const ids = new Set<string>();
+    const walk = (n: HiCaseNode) => {
+      n.absorbedNodes.forEach(a => ids.add(a.id));
+      n.children.forEach(walk);
+    };
+    hicaseView.roots.forEach(walk);
+    return ids;
+  }, [hicaseView]);
+
   // 展開可能なノード（子を持つノード）のID
   const expandableIds = useMemo(() => {
     const ids: string[] = [];
@@ -665,6 +677,7 @@ export function TreeSection({
             coreIds={coreIds}
             language={language}
             hicaseById={hicaseById}
+            absorbedIds={absorbedIds}
           />
         ))}
       </div>
@@ -680,6 +693,7 @@ function TreeNodeRow({
   coreIds,
   language,
   hicaseById,
+  absorbedIds,
 }: {
   tree: GSNTreeNode;
   path: string;
@@ -688,12 +702,14 @@ function TreeNodeRow({
   coreIds: Set<string>;
   language: string;
   hicaseById?: Map<string, HiCaseNode> | null;
+  absorbedIds?: Set<string> | null;
 }) {
   const { node, children } = tree;
   const hasChildren = children.length > 0;
   const isExpanded = expanded.has(node.id);
   const isCore = coreIds.has(node.id);
   const hicaseNode = hicaseById?.get(node.id) ?? null;
+  const isAbsorbed = absorbedIds?.has(node.id) ?? false;
 
   return (
     <div>
@@ -766,6 +782,30 @@ function TreeNodeRow({
               Core
             </span>
           )}
+          {hicaseNode?.isForcedOpenByIncompleteEvidence && (
+            <span
+              className="text-sm px-1.5 rounded bg-orange-500 text-white dark:bg-orange-600"
+              title={
+                language === 'en'
+                  ? 'Evidence chain is not fully developed (undeveloped / unachieved / failed items), so it stays expanded'
+                  : '証拠連鎖が完全展開済みでない（未展開・未達成・検証失敗を含む）ため展開されます'
+              }
+            >
+              {language === 'en' ? 'incomplete evidence' : '未完成の証拠'}
+            </span>
+          )}
+          {!hicaseNode && isAbsorbed && (
+            <span
+              className="text-sm px-1.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200"
+              title={
+                language === 'en'
+                  ? 'Not a heading in this stakeholder\'s report — folded into the enclosing section\'s summary'
+                  : 'このステークホルダー向けレポートでは見出しにならず、内包する節の要約に吸収されます'
+              }
+            >
+              {language === 'en' ? 'absorbed' : '要約に吸収'}
+            </span>
+          )}
           {hicaseNode?.isMandatoryCoreForced && (
             <span
               className="text-sm px-1.5 rounded bg-amber-500 text-white dark:bg-amber-600"
@@ -814,6 +854,15 @@ function TreeNodeRow({
         </p>
       )}
 
+      {hicaseNode && hicaseNode.absorbedNodes.length > 0 && (
+        <p className="ml-6 text-sm text-sky-700 dark:text-sky-300">
+          ◇ {language === 'en' ? 'embedded context/assumptions' : '内包する前提・文脈'}:{' '}
+          {hicaseNode.absorbedNodes
+            .map(a => (a.description ? `${a.id}: ${a.description}` : a.id))
+            .join('; ')}
+        </p>
+      )}
+
       {tree.truncated && (
         <p className="ml-6 text-sm text-amber-600 dark:text-amber-400">
           {language === 'en'
@@ -834,6 +883,7 @@ function TreeNodeRow({
               coreIds={coreIds}
               language={language}
               hicaseById={hicaseById}
+              absorbedIds={absorbedIds}
             />
           ))}
         </div>

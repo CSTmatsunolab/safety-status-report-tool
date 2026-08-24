@@ -1297,6 +1297,8 @@ Some headings in the structure above carry a marker at the end. These reflect th
 - \`[summary only]\`: Write a single summary paragraph only. The nodes beneath this heading (sub-goals, strategies, evidence, etc.) MUST NOT be raised as sub-headings **nor as standalone chapters/sections elsewhere in the report** — promoting them to sibling chapters instead of sub-headings is equally prohibited.
 - \`[Mandatory Core]\`: A safety-critical item required in every stakeholder's report regardless of role. Do not omit it.
 - \`[Mandatory Core - forced open]\`: This item would normally be collapsed under this role's detail settings, but is shown as its own heading because it is a mandatory safety item. Reflect it in the body without omission.
+- \`[incomplete evidence chain - expanded]\`: This evidence chain would normally be collapsed into a summary for this role, but is expanded because it contains undeveloped, unachieved, or failed-verification items. State explicitly that verification is not complete and what work remains.
+- A heading annotated with \`◇ embedded context/assumptions: ...\` carries the assumptions, context, and justification nodes contained inside it that are deliberately not raised as their own headings. They **MUST NOT be raised as separate headings or chapters**, but their content MUST be addressed within this section's body/summary.
 - A heading annotated with \`⚠ mandatory core: ...\` carries a compressed summary (a count or one-sentence digest) of mandatory safety items hidden beneath it. This annotation's content MUST be reflected in the section's summary text.`;
     }
   }

@@ -85,3 +85,23 @@ open / close 判定・深さ・mandatory safety core の扱いを変えること
 1. **深さと型は独立した軸** — 深さが同じでも、型ごとにopen/closeを変えることで役職ごとの重視点を反映できる
 2. **mandatory coreは全役職共通の下限ライン** — ただし「開いたときにどこまで詳細を見せるか」は役職ごとに調整する
 3. **hinode境界で開閉するため、どの役職向けでも論証として尻切れにならない**(Theorem 5: 任意のviewは常に整形式な安全性証明である)
+
+## 6. 論文定義との対応(実装済みの制約 / 2026-08-23)
+
+論文(Formal Foundations for Hierarchical Safety Cases)の定義に合わせて、以下2点を実装済み。
+
+1. **hievidenceは「完全展開済み(fully developed)の証拠連鎖」だけを閉じられる**
+   配下に Undeveloped ノード / status=partial・unachieved / 検証失敗 のいずれかを含む証拠連鎖は、
+   役職設定が close でも展開する(見出しに `[未完成の証拠連鎖 - 展開]` を付与)。
+   status=unknown はパーサーの既定値なので未完成扱いにしない。
+   深さ上限(maxDepth)はプロジェクト側の予算なので、この条件では上書きしない。
+2. **context/assumption/justificationはhinodeの内部要素**
+   型を持たないノードは、内包するhinodeの open/close を継承する。
+   親が閉じている場合は独立見出しにせず、親の見出しに `◇ 内包する前提・文脈: ...` として注記し、
+   親セクションの要約で触れさせる(depthで打ち切られた場合は従来どおり注記なしで落とす)。
+   mandatory core に該当するノードは `⚠ mandatory core:` 注記側に寄せて二重列挙しない。
+
+**未実装の差分**: 論文のhinodeは「hierarchisationでフラグメントを包んだ実体」であり、閉じると
+フラグメント全体が1ノードになる。本実装のhinodeはノード単体の型ラベルで、close が止めるのは
+同型連鎖の再帰のみ(Goal→Strategy等の型をまたぐ降下は常に見出しになる)。したがってCxOの圧縮は
+実質 maxDepth=2 が担っている。フラグメント単位の閉じ・hinodeの入れ子・階層関係 ≤ は未実装。

@@ -25,5 +25,6 @@ export {
   HICASE_STAKEHOLDER_CONFIGS,
   getHiCaseStakeholderConfig,
   categoryOfNodeType,
+  isFullyDevelopedEvidenceChain,
   buildHiCaseView,
 } from './hicase-view';
