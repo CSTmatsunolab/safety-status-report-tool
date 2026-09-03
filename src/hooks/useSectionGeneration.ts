@@ -52,6 +52,10 @@ interface LambdaStreamMessage {
   status?: string;
   message?: string;
   percent?: number;
+  // 生成フェーズ（draft = GSN由来アウトラインの1パス目 / restructure = 構成再編成の2パス目）
+  phase?: 'draft' | 'restructure';
+  // true の場合、受信済みのストリーミング本文を破棄して以降のチャンクで置き換える
+  resetContent?: boolean;
   text?: string;
   report?: {
     title: string;
@@ -59,6 +63,9 @@ interface LambdaStreamMessage {
     stakeholder: Stakeholder;
     rhetoricStrategy: string;
     createdAt: string;
+    draftContent?: string;
+    outlineSource?: string;
+    restructured?: boolean;
   };
   error?: string;
   details?: string;
@@ -229,6 +236,13 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
             const jsonStr = line.substring(6); // 'data: ' を削除
             const message: LambdaStreamMessage = JSON.parse(jsonStr);
 
+            // 2パス目（構成の再編成）開始時など、これまでのストリーミング本文を
+            // 破棄して以降のチャンクで置き換える指示
+            if (message.resetContent) {
+              streamingContentRef.current = '';
+              setStreamingContent('');
+            }
+
             if (message.type === 'progress') {
               // 進捗更新
               const updatedProgress: SectionProgress = {
@@ -237,7 +251,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
                 sectionName: message.message || '',
                 status: 'generating',
                 completedSections: [],
-                contextPrepared: message.status === 'generating' || message.status === 'finalizing',
+                contextPrepared: message.status === 'generating' || message.status === 'restructuring' || message.status === 'finalizing',
                 lambdaProgress: {
                   status: message.status || 'processing',
                   message: message.message || '',

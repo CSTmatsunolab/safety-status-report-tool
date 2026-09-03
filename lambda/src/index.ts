@@ -22,6 +22,12 @@ import {
 } from './types';
 import { buildCompleteUserPrompt, generateSystemPrompt } from './lib/report-prompts';
 import { buildCompleteUserPromptEN, generateSystemPromptEN } from './lib/report-prompts-en';
+import {
+  buildRestructurePrompt,
+  generateRestructureSystemPrompt,
+  buildRestructurePromptEN,
+  generateRestructureSystemPromptEN,
+} from './lib/restructure-prompts';
 import { 
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
@@ -72,6 +78,9 @@ const s3Client = new S3Client({
 // 定数
 const MAX_CONTENT_CHARS_PER_FILE = 50000;
 const MAX_TOTAL_CONTEXT_CHARS = 150000;
+// 2パス目（ステークホルダー構成への再構成）の有効化。既定で有効。
+// ENABLE_OUTLINE_RESTRUCTURE=false を設定すると1パス目のGSN由来アウトラインのまま出力する。
+const ENABLE_OUTLINE_RESTRUCTURE = process.env.ENABLE_OUTLINE_RESTRUCTURE !== 'false';
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
 // 進捗メッセージの型
@@ -80,6 +89,10 @@ interface StreamMessage {
   status?: string;
   message?: string;
   percent?: number;
+  // 生成フェーズ（draft = GSN由来アウトラインの1パス目 / restructure = 構成再編成の2パス目）
+  phase?: 'draft' | 'restructure';
+  // true の場合、クライアントは受信済みのストリーミング本文を破棄して以降のチャンクで置き換える
+  resetContent?: boolean;
   // チャンク用
   text?: string;
   // 完了用
@@ -89,6 +102,10 @@ interface StreamMessage {
     stakeholder: Stakeholder;
     rhetoricStrategy: string;
     createdAt: string;
+    // 2パス目を実行した場合の1パス目（GSNノード由来アウトライン）の本文
+    draftContent?: string;
+    outlineSource?: string;
+    restructured?: boolean;
   };
   error?: string;
   details?: string;
@@ -501,8 +518,127 @@ async function streamHandler(
         // チャンクをクライアントに送信
         sendMessage({
           type: 'chunk',
+          phase: 'draft',
           text: text
         });
+      }
+    }
+
+    // ステップ5.5: アウトライン再構成（2パス目）
+    //
+    // 1パス目で得られるのはGSNノード（hicase/GSNビュー）由来のアウトラインに沿ったレポート。
+    // これをそのままLLMに再入力し、ステークホルダーに設定されたレポート構成
+    // （エグゼクティブサマリー／現状分析／リスク評価／推奨事項 ...）へ再編成する。
+    //
+    // 実行条件: 2パス目が有効 かつ 1パス目のアウトラインがGSN由来（hicase / gsn-flat）であること。
+    //   outlineSource === 'template' の場合、既に目標構成で生成済みなので再構成は不要。
+    // フォールバック: 2パス目が失敗、または出力が明らかに短い場合は1パス目の本文をそのまま採用する。
+    const draftContent = fullReportContent;
+    let restructured = false;
+
+    const shouldRestructure =
+      ENABLE_OUTLINE_RESTRUCTURE &&
+      outlineSource !== 'template' &&
+      draftContent.trim().length > 0;
+
+    if (shouldRestructure) {
+      const targetSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+
+      if (targetSections.length === 0) {
+        console.warn('Restructure skipped: target structure has no sections');
+      } else {
+        try {
+          sendMessage({
+            type: 'progress',
+            status: 'restructuring',
+            phase: 'restructure',
+            // 1パス目のドラフトを破棄して2パス目の出力で置き換えるようクライアントに指示
+            resetContent: true,
+            message: language === 'ja'
+              ? `レポートを${reportStructure.name}の構成に再編成中...`
+              : `Restructuring the report into the ${reportStructure.name} outline...`,
+            percent: 75
+          });
+
+          const restructureSystemPrompt = language === 'en'
+            ? generateRestructureSystemPromptEN()
+            : generateRestructureSystemPrompt();
+          const restructurePromptBuilder = language === 'en'
+            ? buildRestructurePromptEN
+            : buildRestructurePrompt;
+
+          const restructurePrompt = restructurePromptBuilder({
+            draftContent,
+            stakeholder,
+            targetSections,
+            structureName: reportStructure.name,
+            structureDescription: reportStructure.description,
+            hasMandatoryCore: hasGSNFile && mandatoryCoreText.length > 0,
+          });
+
+          if (DEBUG_LOGGING) {
+            console.log('Restructuring report:', {
+              draftLength: draftContent.length,
+              targetSections,
+              structureId: reportStructure.id,
+            });
+          }
+
+          let restructuredContent = '';
+          const restructureStream = anthropic.messages.stream({
+            model: 'claude-sonnet-4-5-20250929',
+            max_tokens: 20000,
+            temperature: 0.2,
+            system: restructureSystemPrompt,
+            messages: [
+              {
+                role: 'user',
+                content: restructurePrompt
+              }
+            ]
+          });
+
+          for await (const event of restructureStream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              const text = event.delta.text;
+              restructuredContent += text;
+
+              sendMessage({
+                type: 'chunk',
+                phase: 'restructure',
+                text: text
+              });
+            }
+          }
+
+          // 極端に短い出力（再構成失敗・打ち切り）はドラフトを採用する
+          if (restructuredContent.trim().length >= Math.min(500, draftContent.length * 0.3)) {
+            fullReportContent = restructuredContent;
+            restructured = true;
+          } else {
+            console.warn('Restructure output too short, keeping draft:', {
+              draftLength: draftContent.length,
+              restructuredLength: restructuredContent.length,
+            });
+            // ドラフトを再送してクライアント側の表示を復元する
+            sendMessage({
+              type: 'chunk',
+              phase: 'restructure',
+              resetContent: true,
+              text: draftContent
+            });
+          }
+        } catch (restructureError) {
+          console.warn('Restructure pass failed, falling back to draft:', restructureError);
+          fullReportContent = draftContent;
+          // 破棄させたドラフトをクライアント側に復元する
+          sendMessage({
+            type: 'chunk',
+            phase: 'restructure',
+            resetContent: true,
+            text: draftContent
+          });
+        }
       }
     }
 
@@ -534,6 +670,9 @@ async function streamHandler(
         stakeholder,
         rhetoricStrategy: getRhetoricStrategyDisplayName(strategy, stakeholder, language),
         createdAt: new Date().toISOString(),
+        outlineSource,
+        restructured,
+        draftContent: restructured ? draftContent : undefined,
       },
       totalDuration,
     });
