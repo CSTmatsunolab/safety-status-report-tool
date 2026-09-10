@@ -279,6 +279,10 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
                 rhetoricStrategy: message.report.rhetoricStrategy,
                 createdAt: new Date(message.report.createdAt),
                 updatedAt: new Date(),
+                // 2パス目を実行した場合、1パス目のドラフトも保持して後から取得できるようにする
+                draftContent: message.report.draftContent,
+                outlineSource: message.report.outlineSource,
+                restructured: message.report.restructured,
               };
 
               setProgress({

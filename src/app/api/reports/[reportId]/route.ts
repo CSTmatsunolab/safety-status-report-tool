@@ -105,9 +105,24 @@ export async function GET(
       console.error('S3 get error:', s3Error);
     }
 
+    // 第一パスのドラフトが保存されていれば併せて取得
+    let draftContent = '';
+    if (result.Item.draftS3Key) {
+      try {
+        const draftResult = await s3Client.send(new GetObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: result.Item.draftS3Key,
+        }));
+        draftContent = await draftResult.Body?.transformToString('utf-8') || '';
+      } catch (s3Error) {
+        console.error('S3 get draft error:', s3Error);
+      }
+    }
+
     return NextResponse.json({
       ...result.Item,
       content,
+      draftContent: draftContent || undefined,
     });
   } catch (error) {
     console.error('GET report detail error:', error);

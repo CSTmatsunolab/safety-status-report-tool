@@ -37,6 +37,8 @@ export interface ReportMetadata {
 
 export interface ReportDetail extends ReportMetadata {
   content: string;
+  // 2パス目を実行して保存されたレポートのみ、1パス目の本文を持つ
+  draftContent?: string;
 }
 
 interface UseReportHistoryReturn {
@@ -266,6 +268,10 @@ export function useReportHistory(): UseReportHistoryReturn {
             stakeholder: report.stakeholder,
             rhetoricStrategy: report.rhetoricStrategy,
             structure: structure || null,
+            // 第一パス（GSN由来アウトライン）のドラフトも保存して後から取得できるようにする
+            draftContent: report.draftContent,
+            outlineSource: report.outlineSource,
+            restructured: report.restructured,
           },
           fileMetadata: allFiles,
         }),

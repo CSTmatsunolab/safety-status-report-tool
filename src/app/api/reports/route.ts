@@ -141,6 +141,18 @@ export async function POST(request: NextRequest) {
       ContentType: 'text/markdown; charset=utf-8',
     }));
 
+    // 第一パス（GSN由来アウトライン）のドラフトがあれば別オブジェクトとして保存
+    let draftS3Key: string | null = null;
+    if (typeof report.draftContent === 'string' && report.draftContent.trim().length > 0) {
+      draftS3Key = `reports/${userId}/${reportId}/draft.md`;
+      await s3Client.send(new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: draftS3Key,
+        Body: report.draftContent,
+        ContentType: 'text/markdown; charset=utf-8',
+      }));
+    }
+
     // ファイルメタデータを整形
     const files = (fileMetadata || []).map((file: {
       id: string;
@@ -178,6 +190,9 @@ export async function POST(request: NextRequest) {
       rhetoricStrategy: report.rhetoricStrategy,
       createdAt,
       s3Key,
+      draftS3Key,
+      outlineSource: report.outlineSource || null,
+      restructured: report.restructured ?? null,
       fileCount: files.length,
       files,
     };

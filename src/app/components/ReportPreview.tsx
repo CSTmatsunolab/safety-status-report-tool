@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile, FiCode } from 'react-icons/fi';
+import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile, FiCode, FiLayers } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Report } from '@/types';
@@ -17,6 +17,12 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
   const { language } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(report.content);
+  // 2パス目を実行した場合のみ、1パス目（GSN由来アウトライン）のドラフトを取得できる
+  const draftContent = report.draftContent;
+  const hasDraft = !!draftContent && draftContent.trim().length > 0;
+  // 表示中の本文を最終版（2パス目）と第一パスのドラフトで切り替える
+  const [showDraft, setShowDraft] = useState(false);
+  const isShowingDraft = hasDraft && showDraft;
 
   const handleSave = () => {
     onUpdate({
@@ -219,21 +225,34 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     return html;
   };
 
-  // Markdownエクスポート
-  const handleExportMarkdown = () => {
-    const titleLine = `# ${report.title}\n\n`;
-    const fixedContent = fixNumberedLists(report.content);
-    const markdownContent = titleLine + fixedContent;
-    
+  // Markdownとしてダウンロードする共通処理
+  const downloadMarkdown = (title: string, content: string, fileName: string) => {
+    const markdownContent = `# ${title}\n\n` + fixNumberedLists(content);
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${report.title}.md`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // 第一パス（GSN由来アウトライン）のドラフトをMarkdownとして取得
+  const handleExportDraftMarkdown = () => {
+    if (!draftContent) return;
+    const suffix = language === 'en' ? 'pass1-draft' : '第一パス';
+    downloadMarkdown(
+      `${report.title}${language === 'en' ? ' (Pass 1 draft)' : '（第一パス）'}`,
+      draftContent,
+      `${report.title}_${suffix}.md`
+    );
+  };
+
+  // Markdownエクスポート
+  const handleExportMarkdown = () => {
+    downloadMarkdown(report.title, report.content, `${report.title}.md`);
   };
 
   const handleExportDOCX = async () => {
@@ -373,8 +392,8 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     }
   };
 
-  // 表示用のコンテンツ（後処理適用済み）
-  const displayContent = fixNumberedLists(report.content);
+  // 表示用のコンテンツ（後処理適用済み）。第一パス表示中はドラフト本文を表示する
+  const displayContent = fixNumberedLists(isShowingDraft ? draftContent! : report.content);
 
   return (
     <div className="h-full flex flex-col">
@@ -391,7 +410,10 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
       <div className="flex flex-wrap gap-2 mb-4">
         {/* 編集ボタン */}
         <button
-          onClick={() => setIsEditing(!isEditing)}
+          onClick={() => {
+            setShowDraft(false);
+            setIsEditing(!isEditing);
+          }}
             className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-base transition-colors"
         >
           <FiEdit className="mr-1" />
@@ -444,8 +466,43 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
           <FiPrinter className="mr-1" />
           {language === 'en' ? 'Print' : '印刷'}
         </button>
+
+        {/* 第一パス（GSN由来アウトライン）のドラフト表示切替・取得 */}
+        {hasDraft && (
+          <>
+            <button
+              onClick={() => {
+                setIsEditing(false);
+                setShowDraft(!showDraft);
+              }}
+              className="flex items-center px-3 py-2 bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-700 dark:text-white dark:hover:bg-amber-600 rounded-md text-base transition-colors"
+            >
+              <FiLayers className="mr-1" />
+              {showDraft
+                ? (language === 'en' ? 'Final version' : '最終版')
+                : (language === 'en' ? 'Pass 1 draft' : '第一パス')}
+            </button>
+
+            <button
+              onClick={handleExportDraftMarkdown}
+              className="flex items-center px-3 py-2 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-800 dark:text-white dark:hover:bg-amber-700 rounded-md text-base transition-colors"
+            >
+              <FiDownload className="mr-1" />
+              {language === 'en' ? 'Pass 1 (.md)' : '第一パス (.md)'}
+            </button>
+          </>
+        )}
         </div>
       </div>
+
+      {/* 第一パス表示中の注意書き（エクスポート対象は最終版のまま） */}
+      {isShowingDraft && (
+        <div className="mb-4 px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 text-sm text-amber-900 dark:text-amber-100">
+          {language === 'en'
+            ? 'Showing the pass-1 draft generated from the GSN-derived outline. Word / HTML / PDF / print always export the final version; use "Pass 1 (.md)" to download this draft.'
+            : 'GSN由来アウトラインで生成した第一パスのドラフトを表示しています。Word / HTML / PDF / 印刷は常に最終版が対象です。このドラフトは「第一パス (.md)」から取得できます。'}
+        </div>
+      )}
       
       {/* コンテンツエリア */}
       <div className="flex-1 overflow-auto">

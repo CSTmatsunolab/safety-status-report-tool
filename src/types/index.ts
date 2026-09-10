@@ -32,6 +32,13 @@ export interface Report {
   rhetoricStrategy: string;
   createdAt: Date;
   updatedAt: Date;
+  // 2パス目（ステークホルダー構成への再編成）を実行した場合のみ、
+  // 1パス目（GSN由来アウトライン）の本文を保持する
+  draftContent?: string;
+  // アウトラインの生成元（'hicase' | 'gsn-flat' | 'template'）
+  outlineSource?: string;
+  // 2パス目を実際に適用したかどうか
+  restructured?: boolean;
 }
 
 export interface ReportStructureTemplate {
