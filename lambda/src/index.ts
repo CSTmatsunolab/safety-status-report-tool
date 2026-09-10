@@ -58,6 +58,15 @@ import {
   MandatorySafetyCore,
 } from './lib/gsn';
 
+// ステークホルダー別「必須見出し」（GSN由来アウトラインに欠落する判断材料）
+import {
+  StakeholderRequiredSection,
+  getStakeholderRequiredSections,
+  getRequiredSectionQueries,
+  getRequiredSectionTitles,
+  mapRequiredSectionsToTemplate,
+} from './lib/stakeholder-requirements';
+
 // クライアント初期化
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -289,6 +298,15 @@ async function streamHandler(
     // アウトライン生成（Mandatory Safety Coreセクションの要否判定）で使うため外側に保持する
     let mandatoryCoreForOutline: MandatorySafetyCore | null = null;
 
+    // GSN由来アウトラインはGSNノードのみで構成されるため、
+    // ステークホルダー固有の判断材料（CxOの経営判断材料等）に対応する見出しが存在しない。
+    // その見出しをアウトライン・RAGクエリ・両パスのプロンプトに反映する。
+    // GSNがない場合は静的テンプレートが既に判断材料を含むため適用しない。
+    const requiredSections: StakeholderRequiredSection[] = hasGSNFile
+      ? getStakeholderRequiredSections(stakeholder, language)
+      : [];
+    const requiredSectionTitles = getRequiredSectionTitles(requiredSections);
+
     if (hasGSNFile) {
       try {
         // (1) GSNファイルの生テキストを収集
@@ -345,6 +363,8 @@ async function streamHandler(
               enableHybridSearch: process.env.ENABLE_HYBRID_SEARCH === 'true',
               debug: DEBUG_LOGGING === 'true',
               outlineNodes: outlineNodesForSearch,
+              // ステークホルダー必須見出しの内容（事業影響・リリース判断等）を回収するクエリ
+              additionalQueries: getRequiredSectionQueries(requiredSections),
             }
           );
 
@@ -444,19 +464,20 @@ async function streamHandler(
       const hicaseSections = generateOutlineFromHiCaseView(
         hicaseView,
         language,
-        mandatoryCoreForOutline ?? undefined
+        mandatoryCoreForOutline ?? undefined,
+        requiredSectionTitles
       );
       if (hicaseSections.length > 0) {
         finalSections = hicaseSections;
         outlineSource = 'hicase';
       } else if (gsnView !== null) {
-        finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language);
+        finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language, requiredSectionTitles);
         outlineSource = 'gsn-flat';
       } else {
         finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
       }
     } else if (hasGSNFile && gsnView !== null) {
-      finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language);
+      finalSections = generateOutlineFromGSNView(gsnView, stakeholder.id, language, requiredSectionTitles);
       outlineSource = 'gsn-flat';
     } else {
       finalSections = buildFinalReportStructure(reportStructure, hasGSNFile);
@@ -465,6 +486,7 @@ async function streamHandler(
       console.log('Final sections:', finalSections);
       console.log('Has GSN:', hasGSNFile);
       console.log('Outline source:', outlineSource);
+      console.log('Stakeholder required sections:', requiredSectionTitles);
     }
     const promptBuilder = language === 'en' ? buildCompleteUserPromptEN : buildCompleteUserPrompt;
     const promptContent = promptBuilder({
@@ -478,6 +500,8 @@ async function streamHandler(
       // hicaseの圧縮設定をMandatory Coreプロンプトにも反映させる
       // （渡さないとCxO等の 'count' 設定でも詳細表が生成される）
       mandatoryCoreDetail: hicaseView?.mandatoryCoreDetail ?? 'full',
+      // アウトライン末尾に追加したステークホルダー必須見出しの記述指針
+      requiredSections: outlineSource !== 'template' ? requiredSections : [],
     });
 
     // ステップ5: Claude APIストリーミング呼び出し
@@ -542,7 +566,12 @@ async function streamHandler(
       draftContent.trim().length > 0;
 
     if (shouldRestructure) {
+      // 目標構成はステークホルダーのテンプレートそのもの（見出しを増やさない）。
+      // 1パス目で書かせた判断材料は、テンプレート見出しのうち内容的に適切なものへ
+      // 割り当てて「その本文に必ず含めること」と指示する。
+      // これを省くと、判断材料が「構成外」として2パス目で削除される。
       const targetSections = buildFinalReportStructure(reportStructure, hasGSNFile);
+      const requiredPlacements = mapRequiredSectionsToTemplate(targetSections, requiredSections);
 
       if (targetSections.length === 0) {
         console.warn('Restructure skipped: target structure has no sections');
@@ -574,12 +603,16 @@ async function streamHandler(
             structureName: reportStructure.name,
             structureDescription: reportStructure.description,
             hasMandatoryCore: hasGSNFile && mandatoryCoreText.length > 0,
+            requiredPlacements,
           });
 
           if (DEBUG_LOGGING) {
             console.log('Restructuring report:', {
               draftLength: draftContent.length,
               targetSections,
+              requiredPlacements: requiredPlacements.map(
+                p => `${p.sectionTitle} <- ${p.requirements.map(r => r.title).join(', ')}`
+              ),
               structureId: reportStructure.id,
             });
           }

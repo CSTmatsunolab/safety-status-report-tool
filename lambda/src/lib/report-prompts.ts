@@ -10,6 +10,7 @@
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
 import { HiCaseMandatoryCoreDetail } from './gsn/types';
+import { StakeholderRequiredSection, formatRequiredSectionsForPrompt } from './stakeholder-requirements';
 
 // ============================================================================
 // ユーティリティ関数（ステークホルダー判定）
@@ -1223,7 +1224,8 @@ export function generateStructurePrompt(
   reportSections: string[],
   hasGSN: boolean,
   stakeholder?: Stakeholder,
-  structureDescription?: string
+  structureDescription?: string,
+  requiredSections: StakeholderRequiredSection[] = []
 ): string {
   const role = stakeholder?.role || 'Safety Engineer';
   // hicase由来の見出し（"1", "2.1", "2.1.1" 等の階層採番を既に含む）はそのまま使用し、
@@ -1301,6 +1303,24 @@ ${sectionsFormatted}`;
     }
   }
 
+  // ステークホルダー必須セクション（GSN由来アウトラインに欠落する判断材料）の記述指針。
+  // 構成一覧には既に含まれているため、ここでは「何を書くか」だけを指示する。
+  if (requiredSections.length > 0) {
+    prompt += `
+
+### ステークホルダー必須セクションの記述指針（省略絶対禁止）
+
+以下のセクションはGSNの安全論証構造には現れないが、この読者が判断を下すために不可欠なため構成に含めている。
+**上記構成一覧の一部であり、「一覧にないセクションの追加禁止」ルールの対象外である。必ず作成すること。**
+
+${formatRequiredSectionsForPrompt(requiredSections)}
+
+これらのセクションの記述にあたっては:
+- 提供文書に記載のある事実・数値・日付のみを用いること（推測・一般論で埋めてはならない）
+- 該当する情報が提供文書にない項目は、「本レポートの範囲では確認できない」旨を1文で明示すること
+- GSNノードセクションで既に述べた事実を、この読者の判断軸（影響・可否・優先度・期限）で読み替えて整理することは重複ではなく、このセクションの本来の役割である`;
+  }
+
   if (structureDescription) {
     prompt += `\n\n構成説明: ${structureDescription.slice(0, 500)}`;
   }
@@ -1366,6 +1386,8 @@ export function buildCompleteUserPrompt(params: {
   structureDescription?: string;
   hasMandatoryCore?: boolean;
   mandatoryCoreDetail?: HiCaseMandatoryCoreDetail;
+  /** ステークホルダー必須セクション（GSN由来アウトラインに追加した判断材料の見出し） */
+  requiredSections?: StakeholderRequiredSection[];
 }): string {
   const {
     stakeholder,
@@ -1376,6 +1398,7 @@ export function buildCompleteUserPrompt(params: {
     structureDescription,
     hasMandatoryCore = hasGSN,
     mandatoryCoreDetail = 'full',
+    requiredSections = [],
   } = params;
 
   // GSN(hicase)由来アウトラインでは、内容ガイド系プロンプトが
@@ -1425,7 +1448,7 @@ ${strategy}の特徴：${getStrategyGuidelines(strategy)}`,
     `\n## 提供された文書の内容\n${contextContent}`,
 
     // 12. 構成指示
-    generateStructurePrompt(reportSections, hasGSN, stakeholder, structureDescription)
+    generateStructurePrompt(reportSections, hasGSN, stakeholder, structureDescription, requiredSections)
   ];
 
   return parts.filter(p => p && p.trim().length > 0).join('\n');

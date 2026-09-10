@@ -10,6 +10,7 @@
 import { Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
 import { HiCaseMandatoryCoreDetail } from './gsn/types';
+import { StakeholderRequiredSection, formatRequiredSectionsForPrompt } from './stakeholder-requirements';
 
 // ============================================================================
 // Utility Functions (Stakeholder Detection)
@@ -1223,7 +1224,8 @@ export function generateStructurePromptEN(
   reportSections: string[],
   hasGSN: boolean,
   stakeholder?: Stakeholder,
-  structureDescription?: string
+  structureDescription?: string,
+  requiredSections: StakeholderRequiredSection[] = []
 ): string {
   const role = stakeholder?.role || 'Safety Engineer';
   // hicase-derived headings already contain hierarchical numbering ("1", "2.1", "2.1.1", etc.);
@@ -1303,6 +1305,25 @@ Some headings in the structure above carry a marker at the end. These reflect th
     }
   }
 
+  // Stakeholder-required sections (the decision material missing from a GSN-derived outline).
+  // They are already part of the structure list above, so only say what to write in them.
+  if (requiredSections.length > 0) {
+    prompt += `
+
+### Stakeholder-Required Sections (never omit)
+
+The following sections do not appear in the GSN safety argument structure, but they are indispensable for
+this reader's decisions and are therefore part of the structure above.
+**They are part of the structure list and are exempt from the "do not add unlisted sections" rule. You must produce them.**
+
+${formatRequiredSectionsForPrompt(requiredSections)}
+
+When writing these sections:
+- Use only facts, figures, and dates stated in the provided documents (never fill them with speculation or generalities)
+- For any item the documents do not cover, state in a single sentence that it cannot be confirmed within the scope of this report
+- Recasting facts already stated in the GSN node sections in this reader's decision terms (impact, go/no-go, priority, deadline) is not redundancy - it is the purpose of these sections`;
+  }
+
   if (structureDescription) {
     prompt += `\n\nStructure Description: ${structureDescription.slice(0, 500)}`;
   }
@@ -1369,6 +1390,8 @@ export function buildCompleteUserPromptEN(params: {
   structureDescription?: string;
   hasMandatoryCore?: boolean;
   mandatoryCoreDetail?: HiCaseMandatoryCoreDetail;
+  /** Stakeholder-required sections appended to the GSN-derived outline */
+  requiredSections?: StakeholderRequiredSection[];
 }): string {
   const {
     stakeholder,
@@ -1379,6 +1402,7 @@ export function buildCompleteUserPromptEN(params: {
     structureDescription,
     hasMandatoryCore = hasGSN,
     mandatoryCoreDetail = 'full',
+    requiredSections = [],
   } = params;
 
   // On a GSN (hicase)-derived outline, present the content guides as guidance so they
@@ -1428,7 +1452,7 @@ ${strategy} characteristics:${getStrategyGuidelinesEN(strategy)}`,
     `\n## PROVIDED DOCUMENT CONTENT\n${contextContent}`,
 
     // 12. Structure instruction
-    generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription)
+    generateStructurePromptEN(reportSections, hasGSN, stakeholder, structureDescription, requiredSections)
   ];
 
   return parts.filter(p => p && p.trim().length > 0).join('\n');

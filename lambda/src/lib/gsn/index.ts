@@ -17,6 +17,7 @@ export {
 export {
   generateOutlineFromGSNView,
   generateOutlineFromHiCaseView,
+  appendRequiredSections,
   getOutlineNodes,
   isGSNDerivedOutline,
 } from './outline-generator';

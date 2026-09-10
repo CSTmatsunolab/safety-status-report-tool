@@ -14,6 +14,7 @@
 // 日本語版・英語版はコードベースの方針に従い並列に保守する（翻訳レイヤーではない）。
 
 import { Stakeholder } from '../types';
+import { RequiredSectionPlacement, formatRequiredPlacementsForPrompt } from './stakeholder-requirements';
 
 export interface RestructureParams {
   /** 1パス目で生成されたGSNノード由来アウトラインのレポート本文 */
@@ -26,6 +27,13 @@ export interface RestructureParams {
   structureDescription?: string;
   /** Mandatory Safety Core がドラフトに含まれるか */
   hasMandatoryCore?: boolean;
+  /**
+   * ステークホルダー必須内容の配置先（stakeholder-requirements.ts の
+   * mapRequiredSectionsToTemplate() の結果）。
+   * 1パス目では独立見出しとして書かせているが、2パス目では新しい見出しを作らず
+   * targetSections の既存見出しの本文へ取り込ませる。
+   */
+  requiredPlacements?: RequiredSectionPlacement[];
 }
 
 // ============================================================================
@@ -67,12 +75,29 @@ export function buildRestructurePrompt(params: RestructureParams): string {
     structureName,
     structureDescription,
     hasMandatoryCore = false,
+    requiredPlacements = [],
   } = params;
 
   const sectionsFormatted = formatTargetSections(targetSections);
   const concerns = stakeholder.concerns?.length
     ? stakeholder.concerns.map(c => `- ${c}`).join('\n')
     : '- （特に指定なし）';
+
+  const requiredSectionRule = requiredPlacements.length > 0
+    ? `
+## 読者固有の必須記述内容（既存セクション内に配置・省略絶対禁止）
+以下は、この読者が判断を下すために不可欠な記述である。ドラフト（1パス目）には対応する記述が含まれている。
+**これらのために新しいセクションを作ってはならない。下記で指定した既存セクションの本文の中に必ず書くこと**:
+
+${formatRequiredPlacementsForPrompt(requiredPlacements, 'ja')}
+
+- 指定セクション内では、必要に応じて \`###\` の小見出し（例: \`### 3.2 残存リスクと受容判断\`）を立ててよいが、
+  「再構成後のレポート構成」に無い \`##\` セクションを新設してはならない
+- ドラフト内の該当記述が複数箇所に分散している場合は、指定されたセクションに集約すること
+- ドラフトに該当する記述が見つからない項目は、「本レポートの範囲では確認できない」旨を1文で記すにとどめ、**独自に判断・数値・提案を創作してはならない**
+- 分量調整のためにこれらの記述を削除してはならない
+`
+    : '';
 
   const mandatoryCoreRule = hasMandatoryCore
     ? `
@@ -112,7 +137,7 @@ export function buildRestructurePrompt(params: RestructureParams): string {
 - ドラフト側の見出し（GSNノード由来の章立て）を、そのまま章として転記してはならない。ドラフトの章立ては**情報源であって構成の指定ではない**
 - 一覧にないセクション（トレーサビリティ分析、参考文献一覧、まとめ・結論 等）を独自に追加してはならない
 - ただし「付録」は、略語一覧・用語集など読者の理解を補助する情報がドラフト内にある場合に限り、最終章の後に1つだけ追加してよい
-${mandatoryCoreRule}
+${mandatoryCoreRule}${requiredSectionRule}
 ## 読者（ステークホルダー）
 - 役職: ${stakeholder.role}
 - 主要な関心事:
@@ -171,12 +196,29 @@ export function buildRestructurePromptEN(params: RestructureParams): string {
     structureName,
     structureDescription,
     hasMandatoryCore = false,
+    requiredPlacements = [],
   } = params;
 
   const sectionsFormatted = formatTargetSections(targetSections);
   const concerns = stakeholder.concerns?.length
     ? stakeholder.concerns.map(c => `- ${c}`).join('\n')
     : '- (not specified)';
+
+  const requiredSectionRule = requiredPlacements.length > 0
+    ? `
+## Reader-specific required content (placed inside existing sections - never omit)
+The following material is indispensable for this reader's decisions, and the draft (pass 1) contains it.
+**Do not create new sections for it.** Write it inside the existing sections indicated below:
+
+${formatRequiredPlacementsForPrompt(requiredPlacements, 'en')}
+
+- Within the indicated section you may add a \`###\` sub-heading (e.g. \`### 3.2 Residual Risk and Acceptance Decision\`),
+  but never introduce a \`##\` section that is not in the target report structure
+- Where the relevant statements are scattered across the draft, consolidate them into the indicated section
+- For any item the draft does not cover, state in a single sentence that it cannot be confirmed within the scope of this report - **never invent a judgment, figure, or proposal**
+- Never delete this material for the sake of length
+`
+    : '';
 
   const mandatoryCoreRule = hasMandatoryCore
     ? `
@@ -216,7 +258,7 @@ Below is a draft SSR that was generated following the argument structure of a GS
 - Do not carry over the draft's own headings (the GSN-node-derived chapters) as chapters. The draft's outline is **a source of information, not a specification of structure**
 - Do not invent sections that are not listed (traceability analysis, references, conclusion, etc.)
 - One "Appendix" may be added after the final chapter, and only if the draft contains supporting material such as an abbreviation list or glossary
-${mandatoryCoreRule}
+${mandatoryCoreRule}${requiredSectionRule}
 ## Reader (stakeholder)
 - Role: ${stakeholder.role}
 - Primary concerns:

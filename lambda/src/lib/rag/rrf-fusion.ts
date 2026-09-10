@@ -412,6 +412,11 @@ export async function performGSNSubtreeAwareSearch(
     config?: RRFConfig;
     debug?: boolean;
     outlineNodes?: GSNNode[];
+    /**
+     * ステークホルダー必須見出し（stakeholder-requirements.ts）由来の追加クエリ。
+     * GSNノードには現れない判断材料（事業影響・リリース判断等）を回収するために使う。
+     */
+    additionalQueries?: string[];
   } = {}
 ): Promise<{
   content: string | null;
@@ -428,7 +433,13 @@ export async function performGSNSubtreeAwareSearch(
   };
 }> {
   const startTime = Date.now();
-  const { enableHybridSearch = false, config = {}, debug = false, outlineNodes = [] } = options;
+  const {
+    enableHybridSearch = false,
+    config = {},
+    debug = false,
+    outlineNodes = [],
+    additionalQueries = [],
+  } = options;
 
   try {
     const index = pinecone.index(indexName);
@@ -524,20 +535,25 @@ export async function performGSNSubtreeAwareSearch(
       includeRoleTerms: true
     });
 
+    // 4. ステークホルダー必須見出し由来のクエリ
+    //    GSNノードには現れない判断材料（経営判断・リリース判断・事業影響 等）を回収する
+    const requiredQueries = additionalQueries.filter(q => q.trim().length > 0);
+
     // クエリを統合（GSNクエリを先頭に置いてRRFで重み付け）
-    // アウトラインノード数に応じて上限を動的に設定
-    const queryLimit = Math.max(15, outlineNodes.length + 5);
+    // アウトラインノード数・必須見出しクエリ数に応じて上限を動的に設定
+    const queryLimit = Math.max(15, outlineNodes.length + 5 + requiredQueries.length);
     const allQueries = [
-      ...new Set([...gsnNodeQueries, ...hintQueries, ...stakeholderQueries])
+      ...new Set([...gsnNodeQueries, ...hintQueries, ...requiredQueries, ...stakeholderQueries])
     ].filter(q => q.trim().length > 0).slice(0, queryLimit);
 
-    // 重みを設定: アウトライン未達成 > アウトライン達成済み > 補完ノード > ヒント > ステークホルダー
+    // 重みを設定: アウトライン未達成 > アウトライン達成済み > 補完ノード > ヒント・必須見出し > ステークホルダー
     const outlineQueryCount = outlineUnachieved.length + outlineAchieved.length;
+    const requiredQueryEnd = gsnNodeQueries.length + hintQueries.length + requiredQueries.length;
     const weights = allQueries.map((_, idx) => {
       if (idx < outlineUnachieved.length) return 1.5;          // アウトライン未達成: 最高重み
       if (idx < outlineQueryCount) return 1.3;                  // アウトライン達成済み: 高重み
       if (idx < gsnNodeQueries.length) return 1.2;              // 補完・Core: 中重み
-      if (idx < gsnNodeQueries.length + hintQueries.length) return 1.1; // ヒント
+      if (idx < requiredQueryEnd) return 1.1;                   // ヒント・ステークホルダー必須見出し
       return 1.0;                                               // ステークホルダークエリ: 通常
     });
 

@@ -32,6 +32,45 @@ function truncateAbsorbedDesc(desc: string): string {
   return desc.substring(0, ABSORBED_DESC_MAX_CHARS) + '…';
 }
 
+/**
+ * 見出し一覧に含まれる最上位章番号の最大値を返す（"3 ..." や "3.1 ..." の "3"）。
+ * 採番付き見出しが1つもない場合は 0。
+ */
+function maxTopLevelNumber(sections: string[]): number {
+  return sections.reduce((max, section) => {
+    const m = /^(\d+)(?:\.\d+)*\s/.exec(section);
+    if (!m) return max;
+    return Math.max(max, parseInt(m[1], 10));
+  }, 0);
+}
+
+/**
+ * ステークホルダー必須見出し（判断材料等。stakeholder-requirements.ts 参照）を
+ * アウトライン末尾に追加する。
+ *
+ * GSN由来アウトラインはGSNノードだけで構成されるため、
+ * 「CxOの経営判断材料」のようなステークホルダー固有の要件に対応する見出しが存在しない。
+ * これを補うために末尾へ追加する。既存見出しが階層採番されている場合は
+ * 最上位章番号を継続して採番し、hicase見出しと同じ「番号+スペース」形式に揃える。
+ */
+export function appendRequiredSections(
+  sections: string[],
+  requiredSectionTitles: string[]
+): string[] {
+  if (requiredSectionTitles.length === 0) return sections;
+
+  const numbered = maxTopLevelNumber(sections) > 0;
+  let next = maxTopLevelNumber(sections) + 1;
+
+  const result = [...sections];
+  for (const title of requiredSectionTitles) {
+    // 既に同名の見出しが存在する場合は重複させない
+    if (result.some(s => s.includes(title))) continue;
+    result.push(numbered ? `${next++} ${title}` : title);
+  }
+  return result;
+}
+
 function hasMandatoryCoreItems(mc: MandatorySafetyCore): boolean {
   return (
     mc.highSeverityHazards.length > 0 ||
@@ -139,13 +178,14 @@ function orderNodesByHierarchy(nodes: GSNNode[], frame: AbstractionLevel): GSNNo
 export function generateOutlineFromGSNView(
   view: GSNView,
   stakeholderId: string,
-  language: 'ja' | 'en' = 'ja'
+  language: 'ja' | 'en' = 'ja',
+  requiredSectionTitles: string[] = []
 ): string[] {
   const { selectedNodes, mandatoryCore } = view;
   const frame = resolveFrame(stakeholderId);
 
   if (selectedNodes.length === 0) {
-    return buildFallbackOutline(language);
+    return appendRequiredSections(buildFallbackOutline(language), requiredSectionTitles);
   }
 
   // ── GSN階層順にノードのみを展開（固定セクションなし）──
@@ -153,7 +193,7 @@ export function generateOutlineFromGSNView(
   const nodeLimit = getNodeLimit(frame);
 
   if (orderedNodes.length === 0) {
-    return buildFallbackOutline(language);
+    return appendRequiredSections(buildFallbackOutline(language), requiredSectionTitles);
   }
 
   const sections = orderedNodes.slice(0, nodeLimit).map(nodeToSection);
@@ -163,8 +203,10 @@ export function generateOutlineFromGSNView(
     sections.push(label('Mandatory Safety Core（必須安全コア）', 'Mandatory Safety Core', language));
   }
 
-  // 重複除去・上限適用
-  return [...new Set(sections)].slice(0, MAX_SECTIONS);
+  // 重複除去・上限適用（ステークホルダー必須見出しの枠を確保してから打ち切る）
+  const deduped = [...new Set(sections)];
+  const trimmed = deduped.slice(0, Math.max(1, MAX_SECTIONS - requiredSectionTitles.length));
+  return appendRequiredSections(trimmed, requiredSectionTitles);
 }
 
 /**
@@ -246,16 +288,18 @@ function hiCaseNodeToSection(node: HiCaseNode, numberStr: string, language: 'ja'
 export function generateOutlineFromHiCaseView(
   hicaseView: HiCaseView,
   language: 'ja' | 'en' = 'ja',
-  mandatoryCore?: MandatorySafetyCore
+  mandatoryCore?: MandatorySafetyCore,
+  requiredSectionTitles: string[] = []
 ): string[] {
   if (hicaseView.roots.length === 0) {
-    return buildFallbackOutline(language);
+    return appendRequiredSections(buildFallbackOutline(language), requiredSectionTitles);
   }
 
   const sections: string[] = [];
   const needsCoreSection = mandatoryCore !== undefined && hasMandatoryCoreItems(mandatoryCore);
-  // Mandatory Safety Core セクション分の枠を確保してからノードを展開する
-  const nodeSectionLimit = needsCoreSection ? MAX_SECTIONS - 1 : MAX_SECTIONS;
+  // Mandatory Safety Core セクションとステークホルダー必須見出しの枠を確保してからノードを展開する
+  const reserved = (needsCoreSection ? 1 : 0) + requiredSectionTitles.length;
+  const nodeSectionLimit = Math.max(1, MAX_SECTIONS - reserved);
 
   function walk(nodes: HiCaseNode[], prefix: number[]) {
     nodes.forEach((node, index) => {
@@ -273,7 +317,7 @@ export function generateOutlineFromHiCaseView(
   // 深いR&Dビュー等でMAX_SECTIONSを超える場合は打ち切られる
   // （既存のgenerateOutlineFromGSNViewと同じ上限・同じ挙動）
   if (sections.length === 0) {
-    return buildFallbackOutline(language);
+    return appendRequiredSections(buildFallbackOutline(language), requiredSectionTitles);
   }
 
   if (needsCoreSection) {
@@ -285,7 +329,11 @@ export function generateOutlineFromHiCaseView(
     );
   }
 
-  return sections.slice(0, MAX_SECTIONS);
+  // ステークホルダー必須見出しは打ち切りの影響を受けないよう、上限適用後に追加する
+  return appendRequiredSections(
+    sections.slice(0, Math.max(1, MAX_SECTIONS - requiredSectionTitles.length)),
+    requiredSectionTitles
+  );
 }
 
 function buildFallbackOutline(language: 'ja' | 'en'): string[] {
