@@ -16,7 +16,7 @@ import { StakeholderRequiredSection, formatRequiredSectionsForPrompt } from './s
 // ユーティリティ関数（ステークホルダー判定）
 // ============================================================================
 
-function isExecutiveRole(role: string): boolean {
+export function isExecutiveRole(role: string): boolean {
   const executiveKeywords = ['executive', '経営', 'cxo', 'ceo', 'cfo', 'cto', 'coo', '役員', '取締役', '社長', '部長'];
   return executiveKeywords.some(keyword => role.toLowerCase().includes(keyword));
 }
@@ -395,10 +395,12 @@ Markdown記法を使用してレポートを構造化すること。
 
 ### 付録に関するルール
 - レポート本文で使用した専門用語・略語がある場合、付録として用語集（Glossary）を含めること
+- 用語集に載せてよいのは**レポート本文中に実際に出現した語のみ**である。本文で一度も使っていない用語（分野の一般的な専門用語であっても）を先回りして追加してはならない
+- 用語集を作成したら、各行の用語が本文中に存在するか1語ずつ確認し、存在しない語は削除すること
 - 用語集には以下を含める:
   - 本文中で使用した技術用語とその平易な説明
   - 略語とその正式名称
-- 用語集は本文の分量制約（ページ数・文字数）には含めない
+- 用語集は本文の分量制約（ページ数・文字数）には含めない。ただし件数は最大10語までとし、読者の理解に不可欠な語を優先すること
 - 本文中では初出時に簡潔な補足を付け、詳細は「付録: 用語集を参照」と案内する`;
 
   // ステークホルダー別の分量制約
@@ -780,6 +782,11 @@ GSNに馴染みのない読み手のために、レポート冒頭（エグゼ�
 3. これらはGSNにおける管理番号であること
 4. GSNの知識がなくても本文の説明に沿って読めば内容を理解できる構成であること
 
+**記号一覧に関する制約（厳守）:**
+- **レポート本文中で実際に言及する記号のみ**を掲載すること。上記2の一覧は候補であって、全種類を必ず載せる指示ではない
+- 本文でエビデンス（Sn）や前提（C）に個別のIDで言及しないのであれば、その行を凡例に含めてはならない
+- 凡例を書き終えたら、掲載した各記号が本文中に実際に出現するか確認し、出現しない記号の行は削除すること
+
 **記述ルール:**
 - 分量は3〜5文程度（半ページ以内）に収めること
 - 独立したセクション（## 見出し）にはしない
@@ -827,7 +834,10 @@ export function generateGSNAnalysisPrompt(
   }
 
   const role = stakeholder?.role || 'Safety Engineer';
-  const gsnPrimer = isNonExpertRole(role) ? generateGSNPrimerForNonExperts() : '';
+  // 経営層向けは主要ゴールの達成状況のみを扱い、本文にノードIDをほとんど出さないため
+  // 記号凡例は読者にとって不要な内部表記になる。よって非専門家のうち経営層は除外する。
+  const gsnPrimer =
+    isNonExpertRole(role) && !isExecutiveRole(role) ? generateGSNPrimerForNonExperts() : '';
   const frame = (spec: string) =>
     appendGSNCommonNote(gsnPrimer + frameAsContentGuidance(spec, gsnDerivedOutline, 'GSN分析 / GSN概要'));
 

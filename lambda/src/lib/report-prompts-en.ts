@@ -16,7 +16,7 @@ import { StakeholderRequiredSection, formatRequiredSectionsForPrompt } from './s
 // Utility Functions (Stakeholder Detection)
 // ============================================================================
 
-function isExecutiveRole(role: string): boolean {
+export function isExecutiveRole(role: string): boolean {
   const executiveKeywords = ['executive', 'cxo', 'ceo', 'cfo', 'cto', 'coo', 'director', 'officer', 'president', 'vp', 'vice president'];
   return executiveKeywords.some(keyword => role.toLowerCase().includes(keyword));
 }
@@ -417,10 +417,12 @@ When about to write \`## number.\`:
 
 ### Appendix Rules
 - If technical terms or abbreviations are used in the report body, include a Glossary as an appendix
+- The Glossary may list **only terms that actually appear in the report body**. Never add a term you did not use, even a standard one for the domain
+- After writing the Glossary, check each entry against the body one by one and delete any term that does not occur there
 - The Glossary should include:
   - Technical terms used in the body with plain language explanations
   - Abbreviations with their full forms
-- The Glossary does NOT count toward the main text volume constraints (page/word count)
+- The Glossary does NOT count toward the main text volume constraints (page/word count), but it must not exceed 10 entries; prioritize the terms the reader cannot do without
 - In the body, add brief annotations at first occurrence and direct readers to "See Appendix: Glossary" for details`;
 
   // Volume constraints by stakeholder
@@ -804,6 +806,11 @@ Do not make it a standalone section; write it as a brief introductory note of a 
 3. These are reference numbers used in GSN
 4. The report is structured so that readers can understand the content by following the explanations, even without GSN knowledge
 
+**Constraints on the symbol list (strict):**
+- List **only the symbols you actually refer to in the report body**. Item 2 above is a menu of candidates, not an instruction to list every kind
+- If the body never refers to individual evidence (Sn) or context (C) IDs, that line must not appear in the legend
+- After writing the legend, verify each listed symbol actually occurs in the body and delete the lines for those that do not
+
 **Writing rules:**
 - Keep to approximately 3-5 sentences (within half a page)
 - Do NOT make it a standalone section (no ## heading)
@@ -828,7 +835,10 @@ export function generateGSNAnalysisPromptEN(
   }
 
   const role = stakeholder?.role || 'Safety Engineer';
-  const gsnPrimer = isNonExpertRole(role) ? generateGSNPrimerForNonExperts() : '';
+  // Executive reports cover only top-level goal status and barely reference node IDs in the body,
+  // so the symbol legend is internal notation the reader does not need. Exclude executives.
+  const gsnPrimer =
+    isNonExpertRole(role) && !isExecutiveRole(role) ? generateGSNPrimerForNonExperts() : '';
   const frame = (spec: string) =>
     appendGSNCommonNote(
       gsnPrimer + frameAsContentGuidance(spec, gsnDerivedOutline, 'GSN Analysis / GSN Overview')

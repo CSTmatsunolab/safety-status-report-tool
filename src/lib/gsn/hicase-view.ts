@@ -44,7 +44,7 @@ export const HICASE_STAKEHOLDER_CONFIGS: Record<string, HiCaseStakeholderConfig>
     higoal: 'closed',
     histrategy: 'closed',
     hievidence: 'closed',
-    maxDepth: 2,
+    maxDepth: 1,
     mandatoryCoreDetail: 'count',
     description: '結論のみ。mandatory coreは件数+見出しレベルに圧縮',
   },
