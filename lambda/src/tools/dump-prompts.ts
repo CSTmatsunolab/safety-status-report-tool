@@ -167,6 +167,7 @@ function main(): void {
       structureName: structure.name,
       structureDescription: structure.description,
       hasMandatoryCore: true,
+      mandatoryCoreDetail: hicaseView.mandatoryCoreDetail,
       requiredPlacements,
     });
 

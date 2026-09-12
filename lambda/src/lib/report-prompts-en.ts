@@ -1097,6 +1097,56 @@ Organize identified risks from these perspectives:
  * a 'count'-level stakeholder (e.g. CxO) still gets full detail tables and
  * hicase's granularity control is defeated.
  */
+/**
+ * Restricts the Mandatory Safety Core to conclusions only, with no mechanism.
+ *
+ * For compressed readers (count / one-sentence), each core item tended to drag along
+ * a technical explanation of *why* it is the way it is (root cause, triggering conditions,
+ * thresholds, the engineering of the countermeasure), which pulls the abstraction level down.
+ * The granularity rule (detailRule) constrains form ("no tables", "one sentence"),
+ * and could not prevent mechanism from being written while that form was respected,
+ * so this states the constraint in terms of content type instead.
+ *
+ * It never overrides the omission prohibition: removing mechanism must never remove
+ * the item, its count, its severity, its status, or its deadline. That is the whole
+ * reason the Mandatory Safety Core exists - preventing role-based hiding of safety
+ * information - and must not be weakened.
+ */
+function generateConclusionOnlyRuleEN(detailLevel: HiCaseMandatoryCoreDetail): string {
+  if (detailLevel !== 'count' && detailLevel !== 'one-sentence') return '';
+
+  return `
+
+### Depth of Description (conclusions only - never the mechanism)
+For this reader setting, write only the **conclusion** for each Mandatory Safety Core item.
+Never write the **mechanism** - the technical account of *why* it is the way it is.
+
+**Keep as the conclusion (these must survive when mechanism is removed):**
+- Item ID and name, severity and/or ASIL level
+- Status (achieved / partially achieved / unmet / under verification / failed / not started / mitigation in progress, etc.)
+- Counts, ratios, coverage - the **numbers that convey magnitude**
+- Deadlines, target completion dates, and the reader's own decision deadlines
+- Acceptance status, and who must accept or approve it
+
+**Never write as mechanism:**
+- The technical cause of a failure or performance limit (which sensor, which perception stage, which algorithm)
+- The breakdown of triggering conditions (lighting, weather, driving situation, names of individual test scenarios)
+- Technical thresholds and measured values (braking onset time, detection range, time-to-collision requirements)
+- The engineering detail of a countermeasure
+  - Wrong: "reworking the static-object decision logic in sensor fusion"
+  - Right: "mitigation in progress (target completion: mid-March 2026)"
+- Descriptions of test methods or test configuration
+
+**Rule of thumb:** if a sentence explains *why* something is so, it is mechanism - leave it out.
+"It failed" is a conclusion; "it failed because ..." is mechanism.
+
+**This rule never overrides the omission prohibition.**
+Leaving out the mechanism is never grounds for dropping the item itself, its count, its severity, its status, or its deadline.
+
+**The amount written still follows the "Level of Detail" rule above.** This rule says what NOT to write;
+it is not an instruction to enumerate every element listed here. Write only the conclusions that fit the granularity.`;
+}
+
 export function generateMandatoryCorePromptEN(
   hasMandatoryCore: boolean,
   detailLevel: HiCaseMandatoryCoreDetail = 'full'
@@ -1152,7 +1202,7 @@ Extract the following from provided documents and write them in the "Mandatory S
 6. **Assumptions/Contexts Affecting the Safety Case**
    - Node ID, assumption content, validity conditions
 
-${detailRule}
+${detailRule}${generateConclusionOnlyRuleEN(detailLevel)}
 
 ### Omission Prohibition
 If any of the 6 items above exist in the provided documents, **the item itself** MUST NOT be omitted regardless of the stakeholder's abstraction level setting.

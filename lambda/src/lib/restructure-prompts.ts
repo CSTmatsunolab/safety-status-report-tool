@@ -16,6 +16,7 @@
 import { Stakeholder } from '../types';
 import { RequiredSectionPlacement, formatRequiredPlacementsForPrompt } from './stakeholder-requirements';
 import { isExecutiveRole } from './report-prompts';
+import { HiCaseMandatoryCoreDetail } from './gsn/types';
 
 export interface RestructureParams {
   /** 1パス目で生成されたGSNノード由来アウトラインのレポート本文 */
@@ -28,6 +29,12 @@ export interface RestructureParams {
   structureDescription?: string;
   /** Mandatory Safety Core がドラフトに含まれるか */
   hasMandatoryCore?: boolean;
+  /**
+   * hicase の Mandatory Core 圧縮設定（HiCaseStakeholderConfig.mandatoryCoreDetail）。
+   * 1パス目と同じ値を渡すこと。'count' / 'one-sentence' の読者では、
+   * ドラフトに機序（原因・発生条件・閾値・対策手段の詳細）が残っていても2パス目で転記しない。
+   */
+  mandatoryCoreDetail?: HiCaseMandatoryCoreDetail;
   /**
    * ステークホルダー必須内容の配置先（stakeholder-requirements.ts の
    * mapRequiredSectionsToTemplate() の結果）。
@@ -119,6 +126,7 @@ export function buildRestructurePrompt(params: RestructureParams): string {
     structureName,
     structureDescription,
     hasMandatoryCore = false,
+    mandatoryCoreDetail = 'full',
     requiredPlacements = [],
   } = params;
 
@@ -145,6 +153,27 @@ ${formatRequiredPlacementsForPrompt(requiredPlacements, 'ja')}
 `
     : '';
 
+  // 1パス目と同じ「結論のみ・機序は書かない」制約を2パス目にも課す。
+  // 2パス目は事実の追加を禁止しているが削除は制限しているため、
+  // ドラフト側に機序が残っていると素通りする。ここで明示的に転記を禁じる。
+  const conclusionOnlyRule =
+    mandatoryCoreDetail === 'count' || mandatoryCoreDetail === 'one-sentence'
+      ? `
+### 記述の深さ（結論のみ・機序は転記しない）
+この読者設定では、Mandatory Safety Core の各項目は**結論**のみを残し、**機序**を転記してはならない。
+
+- 残すもの: 項目のID・名称、深刻度／ASIL等級、状態、件数・割合・カバレッジ、期限・完了予定、受容状況と承認主体
+- 転記しないもの: 失敗・性能限界の技術的原因、発生条件の内訳（照明・天候・走行状況・個別の試験シナリオ名）、
+  技術的な閾値・測定値、対策の技術的手段の詳細、試験手法の説明
+- 例: ドラフトに「センサーフュージョンの静止物判定ロジック改修を実施中」とあれば、「対策を実施中（完了予定: ○○）」と書くこと
+- 「〜が原因で不合格である」は機序であり、「不合格である」まで縮めること
+
+**この機序の削除は、上記「情報を落とさない」規則の明示的な例外である。**
+ただし削れるのは機序の説明だけであり、項目そのもの・件数・深刻度・状態・期限を落としてはならない。
+また、機序を削った分を他の記述で埋め合わせてはならない（削った分だけ短くなるのが正しい）。
+`
+      : '';
+
   const mandatoryCoreRule = hasMandatoryCore
     ? `
 ## Mandatory Safety Core（最優先・省略絶対禁止）
@@ -156,7 +185,7 @@ ${formatRequiredPlacementsForPrompt(requiredPlacements, 'ja')}
 
 これらは要約してもよいが、**事実・件数・深刻度を弱めたり、丸めて消したりしてはならない**。
 該当する記述が複数セクションに分散する場合は、リスク・課題を扱うセクションに集約してよい。
-`
+${conclusionOnlyRule}`
     : '';
 
   return `# タスク: レポートのアウトライン再構成
@@ -260,6 +289,7 @@ export function buildRestructurePromptEN(params: RestructureParams): string {
     structureName,
     structureDescription,
     hasMandatoryCore = false,
+    mandatoryCoreDetail = 'full',
     requiredPlacements = [],
   } = params;
 
@@ -286,6 +316,27 @@ ${formatRequiredPlacementsForPrompt(requiredPlacements, 'en')}
 `
     : '';
 
+  // Same "conclusions only, no mechanism" constraint as pass 1. Pass 2 forbids adding facts
+  // but constrains removal, so mechanism left in the draft otherwise passes straight through.
+  const conclusionOnlyRule =
+    mandatoryCoreDetail === 'count' || mandatoryCoreDetail === 'one-sentence'
+      ? `
+### Depth of description (conclusions only - do not carry over the mechanism)
+For this reader setting, keep only the **conclusion** of each Mandatory Safety Core item; never carry over the **mechanism**.
+
+- Keep: item ID and name, severity / ASIL level, status, counts, ratios, coverage, deadlines and target dates, acceptance status and who must approve
+- Do not carry over: the technical cause of a failure or performance limit, the breakdown of triggering conditions
+  (lighting, weather, driving situation, names of individual test scenarios), technical thresholds and measured values,
+  the engineering detail of a countermeasure, descriptions of test method
+- Example: where the draft says "reworking the static-object decision logic in sensor fusion", write "mitigation in progress (target completion: ...)"
+- "It failed because ..." is mechanism; shorten it to "it failed"
+
+**Removing mechanism is an explicit exception to the "do not lose information" rule above.**
+Only the explanation of mechanism may go: never the item itself, its count, its severity, its status, or its deadline.
+Do not backfill the removed text with other material - the section is supposed to get shorter by exactly that much.
+`
+      : '';
+
   const mandatoryCoreRule = hasMandatoryCore
     ? `
 ## Mandatory Safety Core (highest priority - never omit)
@@ -297,7 +348,7 @@ Any of the following present in the draft **must survive into the restructured r
 
 These may be condensed, but you **must not weaken or round away the facts, counts, or severity**.
 If such statements are scattered across several sections, you may consolidate them into the risk/issue section.
-`
+${conclusionOnlyRule}`
     : '';
 
   return `# Task: Restructure the report outline

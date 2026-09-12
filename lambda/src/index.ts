@@ -603,6 +603,9 @@ async function streamHandler(
             structureName: reportStructure.name,
             structureDescription: reportStructure.description,
             hasMandatoryCore: hasGSNFile && mandatoryCoreText.length > 0,
+            // 1パス目と同じ圧縮設定を渡す。渡さないと 'count' 設定の読者でも
+            // ドラフト中の機序（原因・試験条件・閾値）が2パス目で素通りする。
+            mandatoryCoreDetail: hicaseView?.mandatoryCoreDetail ?? 'full',
             requiredPlacements,
           });
 

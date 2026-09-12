@@ -1157,6 +1157,54 @@ export function getStrategyGuidelines(strategy: RhetoricStrategy): string {
  * ステークホルダーの圧縮設定（count / one-sentence / full / full-with-reverification）に従う。
  * これを渡さないと、CxO等の圧縮設定でも詳細表が生成されhicaseの粒度制御が無効化される。
  */
+/**
+ * Mandatory Safety Core を「結論のみ／機序は書かない」に制限する規則。
+ *
+ * 圧縮設定（count / one-sentence）の読者では、必須安全コアの各項目に
+ * 「なぜそうなるのか」の技術的説明（原因・発生条件・閾値・対策手段の詳細）が
+ * 付随して抽象度が下がる問題があった。記述粒度の指定（detailRule）は
+ * 「表を作るな」「1文にせよ」という形式の指定であり、
+ * 形式を守ったまま機序を書き足すことを禁止できていなかったため、内容の種類として明示する。
+ *
+ * 省略禁止規則には優先しない（機序を削った結果、項目・件数・深刻度・状態・期限が
+ * 消えることは許されない）。これは役職による安全情報の隠蔽を防ぐという
+ * Mandatory Safety Core の存在理由そのものであるため、緩めてはならない。
+ */
+function generateConclusionOnlyRule(detailLevel: HiCaseMandatoryCoreDetail): string {
+  if (detailLevel !== 'count' && detailLevel !== 'one-sentence') return '';
+
+  return `
+
+### 記述の深さ（結論のみ・機序は書かない）
+本レポートの読者設定では、Mandatory Safety Core の各項目は**結論**のみを記述し、
+**機序**（なぜそうなっているのかという技術的な仕組み・理由）を書いてはならない。
+
+**結論として残すもの（機序を削る際に落としてはならない要素）:**
+- 項目のID・名称、深刻度（Severity）／ASIL等級
+- 状態（達成／部分達成／未達成／検証中／不合格／未着手／対策実施中 等）
+- 件数・割合・カバレッジなど**程度を示す数値**
+- 期限・完了予定、および読者の判断期限
+- 受容状況と、受容・承認に必要な主体
+
+**機序として書いてはならないもの:**
+- 失敗・性能限界が生じる技術的原因（どのセンサー・どの認識処理・どのアルゴリズムに起因するか）
+- 発生条件の内訳（照明条件・天候条件・走行状況・個別の試験シナリオ名の列挙）
+- 技術的な閾値・測定値（制動開始時間、検知距離、衝突余裕時間などの要求値）
+- 対策の技術的手段の詳細
+  - 誤: 「センサーフュージョンの静止物判定ロジック改修を実施中」
+  - 正: 「対策を実施中（完了予定: 2026年3月中旬）」
+- 試験手法・試験構成の説明
+
+**判定の目安:** その一文が「なぜそうなるのか」の説明であれば機序であり、書かない。
+「不合格である」は結論、「〜が原因で不合格である」は機序である。
+
+**この規則は省略禁止規則に優先しない。**
+機序を書かないことを理由に、項目そのもの・件数・深刻度・状態・期限を落としてはならない。
+
+**記述量は上記「記述粒度」に従うこと。** 本規則は「何を書かないか」を定めるものであり、
+上記の要素をすべて列挙せよという指示ではない。粒度の範囲で書ける結論だけを書くこと。`;
+}
+
 export function generateMandatoryCorePrompt(
   hasMandatoryCore: boolean,
   detailLevel: HiCaseMandatoryCoreDetail = 'full'
@@ -1212,7 +1260,7 @@ export function generateMandatoryCorePrompt(
 6. **Safety Caseに影響するAssumption/Context**
    - ノードID、前提条件の内容、成立条件を記載
 
-${detailRule}
+${detailRule}${generateConclusionOnlyRule(detailLevel)}
 
 ### 省略禁止規則
 上記6項目のいずれかが提供文書に存在する場合、ステークホルダーの抽象度設定に関わらず**項目そのものを省略してはならない**。
