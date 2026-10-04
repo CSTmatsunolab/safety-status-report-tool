@@ -1,12 +1,14 @@
 // src/app/components/ReportPreview.tsx
 'use client';
 
-import { useState } from 'react';
-import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile, FiCode } from 'react-icons/fi';
+import { useCallback, useMemo, useState } from 'react';
+import { FiDownload, FiEdit, FiPrinter, FiFileText, FiFile, FiCode, FiGrid } from 'react-icons/fi';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Report } from '@/types';
 import { useI18n } from './I18nProvider';
+import { RiskHeatmapModal, createRiskHeatmapMarkdownComponents } from './RiskHeatmap';
+import { extractHeatmapBlocks, markReportMentions, mergeRisks, replaceHeatmapBlocksWithTable, RiskHeatmapItem } from '@/lib/risk-heatmap';
 
 interface ReportPreviewProps {
   report: Report;
@@ -17,6 +19,20 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
   const { language } = useI18n();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState(report.content);
+  const [heatmapRisks, setHeatmapRisks] = useState<RiskHeatmapItem[] | null>(null);
+  const closeHeatmap = useCallback(() => setHeatmapRisks(null), []);
+  const reportContentForHeatmap = report.content;
+  const markdownComponents = useMemo(
+    () => createRiskHeatmapMarkdownComponents(reportContentForHeatmap),
+    [reportContentForHeatmap]
+  );
+
+  // レポート全体の risk-heatmap ブロックを集約してヒートマップを表示
+  const handleShowHeatmap = () => {
+    setHeatmapRisks(
+      markReportMentions(mergeRisks(extractHeatmapBlocks(report.content)), report.content)
+    );
+  };
 
   const handleSave = () => {
     onUpdate({
@@ -222,7 +238,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
   // Markdownエクスポート
   const handleExportMarkdown = () => {
     const titleLine = `# ${report.title}\n\n`;
-    const fixedContent = fixNumberedLists(report.content);
+    const fixedContent = fixNumberedLists(replaceHeatmapBlocksWithTable(report.content, language));
     const markdownContent = titleLine + fixedContent;
     
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
@@ -295,7 +311,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const fixedContent = fixNumberedLists(report.content);
+    const fixedContent = fixNumberedLists(replaceHeatmapBlocksWithTable(report.content, language));
     const htmlContent = convertMarkdownToHtml(fixedContent);
 
     const printHtml = `
@@ -400,6 +416,15 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
             : (language === 'en' ? 'Edit' : '編集')}
         </button>
         
+        {/* リスクヒートマップ */}
+        <button
+          onClick={handleShowHeatmap}
+            className="flex items-center px-3 py-2 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-700 dark:text-white dark:hover:bg-red-600 rounded-md text-base transition-colors"
+        >
+          <FiGrid className="mr-1" />
+          {language === 'en' ? 'Risk Heatmap' : 'リスクヒートマップ'}
+        </button>
+
         {/* Markdown */}
         <button
           onClick={handleExportMarkdown}
@@ -477,13 +502,19 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
         ) : (
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-lg">
             <article className="prose prose-sm max-w-none dark:prose-invert">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
                 {displayContent}
               </ReactMarkdown>
             </article>
           </div>
         )}
       </div>
+
+      <RiskHeatmapModal
+        isOpen={heatmapRisks !== null}
+        onClose={closeHeatmap}
+        risks={heatmapRisks ?? []}
+      />
     </div>
   );
 }

@@ -873,6 +873,7 @@ Assign sequential numbers and titles to all figures and tables.
   * This figure shows the overall system configuration. Illustrate main components and their connections.
   \`\`\`
 - Reference from text: "As shown in Figure 1", "See Figure 2"
+- **Exception: Risk Heatmap / Risk Assessment Matrix** must NOT be a placeholder; output it as the \`risk-heatmap\` code block defined in the RISK ANALYSIS section (the system renders it)
 
 ### Figure/Table Insertion Rules
 - Use sequential numbering throughout the document (Table 1, Table 2..., Figure 1, Figure 2...)
@@ -906,7 +907,28 @@ Organize identified risks from these perspectives:
 - Implemented/planned countermeasures
 - Residual risks and acceptability
 
-※ Estimation of probability/impact and fabrication of causal analysis are prohibited per Anti-Hallucination Rules (Section 2).`;
+※ Estimation of probability/impact and fabrication of causal analysis are prohibited per Anti-Hallucination Rules (Section 2).
+
+### Risk Heatmap (risk-heatmap block)
+Output **exactly one** code block of the following form in the whole report. The system renders it as a 5×5 heatmap
+and highlights the risks mentioned in the body of this report.
+
+\`\`\`risk-heatmap
+{"title":"Figure X: Risk Heatmap","risks":[{"id":"R-101","name":"Risk name","likelihood":"Medium","impact":"High","status":"Mitigation in progress"}]}
+\`\`\`
+
+- \`risks\` must list **every risk documented in the provided documents**, including risks this report does not discuss (stakeholder-specific filtering does NOT apply to this block)
+- Placement: inside the section dealing with risks (Risk Assessment, Risk Summary, Detailed Risk Analysis, Residual Risk Evaluation, Technical Risks and Countermeasures, etc.); if there is no such section, at the end of the report
+- The language tag must be \`risk-heatmap\`, and the content must be valid JSON only (no comments, no trailing commas)
+- Copy \`likelihood\` and \`impact\` exactly as documented (High/Medium/Low, or a number 1-5)
+- Use \`null\` when not documented (estimation or filling-in is prohibited)
+- \`id\`, \`name\` and \`status\` must also come from the documents
+- Add a one-line explanation right after the block, e.g. "* This figure places all documented risks on a matrix of impact (vertical) and likelihood (horizontal), highlighting those covered in this report."
+- Do not output the block if no risks are documented
+
+### Risk IDs (MANDATORY)
+Whenever the body (including tables and lists) mentions an individual risk, always include its risk ID (e.g., R-101).
+Heatmap highlighting is determined by the risk IDs appearing in the body.`;
 }
 
 // ============================================================================
