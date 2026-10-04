@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
+import { RiskHeatmapItem } from '@/lib/risk-heatmap';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
@@ -45,6 +46,9 @@ interface GenerateReportParams {
   reportStructure: ReportStructureTemplate;
   userIdentifier: string;
   language: 'ja' | 'en';
+  // リスクヒートマップで抽出した文書の全リスクと、本レポートで必ず扱うリスクのID
+  heatmapRisks?: RiskHeatmapItem[];
+  focusRiskIds?: string[];
 }
 
 interface LambdaStreamMessage {
@@ -117,7 +121,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -176,6 +180,14 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         fullTextFileIds,
         language,
         userIdentifier,
+        heatmapRisks: heatmapRisks?.map(({ id, name, rawLikelihood, rawImpact, status }) => ({
+          id,
+          name,
+          likelihood: rawLikelihood ?? null,
+          impact: rawImpact ?? null,
+          status,
+        })),
+        focusRiskIds,
       }),
       signal,
     });

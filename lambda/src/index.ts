@@ -17,6 +17,7 @@ const pdfParse = require('pdf-parse-new');
 
 import { 
   GenerateReportRequest, 
+  HeatmapRiskInput,
   Stakeholder,
   ReportStructureTemplate,
 } from './types';
@@ -113,6 +114,44 @@ function buildFinalReportStructure(
   return finalSections;
 }
 
+const MAX_HEATMAP_RISKS = 200;
+const MAX_HEATMAP_FIELD_CHARS = 200;
+
+/**
+ * リスクヒートマップ指定（クライアント入力）を検証・整形する
+ */
+function sanitizeHeatmapInput(
+  heatmapRisks: unknown,
+  focusRiskIds: unknown
+): { heatmapRisks?: HeatmapRiskInput[]; focusRiskIds?: string[] } {
+  if (!Array.isArray(heatmapRisks) || heatmapRisks.length === 0) return {};
+
+  const clip = (value: unknown): string | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const text = String(value).trim();
+    return text ? text.slice(0, MAX_HEATMAP_FIELD_CHARS) : undefined;
+  };
+
+  const risks: HeatmapRiskInput[] = heatmapRisks
+    .slice(0, MAX_HEATMAP_RISKS)
+    .filter((r): r is Record<string, unknown> => !!r && typeof r === 'object')
+    .map((r) => ({
+      id: clip(r.id) ?? '',
+      name: clip(r.name),
+      likelihood: clip(r.likelihood) ?? null,
+      impact: clip(r.impact) ?? null,
+      status: clip(r.status),
+    }))
+    .filter((r) => r.id);
+
+  const ids = new Set(risks.map((r) => r.id));
+  const focus = Array.isArray(focusRiskIds)
+    ? focusRiskIds.map((id) => String(id)).filter((id) => ids.has(id))
+    : [];
+
+  return risks.length > 0 ? { heatmapRisks: risks, focusRiskIds: focus } : {};
+}
+
 // ストリーミングハンドラーの実装
 async function streamHandler(
   event: APIGatewayProxyEventV2,
@@ -145,8 +184,9 @@ async function streamHandler(
       files = [], 
       fullTextFileIds = [],
       language = 'ja',
-      userIdentifier = 'anonymous'
+      userIdentifier = 'anonymous',
     } = body;
+    const { heatmapRisks, focusRiskIds } = sanitizeHeatmapInput(body.heatmapRisks, body.focusRiskIds);
 
     // バリデーション
     if (!stakeholder || !reportStructure) {
@@ -301,7 +341,9 @@ async function streamHandler(
       contextContent,
       reportSections: finalSections,
       hasGSN: hasGSNFile,
-      structureDescription: reportStructure.description
+      structureDescription: reportStructure.description,
+      heatmapRisks,
+      focusRiskIds,
     });
 
     // ステップ5: Claude APIストリーミング呼び出し

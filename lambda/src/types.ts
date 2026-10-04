@@ -67,6 +67,15 @@ export interface FileMetadata {
   [key: string]: unknown;
 }
 
+// リスクヒートマップ（画面で抽出）の1リスク。値は文書記載のまま
+export interface HeatmapRiskInput {
+  id: string;
+  name?: string;
+  likelihood?: string | number | null;
+  impact?: string | number | null;
+  status?: string;
+}
+
 export interface GenerateReportRequest {
   stakeholder: Stakeholder;
   reportStructure: ReportStructureTemplate;
@@ -74,4 +83,7 @@ export interface GenerateReportRequest {
   fullTextFileIds?: string[];
   language?: 'ja' | 'en';
   userIdentifier?: string;
+  // 文書の全リスクと、本レポートで必ず扱うリスクのID（リスクヒートマップで指定）
+  heatmapRisks?: HeatmapRiskInput[];
+  focusRiskIds?: string[];
 }

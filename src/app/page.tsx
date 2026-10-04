@@ -17,7 +17,9 @@ import { getSimpleRecommendedStructure } from '@/lib/report-structures';
 import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
-import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle } from 'react-icons/fi';
+import { useRiskFocus } from '@/hooks/useRiskFocus';
+import { RiskFocusPanel } from './components/RiskFocusPanel';
+import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiGrid, FiLoader } from 'react-icons/fi';
 
 const DEBUG_LOGGING = process.env.DEBUG_LOGGING;
 
@@ -68,6 +70,9 @@ export default function Home() {
 
   // レポート履歴フック
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
+
+  // リスクヒートマップ（生成前）フック
+  const riskFocus = useRiskFocus(files, selectedStakeholder, language);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
   // レポート生成中断ハンドラー
@@ -530,6 +535,7 @@ export default function Home() {
       reportStructure: selectedStructure,
       userIdentifier,
       language,
+      ...riskFocus.generationParams,
     });
 
     if (report) {
@@ -706,6 +712,19 @@ export default function Home() {
                 onToggleGSN={handleToggleGSN}
                 files={files} 
               />
+
+              {/* リスクヒートマップ作成 */}
+              <button
+                type="button"
+                onClick={riskFocus.extract}
+                disabled={files.length === 0 || riskFocus.isExtracting}
+                className="mt-4 w-full flex items-center justify-center px-4 py-2 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-700 dark:text-white dark:hover:bg-red-600 rounded-md text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {riskFocus.isExtracting ? <FiLoader className="mr-2 animate-spin" /> : <FiGrid className="mr-2" />}
+                {riskFocus.isExtracting
+                  ? (language === 'en' ? 'Creating risk heatmap…' : 'リスクヒートマップを作成中…')
+                  : (language === 'en' ? 'Create Risk Heatmap' : 'リスクヒートマップ作成')}
+              </button>
             </div>
             
             {/* 2. ステークホルダー選択 */}
@@ -929,6 +948,22 @@ export default function Home() {
                           </div>
                         </div>
                       </div>
+
+        {/* リスクヒートマップ（生成前・ステークホルダ別の強調） */}
+        <RiskFocusPanel
+          stakeholder={selectedStakeholder}
+          risks={riskFocus.risks}
+          heatmapItems={riskFocus.heatmapItems}
+          focusCount={riskFocus.focusIds.size}
+          reasons={riskFocus.reasons}
+          isExtracting={riskFocus.isExtracting}
+          error={riskFocus.error}
+          truncated={riskFocus.truncated}
+          isStale={riskFocus.isStale}
+          onExtract={riskFocus.extract}
+          onToggle={riskFocus.toggle}
+          onResetToRule={riskFocus.resetToRule}
+        />
                   </div>
     </div>
   );

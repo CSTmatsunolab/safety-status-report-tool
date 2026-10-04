@@ -7,7 +7,7 @@
 //   - Added common GSN analysis notes as batch
 //   - Removed duplicated "causal relationships only when documented" etc. from individual functions
 
-import { Stakeholder } from '../types';
+import { HeatmapRiskInput, Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -898,7 +898,44 @@ function getMinimumFigureCount(role: string, hasGSN: boolean): number {
 // 10. Risk Analysis
 // ============================================================================
 
-export function generateRiskAnalysisPromptEN(): string {
+function formatRiskLineEN(risk: HeatmapRiskInput): string {
+  const fmt = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? 'not documented' : String(v));
+  return `- ${risk.id}${risk.name ? `: ${risk.name}` : ''} (likelihood: ${fmt(risk.likelihood)} / impact: ${fmt(risk.impact)} / status: ${fmt(risk.status)})`;
+}
+
+/**
+ * Instruction for the risks the user selected on the risk heatmap
+ * (empty string when nothing was specified = previous behavior)
+ */
+function generateFocusRiskPromptEN(heatmapRisks?: HeatmapRiskInput[], focusRiskIds?: string[]): string {
+  if (!heatmapRisks || heatmapRisks.length === 0) return '';
+
+  const focusSet = new Set(focusRiskIds ?? []);
+  const focus = heatmapRisks.filter((r) => focusSet.has(r.id));
+  const others = heatmapRisks.filter((r) => !focusSet.has(r.id));
+  const blockJson = JSON.stringify({ title: 'Figure X: Risk Heatmap', risks: heatmapRisks });
+
+  return `
+
+### RISKS TO COVER IN THIS REPORT (USER-SPECIFIED, HIGHEST PRIORITY)
+On the risk heatmap, the user selected the risks this report must describe for its reader.
+This selection takes precedence over stakeholder-specific filtering and length rules.
+
+**Risks that MUST be described (${focus.length})**: discuss each one individually in the body, always with its risk ID. Explain its content, likelihood, impact, and mitigation status within what the documents state.
+${focus.length > 0 ? focus.map(formatRiskLineEN).join('\n') : '- none'}
+
+**All other risks (${others.length})**: do not discuss them individually; mention them only as a count (e.g. "${others.length} other risks"). Do not write their risk IDs or individual names in the body.
+
+**risk-heatmap block**: use the following list (all risks extracted from the documents) as \`risks\` exactly as given (only adjust the figure number in title to match the document numbering).
+\`\`\`risk-heatmap
+${blockJson}
+\`\`\``;
+}
+
+export function generateRiskAnalysisPromptEN(
+  heatmapRisks?: HeatmapRiskInput[],
+  focusRiskIds?: string[]
+): string {
   return `
 ## RISK ANALYSIS
 Organize identified risks from these perspectives:
@@ -928,7 +965,7 @@ and highlights the risks mentioned in the body of this report.
 
 ### Risk IDs (MANDATORY)
 Whenever the body (including tables and lists) mentions an individual risk, always include its risk ID (e.g., R-101).
-Heatmap highlighting is determined by the risk IDs appearing in the body.`;
+Heatmap highlighting is determined by the risk IDs appearing in the body.${generateFocusRiskPromptEN(heatmapRisks, focusRiskIds)}`;
 }
 
 // ============================================================================
@@ -1047,8 +1084,10 @@ export function buildCompleteUserPromptEN(params: {
   reportSections: string[];
   hasGSN: boolean;
   structureDescription?: string;
+  heatmapRisks?: HeatmapRiskInput[];
+  focusRiskIds?: string[];
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds } = params;
 
   // Prompt assembly order (by importance — no duplicates)
   const parts = [
@@ -1076,7 +1115,7 @@ export function buildCompleteUserPromptEN(params: {
     // 8. Content generation guides
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
-    generateRiskAnalysisPromptEN(),
+    generateRiskAnalysisPromptEN(heatmapRisks, focusRiskIds),
     
     // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),

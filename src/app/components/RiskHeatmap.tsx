@@ -51,6 +51,10 @@ const TEXTS = {
     inReport: '本レポートで記載',
     docOnly: '文書のみ（本レポート未記載）',
     plotted: 'リスク一覧（クリック・ホバーでヒートマップ上の位置を強調）',
+    plottedToggle: 'リスク一覧（クリックで記載する／しないを切り替え、ホバーで位置を強調）',
+    countNeutral: (total: number, plotted: number) => `文書のリスク ${total}件 ／ ${plotted}件をプロット`,
+    countGeneric: (on: number, total: number, plotted: number, label: string) =>
+      `文書のリスク ${total}件（うち${label} ${on}件）／ ${plotted}件をプロット`,
     position: (l: number, i: number, score: number) => `発生確率 ${l} × 影響度 ${i} = ${score}`,
     loading: 'リスクヒートマップを生成中…',
     close: '閉じる',
@@ -71,6 +75,10 @@ const TEXTS = {
     inReport: 'Covered in this report',
     docOnly: 'Documents only (not in this report)',
     plotted: 'Risks (click or hover to highlight their position)',
+    plottedToggle: 'Risks (click to include/exclude, hover to highlight their position)',
+    countNeutral: (total: number, plotted: number) => `${total} documented risks / ${plotted} plotted`,
+    countGeneric: (on: number, total: number, plotted: number, label: string) =>
+      `${total} documented risks (${label}: ${on}) / ${plotted} plotted`,
     position: (l: number, i: number, score: number) => `Likelihood ${l} × Impact ${i} = ${score}`,
     loading: 'Generating risk heatmap…',
     close: 'Close',
@@ -85,11 +93,22 @@ const isInReport = (risk: RiskHeatmapItem) => risk.inReport !== false;
 interface RiskHeatmapProps {
   risks: RiskHeatmapItem[];
   title?: string;
+  // 強調あり／なしの表示名（既定は「本レポートで記載／文書のみ」）。null は強調の区別を表示しない
+  labels?: { on: string; off: string } | null;
+  // 指定時はクリックで強調（inReport）を切り替える選択モードになる
+  onToggle?: (id: string) => void;
+  // リスクID → 強調の理由（一覧に表示）
+  reasons?: Record<string, string>;
 }
 
-export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
+export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHeatmapProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
+  const onLabel = labels?.on ?? t.inReport;
+  const offLabel = labels?.off ?? t.docOnly;
+  const neutral = labels === null;
+  const statusSuffix = (risk: RiskHeatmapItem) =>
+    neutral ? '' : `（${isInReport(risk) ? onLabel : offLabel}）`;
   // クリックで固定する選択と、ホバー中の一時的な強調
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -110,6 +129,7 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
   const active = rated.find((r) => r.id === activeId);
 
   const toggleSelected = (id: string) => setSelectedId(selectedId === id ? null : id);
+  const handleClick = (id: string) => (onToggle ? onToggle(id) : toggleSelected(id));
   const hoverHandlers = (id: string) => ({
     onMouseEnter: () => setHoveredId(id),
     onMouseLeave: () => setHoveredId(null),
@@ -133,7 +153,11 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
       <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-base font-semibold text-gray-900 dark:text-white">{title ?? t.title}</span>
         <span className="text-xs text-gray-600 dark:text-gray-400">
-          {t.count(inReportCount, risks.length, rated.length)}
+          {neutral
+            ? t.countNeutral(risks.length, rated.length)
+            : labels
+            ? t.countGeneric(inReportCount, risks.length, rated.length, onLabel)
+            : t.count(inReportCount, risks.length, rated.length)}
         </span>
       </figcaption>
 
@@ -192,8 +216,8 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
                             <button
                               key={risk.id}
                               type="button"
-                              title={`${risk.name ? `${risk.id}: ${risk.name}` : risk.id}（${isInReport(risk) ? t.inReport : t.docOnly}）`}
-                              onClick={() => toggleSelected(risk.id)}
+                              title={`${risk.name ? `${risk.id}: ${risk.name}` : risk.id}${statusSuffix(risk)}`}
+                              onClick={() => handleClick(risk.id)}
                               {...hoverHandlers(risk.id)}
                               className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
                                 activeId === risk.id
@@ -236,21 +260,25 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
             {t.bands[band]}
           </span>
         ))}
-        <span className="flex items-center gap-1">
-          <span className={`rounded px-1 text-[10px] ${CHIP_IN_REPORT}`}>R-x</span>
-          {t.inReport}
-        </span>
-        <span className="flex items-center gap-1">
-          <span className={`rounded px-1 text-[10px] ${CHIP_DOC_ONLY}`}>R-x</span>
-          {t.docOnly}
-        </span>
+        {!neutral && (
+          <>
+            <span className="flex items-center gap-1">
+              <span className={`rounded px-1 text-[10px] ${CHIP_IN_REPORT}`}>R-x</span>
+              {onLabel}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className={`rounded px-1 text-[10px] ${CHIP_DOC_ONLY}`}>R-x</span>
+              {offLabel}
+            </span>
+          </>
+        )}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t.note}</div>
 
       {/* リスク一覧（ヒートマップ上の位置と連動） */}
       {rated.length > 0 && (
         <div className="mt-4">
-          <div className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">{t.plotted}</div>
+          <div className="mb-1 text-xs font-medium text-gray-700 dark:text-gray-300">{onToggle ? t.plottedToggle : t.plotted}</div>
           <ul className="m-0 list-none p-0 divide-y divide-gray-100 dark:divide-gray-800 rounded-md border border-gray-200 dark:border-gray-700">
             {rated.map((risk) => {
               const score = riskScore(risk.likelihood, risk.impact);
@@ -261,7 +289,7 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
                 <li key={risk.id}>
                   <button
                     type="button"
-                    onClick={() => toggleSelected(risk.id)}
+                    onClick={() => handleClick(risk.id)}
                     {...hoverHandlers(risk.id)}
                     className={`flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 text-left text-xs transition-colors ${
                       isActive
@@ -269,26 +297,40 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
                         : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                     } ${inReport ? '' : 'opacity-60'}`}
                   >
+                    {onToggle && (
+                      <input
+                        type="checkbox"
+                        checked={inReport}
+                        readOnly
+                        tabIndex={-1}
+                        className="pointer-events-none h-3.5 w-3.5 flex-shrink-0"
+                      />
+                    )}
                     <span className={`inline-block h-3 w-3 flex-shrink-0 rounded-sm ${BAND_CELL_STYLES[band]}`} />
                     <span className={`${inReport ? 'font-bold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>
                       {risk.id}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{risk.name ?? ''}</span>
+                    {reasons?.[risk.id] && inReport && (
+                      <span className="text-blue-700 dark:text-sky-300">{reasons[risk.id]}</span>
+                    )}
                     <span className="text-gray-600 dark:text-gray-400">
                       {t.position(risk.likelihood, risk.impact, score)}
                     </span>
                     <span className="rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                       {t.bands[band]}
                     </span>
-                    <span
-                      className={`rounded px-1.5 py-0.5 font-medium ${
-                        inReport
-                          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                          : 'border border-dashed border-gray-400 text-gray-500 dark:text-gray-400'
-                      }`}
-                    >
-                      {inReport ? t.inReport : t.docOnly}
-                    </span>
+                    {!neutral && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 font-medium ${
+                          inReport
+                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                            : 'border border-dashed border-gray-400 text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
+                        {inReport ? onLabel : offLabel}
+                      </span>
+                    )}
                   </button>
                 </li>
               );
@@ -298,13 +340,13 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
       )}
 
       {/* 選択中のリスク詳細 */}
-      {selected && (
+      {selected && !onToggle && (
         <div className="mt-3 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-3 text-sm text-gray-800 dark:text-gray-200">
           <div className="font-semibold">
             {selected.id}
             {selected.name ? `: ${selected.name}` : ''}
             <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-              （{isInReport(selected) ? t.inReport : t.docOnly}）
+              （{isInReport(selected) ? onLabel : offLabel}）
             </span>
           </div>
           <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
@@ -341,9 +383,26 @@ export function RiskHeatmap({ risks, title }: RiskHeatmapProps) {
           <ul className="list-disc pl-5">
             {unrated.map((risk) => (
               <li key={risk.id} className={isInReport(risk) ? 'font-bold' : 'text-gray-500 dark:text-gray-400'}>
-                {risk.id}
-                {risk.name ? `: ${risk.name}` : ''}
-                {`（${isInReport(risk) ? t.inReport : t.docOnly}）`}
+                {onToggle ? (
+                  <button type="button" onClick={() => onToggle(risk.id)} className="text-left hover:underline">
+                    <input
+                      type="checkbox"
+                      checked={isInReport(risk)}
+                      readOnly
+                      tabIndex={-1}
+                      className="pointer-events-none mr-1 h-3 w-3 align-middle"
+                    />
+                    {risk.id}
+                    {risk.name ? `: ${risk.name}` : ''}
+                    {statusSuffix(risk)}
+                  </button>
+                ) : (
+                  <>
+                    {risk.id}
+                    {risk.name ? `: ${risk.name}` : ''}
+                    {statusSuffix(risk)}
+                  </>
+                )}
               </li>
             ))}
           </ul>
