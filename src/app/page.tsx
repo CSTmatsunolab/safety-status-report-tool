@@ -18,6 +18,7 @@ import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
 import { useRiskFocus } from '@/hooks/useRiskFocus';
+import { useGsnConcernFocus } from '@/hooks/useGsnConcernFocus';
 import { RiskFocusPanel } from './components/RiskFocusPanel';
 import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiGrid, FiLoader } from 'react-icons/fi';
 
@@ -71,8 +72,10 @@ export default function Home() {
   // レポート履歴フック
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
 
-  // リスクヒートマップ（生成前）フック
+  // ヒートマップ（生成前・リスク／GSNノード）フック
   const riskFocus = useRiskFocus(files, selectedStakeholder, language);
+  // GSNノードの関心事による強調・選択（ステークホルダ選択時にLLMで対応付け）
+  const gsnFocus = useGsnConcernFocus(riskFocus.gsnNodes, selectedStakeholder, language);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
   // レポート生成中断ハンドラー
@@ -536,6 +539,8 @@ export default function Home() {
       userIdentifier,
       language,
       ...riskFocus.generationParams,
+      // 詳述するGSNノードは、GSNノード一覧をLambdaに渡せる（抽出結果が最新）ときのみ
+      ...('heatmapGsnNodes' in riskFocus.generationParams ? gsnFocus.generationParams : {}),
     });
 
     if (report) {
@@ -713,7 +718,7 @@ export default function Home() {
                 files={files} 
               />
 
-              {/* リスクヒートマップ作成 */}
+              {/* ヒートマップ作成（リスク／GSNノード） */}
               <button
                 type="button"
                 onClick={riskFocus.extract}
@@ -722,8 +727,8 @@ export default function Home() {
               >
                 {riskFocus.isExtracting ? <FiLoader className="mr-2 animate-spin" /> : <FiGrid className="mr-2" />}
                 {riskFocus.isExtracting
-                  ? (language === 'en' ? 'Creating risk heatmap…' : 'リスクヒートマップを作成中…')
-                  : (language === 'en' ? 'Create Risk Heatmap' : 'リスクヒートマップ作成')}
+                  ? (language === 'en' ? 'Creating heatmap…' : 'ヒートマップを作成中…')
+                  : (language === 'en' ? 'Create Heatmap' : 'ヒートマップ作成')}
               </button>
             </div>
             
@@ -949,10 +954,14 @@ export default function Home() {
                         </div>
                       </div>
 
-        {/* リスクヒートマップ（生成前・ステークホルダ別の強調） */}
+        {/* ヒートマップ（生成前・リスクはステークホルダ別の強調、GSNノードは表示のみ） */}
         <RiskFocusPanel
           stakeholder={selectedStakeholder}
           risks={riskFocus.risks}
+          gsnNodes={riskFocus.gsnNodes}
+          gsnError={riskFocus.gsnError}
+          hasGSNFile={files.some((f) => f.type === 'gsn' || !!f.metadata?.userDesignatedGSN)}
+          gsnFocus={gsnFocus}
           heatmapItems={riskFocus.heatmapItems}
           focusCount={riskFocus.focusIds.size}
           reasons={riskFocus.reasons}

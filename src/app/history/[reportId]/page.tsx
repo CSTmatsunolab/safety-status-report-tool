@@ -23,8 +23,8 @@ import {
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useI18n } from '../../components/I18nProvider';
-import { RiskHeatmapModal, createRiskHeatmapMarkdownComponents } from '../../components/RiskHeatmap';
-import { extractHeatmapBlocks, markReportMentions, mergeRisks, replaceHeatmapBlocksWithTable, RiskHeatmapItem } from '@/lib/risk-heatmap';
+import { HeatmapModal, createHeatmapMarkdownComponents } from '../../components/HeatmapViews';
+import { collectReportHeatmaps, replaceAllHeatmapBlocksWithTables } from '@/lib/gsn-heatmap';
 import { useAuth } from '../../components/AuthProvider';
 import { SettingsMenu } from '../../components/SettingsMenu';
 import { useReportHistory, ReportDetail } from '@/hooks/useReportHistory';
@@ -42,11 +42,11 @@ export default function ReportDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFilesExpanded, setIsFilesExpanded] = useState(false);
-  const [heatmapRisks, setHeatmapRisks] = useState<RiskHeatmapItem[] | null>(null);
-  const closeHeatmap = useCallback(() => setHeatmapRisks(null), []);
+  const [heatmaps, setHeatmaps] = useState<ReturnType<typeof collectReportHeatmaps> | null>(null);
+  const closeHeatmap = useCallback(() => setHeatmaps(null), []);
   const reportContentForHeatmap = report?.content ?? '';
   const markdownComponents = useMemo(
-    () => createRiskHeatmapMarkdownComponents(reportContentForHeatmap),
+    () => createHeatmapMarkdownComponents(reportContentForHeatmap),
     [reportContentForHeatmap]
   );
 
@@ -71,12 +71,10 @@ export default function ReportDetailPage() {
     loadReport();
   }, [authStatus, reportId, getReport, language]);
 
-  // レポート全体の risk-heatmap ブロックを集約してヒートマップを表示
+  // レポート全体の risk-heatmap / gsn-heatmap ブロックを集約してヒートマップを表示
   const handleShowHeatmap = () => {
     if (!report) return;
-    setHeatmapRisks(
-      markReportMentions(mergeRisks(extractHeatmapBlocks(report.content)), report.content)
-    );
+    setHeatmaps(collectReportHeatmaps(report.content));
   };
 
   // 削除処理
@@ -294,7 +292,7 @@ export default function ReportDetailPage() {
   const handleExportMarkdown = () => {
     if (!report) return;
     const titleLine = `# ${report.title}\n\n`;
-    const fixedContent = fixNumberedLists(replaceHeatmapBlocksWithTable(report.content, language));
+    const fixedContent = fixNumberedLists(replaceAllHeatmapBlocksWithTables(report.content, language));
     const markdownContent = titleLine + fixedContent;
     
     const blob = new Blob([markdownContent], { type: 'text/markdown' });
@@ -422,7 +420,7 @@ export default function ReportDetailPage() {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const fixedContent = fixNumberedLists(replaceHeatmapBlocksWithTable(report.content, language));
+    const fixedContent = fixNumberedLists(replaceAllHeatmapBlocksWithTables(report.content, language));
     const htmlContent = convertMarkdownToHtml(fixedContent);
 
     const printHtml = `
@@ -594,13 +592,13 @@ export default function ReportDetailPage() {
           {/* エクスポートボタン */}
           <div className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
             <div className="flex flex-wrap gap-2">
-              {/* リスクヒートマップ */}
+              {/* ヒートマップ（リスク／GSNノード） */}
               <button
                 onClick={handleShowHeatmap}
                 className="flex items-center px-3 py-2 bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-700 dark:text-white dark:hover:bg-red-600 rounded-md text-sm transition-colors"
               >
                 <FiGrid className="mr-1" />
-                {language === 'en' ? 'Risk Heatmap' : 'リスクヒートマップ'}
+                {language === 'en' ? 'Heatmap' : 'ヒートマップ'}
               </button>
 
               {/* Markdown */}
@@ -729,10 +727,12 @@ export default function ReportDetailPage() {
         </div>
       </div>
 
-      <RiskHeatmapModal
-        isOpen={heatmapRisks !== null}
+      <HeatmapModal
+        isOpen={heatmaps !== null}
         onClose={closeHeatmap}
-        risks={heatmapRisks ?? []}
+        risks={heatmaps?.risks ?? []}
+        gsnNodes={heatmaps?.gsnNodes ?? []}
+        gsnConcerns={heatmaps?.gsnConcerns}
       />
     </main>
   );

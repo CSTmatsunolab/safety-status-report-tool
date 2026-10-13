@@ -27,6 +27,8 @@ export type RiskBand = 'high' | 'medium' | 'low' | 'minimal';
 export const RISK_HEATMAP_LANG = 'risk-heatmap';
 
 const HEATMAP_BLOCK_REGEX = /```risk-heatmap[^\n]*\n([\s\S]*?)```/g;
+// リスク・GSNの両ヒートマップブロック（本文判定ではどちらのJSONも本文として扱わない）
+const ALL_HEATMAP_BLOCKS_REGEX = /```(?:risk-heatmap|gsn-heatmap)[^\n]*\n[\s\S]*?```/g;
 
 const LEVEL_WORDS: Record<string, RiskLevel> = {
   'very high': 5,
@@ -140,15 +142,15 @@ export function extractHeatmapBlocks(markdown: string): RiskHeatmapData[] {
   return results;
 }
 
-function escapeRegExp(text: string): string {
+export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * レポート本文（risk-heatmap ブロックを除いた部分）を返す
+ * レポート本文（risk-heatmap / gsn-heatmap ブロックを除いた部分）を返す
  */
 export function getReportBody(markdown: string): string {
-  return markdown.replace(HEATMAP_BLOCK_REGEX, '');
+  return markdown.replace(ALL_HEATMAP_BLOCKS_REGEX, '');
 }
 
 /**
@@ -207,11 +209,11 @@ export function scoreBand(score: number): RiskBand {
   return 'minimal';
 }
 
-function detectLanguage(text: string): 'ja' | 'en' {
+export function detectLanguage(text: string): 'ja' | 'en' {
   return /[぀-ヿ一-鿿]/.test(text) ? 'ja' : 'en';
 }
 
-function escapeTableCell(text: string): string {
+export function escapeTableCell(text: string): string {
   return text.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 
@@ -253,12 +255,17 @@ function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): strin
  * エクスポート・印刷用に risk-heatmap ブロックをMarkdown表へ置き換える
  * （パースできないブロックは削除する）
  */
-export function replaceHeatmapBlocksWithTable(markdown: string, lang?: 'ja' | 'en'): string {
+export function replaceHeatmapBlocksWithTable(
+  markdown: string,
+  lang?: 'ja' | 'en',
+  // 言及判定に使う全文（他のブロックを先に置き換えた場合に元の全文を渡す）
+  mentionSource: string = markdown
+): string {
   const language = lang ?? detectLanguage(markdown);
   return markdown.replace(HEATMAP_BLOCK_REGEX, (_whole, json: string) => {
     const data = parseHeatmapBlock(json);
     if (!data || data.risks.length === 0) return '';
-    data.risks = markReportMentions(data.risks, markdown);
+    data.risks = markReportMentions(data.risks, mentionSource);
     // 直後の行が表の行として扱われないよう空行を入れる
     return `${heatmapToMarkdownTable(data, language)}\n`;
   });

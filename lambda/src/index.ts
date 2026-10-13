@@ -18,6 +18,8 @@ const pdfParse = require('pdf-parse-new');
 import { 
   GenerateReportRequest, 
   HeatmapRiskInput,
+  HeatmapGsnNodeInput,
+  FocusGsnNodeInput,
   Stakeholder,
   ReportStructureTemplate,
 } from './types';
@@ -152,6 +154,88 @@ function sanitizeHeatmapInput(
   return risks.length > 0 ? { heatmapRisks: risks, focusRiskIds: focus } : {};
 }
 
+const MAX_FOCUS_CONCERNS = 10;
+const MAX_PARENT_IDS = 20;
+
+/**
+ * GSNノードヒートマップ指定（クライアント入力）を検証・整形する
+ * focusGsnNodes（詳述するノード）は heatmapGsnNodes に含まれるIDのみ残す
+ * ノードの concerns は heatmapGsnConcerns の範囲内のインデックスのみ残す
+ */
+function sanitizeGsnHeatmapInput(
+  heatmapGsnNodes: unknown,
+  focusGsnNodes: unknown,
+  heatmapGsnConcerns: unknown
+): {
+  heatmapGsnNodes?: HeatmapGsnNodeInput[];
+  focusGsnNodes?: FocusGsnNodeInput[];
+  heatmapGsnConcerns?: string[];
+} {
+  if (!Array.isArray(heatmapGsnNodes) || heatmapGsnNodes.length === 0) return {};
+
+  const clip = (value: unknown): string | undefined => {
+    if (value === null || value === undefined) return undefined;
+    const text = String(value).trim();
+    return text ? text.slice(0, MAX_HEATMAP_FIELD_CHARS) : undefined;
+  };
+
+  const concerns = Array.isArray(heatmapGsnConcerns)
+    ? heatmapGsnConcerns
+        .map((c) => clip(c))
+        .filter((c): c is string => !!c)
+        .slice(0, MAX_FOCUS_CONCERNS)
+    : [];
+
+  const nodes: HeatmapGsnNodeInput[] = heatmapGsnNodes
+    .slice(0, MAX_HEATMAP_RISKS)
+    .filter((n): n is Record<string, unknown> => !!n && typeof n === 'object')
+    .map((n) => ({
+      id: clip(n.id) ?? '',
+      type: clip(n.type),
+      text: clip(n.text),
+      status: clip(n.status) ?? null,
+      severity: clip(n.severity) ?? null,
+      severitySource: clip(n.severitySource),
+      parentIds: Array.isArray(n.parentIds)
+        ? n.parentIds
+            .map((p) => clip(p))
+            .filter((p): p is string => !!p)
+            .slice(0, MAX_PARENT_IDS)
+        : undefined,
+      concerns:
+        concerns.length > 0 && Array.isArray(n.concerns)
+          ? n.concerns.filter(
+              (i): i is number => Number.isInteger(i) && (i as number) >= 0 && (i as number) < concerns.length
+            )
+          : undefined,
+    }))
+    .filter((n) => n.id);
+  if (nodes.length === 0) return {};
+
+  const ids = new Set(nodes.map((n) => n.id));
+  const focus: FocusGsnNodeInput[] = Array.isArray(focusGsnNodes)
+    ? focusGsnNodes
+        .filter((f): f is Record<string, unknown> => !!f && typeof f === 'object')
+        .map((f) => ({
+          id: clip(f.id) ?? '',
+          concerns: Array.isArray(f.concerns)
+            ? f.concerns
+                .map((c) => clip(c))
+                .filter((c): c is string => !!c)
+                .slice(0, MAX_FOCUS_CONCERNS)
+            : [],
+          reason: clip(f.reason),
+        }))
+        .filter((f) => ids.has(f.id))
+    : [];
+
+  return {
+    heatmapGsnNodes: nodes,
+    focusGsnNodes: focus.length > 0 ? focus : undefined,
+    heatmapGsnConcerns: concerns.length > 0 ? concerns : undefined,
+  };
+}
+
 // ストリーミングハンドラーの実装
 async function streamHandler(
   event: APIGatewayProxyEventV2,
@@ -187,6 +271,11 @@ async function streamHandler(
       userIdentifier = 'anonymous',
     } = body;
     const { heatmapRisks, focusRiskIds } = sanitizeHeatmapInput(body.heatmapRisks, body.focusRiskIds);
+    const { heatmapGsnNodes, focusGsnNodes, heatmapGsnConcerns } = sanitizeGsnHeatmapInput(
+      body.heatmapGsnNodes,
+      body.focusGsnNodes,
+      body.heatmapGsnConcerns
+    );
 
     // バリデーション
     if (!stakeholder || !reportStructure) {
@@ -344,6 +433,9 @@ async function streamHandler(
       structureDescription: reportStructure.description,
       heatmapRisks,
       focusRiskIds,
+      heatmapGsnNodes,
+      focusGsnNodes,
+      heatmapGsnConcerns,
     });
 
     // ステップ5: Claude APIストリーミング呼び出し

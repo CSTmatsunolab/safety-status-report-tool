@@ -76,6 +76,27 @@ export interface HeatmapRiskInput {
   status?: string;
 }
 
+// GSNノードヒートマップ（画面で抽出）の1ノード。値は文書記載のまま
+export interface HeatmapGsnNodeInput {
+  id: string;
+  type?: string;
+  text?: string;
+  status?: string | null;
+  severity?: string | null;
+  severitySource?: string;
+  // 親ノードのID（[] = トップゴール）。ヒートマップの縦軸（GSNの深さ）に使う
+  parentIds?: string[];
+  // 関係する関心事（GenerateReportRequest.heatmapGsnConcerns のインデックス）
+  concerns?: number[];
+}
+
+// ステークホルダの関心事に基づき、本レポートで詳述するGSNノード（画面で選択）
+export interface FocusGsnNodeInput {
+  id: string;
+  concerns: string[];
+  reason?: string;
+}
+
 export interface GenerateReportRequest {
   stakeholder: Stakeholder;
   reportStructure: ReportStructureTemplate;
@@ -86,4 +107,9 @@ export interface GenerateReportRequest {
   // 文書の全リスクと、本レポートで必ず扱うリスクのID（リスクヒートマップで指定）
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  // GSNノードヒートマップの元データ（画面で抽出。表示のみで選択はしない）
+  heatmapGsnNodes?: HeatmapGsnNodeInput[];
+  focusGsnNodes?: FocusGsnNodeInput[];
+  // GSNノードヒートマップの横軸（ステークホルダの関心事）
+  heatmapGsnConcerns?: string[];
 }

@@ -1,10 +1,12 @@
 // src/hooks/useRiskFocus.ts
-// レポート生成前のリスクヒートマップ用フック
+// レポート生成前のヒートマップ用フック
 // アップロード文書からリスクを抽出し、ステークホルダごとに「記述すべきリスク」を選択・調整する
+// GSNファイルが指定されていればGSNノード（重大度×達成状況、表示のみ）も同時に抽出する
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Stakeholder, UploadedFile } from '@/types';
 import { RiskHeatmapItem } from '@/lib/risk-heatmap';
+import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
 import { selectFocusRisks } from '@/lib/stakeholder-risk-rules';
 
 const filesKeyOf = (files: UploadedFile[]) => files.map((f) => f.id).join('|');
@@ -15,6 +17,9 @@ export function useRiskFocus(
   language: 'ja' | 'en'
 ) {
   const [risks, setRisks] = useState<RiskHeatmapItem[] | null>(null);
+  // null = 未抽出（GSNファイル未指定を含む）
+  const [gsnNodes, setGsnNodes] = useState<GsnHeatmapItem[] | null>(null);
+  const [gsnError, setGsnError] = useState<string | null>(null);
   const [extractedFilesKey, setExtractedFilesKey] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +50,7 @@ export function useRiskFocus(
     if (files.length === 0) return;
     setIsExtracting(true);
     setError(null);
+    setGsnError(null);
     try {
       const response = await fetch('/api/extract-risks', {
         method: 'POST',
@@ -54,6 +60,8 @@ export function useRiskFocus(
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       setRisks(data.risks as RiskHeatmapItem[]);
+      setGsnNodes((data.gsnNodes as GsnHeatmapItem[] | null) ?? null);
+      setGsnError(data.gsnError ?? null);
       setTruncated(!!data.truncated);
       setExtractedFilesKey(filesKeyOf(files));
     } catch (e) {
@@ -84,13 +92,20 @@ export function useRiskFocus(
   );
 
   // レポート生成に渡すデータ（抽出結果が最新で、ステークホルダ選択済みのときのみ）
+  // GSNノードはヒートマップの元データとしてのみ渡す（選択はしない）
   const generationParams =
     risks && stakeholder && !isStale
-      ? { heatmapRisks: risks, focusRiskIds: risks.filter((r) => focusIds.has(r.id)).map((r) => r.id) }
+      ? {
+          heatmapRisks: risks,
+          focusRiskIds: risks.filter((r) => focusIds.has(r.id)).map((r) => r.id),
+          ...(gsnNodes && gsnNodes.length > 0 ? { heatmapGsnNodes: gsnNodes } : {}),
+        }
       : {};
 
   return {
     risks,
+    gsnNodes,
+    gsnError,
     heatmapItems,
     focusIds,
     reasons,

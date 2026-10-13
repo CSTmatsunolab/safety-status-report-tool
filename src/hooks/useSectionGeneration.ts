@@ -6,6 +6,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { RiskHeatmapItem } from '@/lib/risk-heatmap';
+import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
+import { FocusGsnNode } from '@/lib/gsn-concerns';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
@@ -49,6 +51,13 @@ interface GenerateReportParams {
   // リスクヒートマップで抽出した文書の全リスクと、本レポートで必ず扱うリスクのID
   heatmapRisks?: RiskHeatmapItem[];
   focusRiskIds?: string[];
+  // GSNノードヒートマップの元データ（生成前に抽出したもの。レポート内の gsn-heatmap ブロックに使う）
+  heatmapGsnNodes?: GsnHeatmapItem[];
+  // ステークホルダの関心事に基づき、本レポートで詳述するGSNノード
+  focusGsnNodes?: FocusGsnNode[];
+  // レポート内GSNヒートマップの横軸（ステークホルダの関心事）と、ノードID → 関心事のインデックス
+  heatmapGsnConcerns?: string[];
+  gsnNodeConcerns?: Record<string, number[]>;
 }
 
 interface LambdaStreamMessage {
@@ -121,7 +130,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnConcerns, gsnNodeConcerns } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -188,6 +197,18 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
           status,
         })),
         focusRiskIds,
+        heatmapGsnNodes: heatmapGsnNodes?.map(({ id, type, text, rawStatus, rawSeverity, severitySource, parentIds }) => ({
+          id,
+          type,
+          text,
+          status: rawStatus ?? null,
+          severity: rawSeverity ?? null,
+          severitySource,
+          parentIds,
+          concerns: gsnNodeConcerns ? gsnNodeConcerns[id] ?? [] : undefined,
+        })),
+        heatmapGsnConcerns,
+        focusGsnNodes,
       }),
       signal,
     });

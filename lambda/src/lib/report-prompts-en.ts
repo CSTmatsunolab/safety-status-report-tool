@@ -7,7 +7,7 @@
 //   - Added common GSN analysis notes as batch
 //   - Removed duplicated "causal relationships only when documented" etc. from individual functions
 
-import { HeatmapRiskInput, Stakeholder } from '../types';
+import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -874,6 +874,7 @@ Assign sequential numbers and titles to all figures and tables.
   \`\`\`
 - Reference from text: "As shown in Figure 1", "See Figure 2"
 - **Exception: Risk Heatmap / Risk Assessment Matrix** must NOT be a placeholder; output it as the \`risk-heatmap\` code block defined in the RISK ANALYSIS section (the system renders it)
+- **Exception: GSN Node Heatmap** (when a GSN file is provided) must NOT be a placeholder either; output it as the \`gsn-heatmap\` code block defined below (the system renders it)
 
 ### Figure/Table Insertion Rules
 - Use sequential numbering throughout the document (Table 1, Table 2..., Figure 1, Figure 2...)
@@ -1074,6 +1075,112 @@ ${sectionsFormatted}`;
 }
 
 // ============================================================================
+// 13b. GSN node heatmap
+// ============================================================================
+
+/**
+ * Instructions for the GSN nodes the user selected to detail, based on the stakeholder's concerns
+ * (empty string when nothing is specified)
+ */
+function generateFocusGsnNodePromptEN(
+  heatmapGsnNodes: HeatmapGsnNodeInput[] | undefined,
+  focusGsnNodes: FocusGsnNodeInput[] | undefined,
+  stakeholder?: Stakeholder
+): string {
+  if (!heatmapGsnNodes || !focusGsnNodes || focusGsnNodes.length === 0) return '';
+
+  const byId = new Map(heatmapGsnNodes.map((n) => [n.id, n]));
+  const focusIds = new Set(focusGsnNodes.map((f) => f.id));
+  const othersCount = heatmapGsnNodes.filter((n) => !focusIds.has(n.id)).length;
+  const fmt = (v?: string | null) => (v ? v : 'Not documented');
+  const role = stakeholder?.role ?? 'the reader';
+
+  const lines = focusGsnNodes.map((f) => {
+    const node = byId.get(f.id);
+    const concern = f.concerns.length > 0 ? f.concerns.join(', ') : '(none specified)';
+    return `- ${f.id}${node?.text ? `: ${node.text}` : ''} (Status: ${fmt(node?.status)} / Severity: ${fmt(node?.severity)} / Concerns: ${concern}${f.reason ? ` — ${f.reason}` : ''})`;
+  });
+
+  return `
+
+### GSN Nodes to Detail in This Report (user-specified, mapped to concerns)
+※ This is NOT a section definition. Do not add a new chapter or section to the report structure; write about them inside existing ones.
+On the GSN node heatmap, the user selected the nodes related to the concerns of ${role} as ones this report must describe in detail.
+This specification takes precedence over stakeholder-specific information filtering, volume rules, and node limits in the GSN analysis (e.g. "main goals only").
+
+**Nodes to detail (${focusGsnNodes.length})**: Address each node individually and always include its node ID. Within what is documented, describe:
+1. Its status and the evidence supporting it (Solutions, referenced documents)
+2. Related hazards/risks (with IDs) and their severity
+3. Open issues and remaining work
+4. What it means for ${role} from the viewpoint of the mapped concerns below (decisions, explanations, or actions needed)
+${lines.join('\n')}
+
+**Other nodes (${othersCount})**: Do not give them their own sections or detailed explanations; mention them only briefly within the summary of the overall argument status.
+
+※ Per Anti-Hallucination Rules (Section 2), describe causes, impacts, and outlook only when documented. Otherwise state "[Requires investigation]".`;
+}
+
+/**
+ * Instructions for the GSN node heatmap (gsn-heatmap block)
+ * - Empty when there is no GSN file
+ * - When heatmapGsnNodes (extracted on screen) is given, the model uses it as is
+ * ※ Uses ### only: a ## heading would compete with the GSN-derived outline as a second structure definition
+ */
+export function generateGsnHeatmapPromptEN(
+  hasGSN: boolean,
+  heatmapGsnNodes?: HeatmapGsnNodeInput[],
+  focusGsnNodes?: FocusGsnNodeInput[],
+  stakeholder?: Stakeholder,
+  heatmapGsnConcerns?: string[]
+): string {
+  if (!hasGSN) return '';
+
+  const role = stakeholder?.role ?? 'the reader';
+  // Concerns used as the horizontal axis (as mapped on screen, else the stakeholder's concerns)
+  const concerns = heatmapGsnConcerns && heatmapGsnConcerns.length > 0 ? heatmapGsnConcerns : stakeholder?.concerns ?? [];
+  const mapped = !!heatmapGsnConcerns && heatmapGsnConcerns.length > 0;
+  const concernRule =
+    concerns.length > 0
+      ? `- Each node's \`concerns\` lists the numbers (0-based positions in the \`concerns\` array) of the concerns it relates to. Include a concern only when the relation can be explained from the node's documented content; otherwise \`[]\` (no guessing)`
+      : '';
+
+  const dataRule =
+    heatmapGsnNodes && heatmapGsnNodes.length > 0
+      ? `- Use the following JSON (all nodes extracted from the documents${mapped ? ', already mapped to concerns' : ''}) exactly as given (only adjust the figure number in title to match the document numbering${mapped || concerns.length === 0 ? '' : '; only add each node\'s `concerns` per the rule below'}).
+\`\`\`gsn-heatmap
+${JSON.stringify({ title: 'Figure X: GSN Node Heatmap', ...(concerns.length > 0 ? { concerns } : {}), nodes: heatmapGsnNodes })}
+\`\`\`${mapped ? '' : concernRule ? `\n${concernRule}` : ''}`
+      : `- List **all** Goal / Strategy / Solution / Undeveloped nodes documented in the GSN file in \`nodes\` (exclude Context / Assumption / Justification; include nodes not discussed in the body)
+- Copy \`status\` exactly as documented (Achieved/Partially achieved/Not achieved/Undeveloped, etc.). Use \`null\` if not documented
+- \`parentIds\` lists the parent node IDs copied from the documents (parent node column, tree diagram). Use \`[]\` for the top goal and \`null\` if it cannot be read (no guessing)
+- Determine \`severity\` in this order, copying the documented value as is (estimation or filling-in is prohibited):
+  1. The severity / ASIL documented for the node itself
+  2. Otherwise, the highest documented severity or impact of the hazards/risks (H-xxx, R-xxx, etc.) cited by the node's content or rationale
+  3. Otherwise \`null\`
+- \`severitySource\` states where severity came from (e.g. "H-101, H-103 (Serious)")${concerns.length > 0 ? `\n- Set \`concerns\` to this list of concerns as is: ${JSON.stringify(concerns)}\n${concernRule}` : ''}`;
+
+  return `
+
+### GSN Node Heatmap (gsn-heatmap block)
+※ This is NOT a section definition. Do not add a new chapter or section to the report structure; place it inside an existing one.
+Output **exactly one** code block of the following form in the entire report. The system renders it as a "GSN depth (vertical) × concerns of ${role} (horizontal)" heatmap (cell color = status)
+and highlights the nodes mentioned in the body of this report.
+
+\`\`\`gsn-heatmap
+{"title":"Figure X: GSN Node Heatmap","concerns":["Concern A","Concern B"],"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"Documented node statement","status":"Partially achieved","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"concerns":[1]}]}
+\`\`\`
+
+- Placement: inside the chapter covering GSN analysis / argument status. If there is no such chapter, at the end of the report
+- The language tag must be \`gsn-heatmap\`, and the content must be valid JSON only (no comments, no trailing commas)
+${dataRule}
+- Right after the block, add a one-line note such as "※ This figure places the GSN nodes on a GSN depth (vertical) × concerns of ${role} (horizontal) matrix; color shows achievement status and highlighting shows the nodes discussed in this report."
+
+### GSN Node IDs (required)
+Whenever the body (including tables and bullet lists) refers to an individual GSN node, always include its node ID (e.g. G1.2, Sn3).
+Heatmap highlighting is determined by the node IDs appearing in the body.${generateFocusGsnNodePromptEN(heatmapGsnNodes, focusGsnNodes, stakeholder)}`;
+}
+
+// ============================================================================
 // 14. Build Complete User Prompt (v5 Update)
 // ============================================================================
 
@@ -1086,8 +1193,11 @@ export function buildCompleteUserPromptEN(params: {
   structureDescription?: string;
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  heatmapGsnNodes?: HeatmapGsnNodeInput[];
+  focusGsnNodes?: FocusGsnNodeInput[];
+  heatmapGsnConcerns?: string[];
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnConcerns } = params;
 
   // Prompt assembly order (by importance — no duplicates)
   const parts = [
@@ -1116,6 +1226,7 @@ export function buildCompleteUserPromptEN(params: {
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
     generateRiskAnalysisPromptEN(heatmapRisks, focusRiskIds),
+    generateGsnHeatmapPromptEN(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnConcerns),
     
     // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),

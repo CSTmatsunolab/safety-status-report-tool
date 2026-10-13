@@ -7,7 +7,7 @@
 //   - GSN分析の共通注意書きを一括付与
 //   - 各関数から「因果関係は文書記載がある場合のみ」等の重複記述を除去
 
-import { HeatmapRiskInput, Stakeholder } from '../types';
+import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, Stakeholder } from '../types';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -875,6 +875,7 @@ export function generateFigureRequirementsPrompt(hasGSNFile: boolean, stakeholde
   \`\`\`
 - 本文からの参照: 「図1に示す通り」「図2を参照」
 - **例外: リスクヒートマップ／リスク評価マトリクス**はプレースホルダーではなく、「リスク分析」節で定める \`risk-heatmap\` コードブロックで出力すること（システムが描画する）
+- **例外: GSNノードヒートマップ**（GSNファイルがある場合）もプレースホルダーではなく、後述の \`gsn-heatmap\` コードブロックで出力すること（システムが描画する）
 
 ### 図表挿入ルール
 - 図表番号は文書全体で通し番号（表1, 表2...、図1, 図2...）
@@ -1075,6 +1076,112 @@ ${sectionsFormatted}`;
 }
 
 // ============================================================================
+// 13b. GSNノードヒートマップ
+// ============================================================================
+
+/**
+ * ステークホルダの関心事に基づきユーザーが選んだ「詳述するGSNノード」の指示
+ * （指定がない場合は空文字＝従来どおり）
+ */
+function generateFocusGsnNodePrompt(
+  heatmapGsnNodes: HeatmapGsnNodeInput[] | undefined,
+  focusGsnNodes: FocusGsnNodeInput[] | undefined,
+  stakeholder?: Stakeholder
+): string {
+  if (!heatmapGsnNodes || !focusGsnNodes || focusGsnNodes.length === 0) return '';
+
+  const byId = new Map(heatmapGsnNodes.map((n) => [n.id, n]));
+  const focusIds = new Set(focusGsnNodes.map((f) => f.id));
+  const othersCount = heatmapGsnNodes.filter((n) => !focusIds.has(n.id)).length;
+  const fmt = (v?: string | null) => (v ? v : '記載なし');
+  const role = stakeholder?.role ?? '読者';
+
+  const lines = focusGsnNodes.map((f) => {
+    const node = byId.get(f.id);
+    const concern = f.concerns.length > 0 ? f.concerns.join('・') : '（指定なし）';
+    return `- ${f.id}${node?.text ? `: ${node.text}` : ''}（達成状況: ${fmt(node?.status)} / 重大度: ${fmt(node?.severity)} / 関心事: ${concern}${f.reason ? ` — ${f.reason}` : ''}）`;
+  });
+
+  return `
+
+### 本レポートで詳述するGSNノード（ユーザー指定・関心事との対応）
+※ これはセクション定義ではない。レポート構成に新しい章・節を追加せず、既存の章の中で記述すること。
+ユーザーがGSNノードヒートマップ上で、${role} の関心事に関係するノードを、本レポートで詳しく記述すべきものとして選択した。
+この指定は、ステークホルダー別の情報の絞り込み・分量規則、およびGSN分析の「主要ゴールのみ」等の対象ノードの制限より優先する。
+
+**詳述するノード（${focusGsnNodes.length}件）**: 各ノードを個別に取り上げ、必ずノードIDを併記する。文書記載の範囲で次を記述する。
+1. 達成状況と、その根拠となる証拠（Solution・参照文書）
+2. 関連するハザード／リスク（ID併記）と重大度
+3. 未解決の事項・残作業
+4. 対応する関心事（下記）の観点から、${role} にとっての意味（判断・説明・対応が必要な点）
+${lines.join('\n')}
+
+**それ以外のノード（${othersCount}件）**: 個別の節や詳しい説明は設けず、論証全体の達成状況の要約の中で簡潔に触れるに留める。
+
+※ 原因・影響・今後の見通しはハルシネーション防止規則（第2項）に準拠し、文書記載がある場合のみ記述する。記載がなければ「【要調査】」と明記する。`;
+}
+
+/**
+ * GSNノードヒートマップ（gsn-heatmap ブロック）の出力指示
+ * - GSNファイルが無い場合は空文字
+ * - heatmapGsnNodes（画面で抽出済み）があればそのまま使わせる
+ * ※ ## 見出しを含めると GSN由来アウトラインと競合する第2の構成定義になるため ### のみ使う
+ */
+export function generateGsnHeatmapPrompt(
+  hasGSN: boolean,
+  heatmapGsnNodes?: HeatmapGsnNodeInput[],
+  focusGsnNodes?: FocusGsnNodeInput[],
+  stakeholder?: Stakeholder,
+  heatmapGsnConcerns?: string[]
+): string {
+  if (!hasGSN) return '';
+
+  const role = stakeholder?.role ?? '読者';
+  // 横軸に使う関心事（画面で対応付け済みならそれ、無ければステークホルダの関心事）
+  const concerns = heatmapGsnConcerns && heatmapGsnConcerns.length > 0 ? heatmapGsnConcerns : stakeholder?.concerns ?? [];
+  const mapped = !!heatmapGsnConcerns && heatmapGsnConcerns.length > 0;
+  const concernRule =
+    concerns.length > 0
+      ? `- 各ノードの \`concerns\` には、そのノードが関係する関心事の番号（\`concerns\` 配列の0始まりの番号）を入れる。関係がノードの記載内容から説明できる場合のみ入れ、無ければ \`[]\`（推測は禁止）`
+      : '';
+
+  const dataRule =
+    heatmapGsnNodes && heatmapGsnNodes.length > 0
+      ? `- 次のJSON（文書から抽出した全ノード${mapped ? '・関心事との対応付け済み' : ''}）をそのまま使用する（title の図番号のみ本文の通し番号に合わせて変更する${mapped || concerns.length === 0 ? '' : '。各ノードの `concerns` のみ下記の規則で追加する'}）。
+\`\`\`gsn-heatmap
+${JSON.stringify({ title: '図X: GSNノードヒートマップ', ...(concerns.length > 0 ? { concerns } : {}), nodes: heatmapGsnNodes })}
+\`\`\`${mapped ? '' : concernRule ? `\n${concernRule}` : ''}`
+      : `- \`nodes\` にはGSNファイルに記載された Goal / Strategy / Solution / Undeveloped ノードを**すべて**列挙する（Context / Assumption / Justification は含めない。本文で扱わないノードも含める）
+- \`status\`（達成状況）は文書の記載値をそのまま転記する（達成/部分達成/未達成/未展開 等）。記載がなければ \`null\`
+- \`parentIds\` には親ノードのIDを文書（親ノード欄・ツリー図）から転記する。トップゴールは \`[]\`、読み取れなければ \`null\`（推定は禁止）
+- \`severity\`（重大度）は次の順で決め、文書の記載値をそのまま転記する（推定・補完は禁止）:
+  1. ノード自身に記載された重大度・ASIL
+  2. 無ければ、ノードの内容・根拠が参照するハザード／リスク（H-xxx, R-xxx 等）の文書記載の重大度・影響度のうち最も高い値
+  3. どちらも無ければ \`null\`
+- \`severitySource\` には severity の出典（例: "H-101, H-103 (Serious)"）を書く${concerns.length > 0 ? `\n- \`concerns\` には次の関心事の一覧をそのまま入れる: ${JSON.stringify(concerns)}\n${concernRule}` : ''}`;
+
+  return `
+
+### GSNノードヒートマップ（gsn-heatmap ブロック）
+※ これはセクション定義ではない。レポート構成に新しい章・節を追加せず、既存の章の中に出力すること。
+以下の形式のコードブロックを**レポート全体で1つ**出力すること。システムがこれを「GSNの深さ（縦軸）× ${role} の関心事（横軸）」のヒートマップとして描画し（セルの色＝達成状況）、
+本レポートの本文で言及したノードを強調表示する。
+
+\`\`\`gsn-heatmap
+{"title":"図X: GSNノードヒートマップ","concerns":["関心事A","関心事B"],"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"ノードの記載内容","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"concerns":[1]}]}
+\`\`\`
+
+- 出力位置: GSN分析・論証の達成状況を扱う章の中。該当する章がない場合はレポートの末尾
+- 言語指定は必ず \`gsn-heatmap\` とし、中身は有効なJSONのみ（コメント・末尾カンマ禁止）
+${dataRule}
+- ブロックの直後に「※ 本図はGSNノードをGSNの深さ（縦軸）と${role}の関心事（横軸）のマトリクスに配置し、色で達成状況を、強調で本レポートで言及したノードを示したもの。」のような1行の説明を付ける
+
+### GSNノードIDの併記（必須）
+本文（表・箇条書きを含む）で個別のGSNノードに言及する際は、必ずノードID（例: G1.2, Sn3）を併記すること。
+ヒートマップの強調表示は、本文中のノードIDの出現で判定される。${generateFocusGsnNodePrompt(heatmapGsnNodes, focusGsnNodes, stakeholder)}`;
+}
+
+// ============================================================================
 // 14. 完全なユーザープロンプトの組み立て（v5更新）
 // ============================================================================
 
@@ -1087,8 +1194,11 @@ export function buildCompleteUserPrompt(params: {
   structureDescription?: string;
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  heatmapGsnNodes?: HeatmapGsnNodeInput[];
+  focusGsnNodes?: FocusGsnNodeInput[];
+  heatmapGsnConcerns?: string[];
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnConcerns } = params;
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   const parts = [
@@ -1117,6 +1227,7 @@ export function buildCompleteUserPrompt(params: {
     generateGSNAnalysisPrompt(hasGSN, stakeholder),
     generateFigureRequirementsPrompt(hasGSN, stakeholder),
     generateRiskAnalysisPrompt(heatmapRisks, focusRiskIds),
+    generateGsnHeatmapPrompt(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnConcerns),
     
     // 9. 不適切ファイル対応（参考）
     generateInvalidFileGuidelines(),

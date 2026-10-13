@@ -1,7 +1,7 @@
 // src/lib/markdown-parser.ts
 // Markdownコンテンツをパースして構造化データに変換するユーティリティ
 
-import { replaceHeatmapBlocksWithTable } from '@/lib/risk-heatmap';
+import { replaceAllHeatmapBlocksWithTables } from '@/lib/gsn-heatmap';
 
 export interface ParsedBlock {
   type: 'h1' | 'h2' | 'h3' | 'h4' | 'paragraph' | 'listItem' | 'numberedListItem' | 'table' | 'hr' | 'blockquote' | 'code';
@@ -73,8 +73,8 @@ export function fixNumberedLists(text: string): string {
  * Markdownコンテンツをパースして構造化ブロックの配列に変換
  */
 export function parseMarkdown(content: string): ParsedBlock[] {
-  // risk-heatmap ブロック（JSON）はエクスポートでは表として出力する
-  const fixedContent = fixNumberedLists(replaceHeatmapBlocksWithTable(content));
+  // risk-heatmap / gsn-heatmap ブロック（JSON）はエクスポートでは表として出力する
+  const fixedContent = fixNumberedLists(replaceAllHeatmapBlocksWithTables(content));
   const lines = fixedContent.split('\n');
   const blocks: ParsedBlock[] = [];
   let i = 0;
