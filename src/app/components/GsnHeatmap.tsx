@@ -1,6 +1,8 @@
 // src/app/components/GsnHeatmap.tsx
-// GSNノードヒートマップ（縦軸＝GSNの深さ × 横軸＝ステークホルダの関心事）の描画コンポーネント
-// セルの色はセル内ノードの最も悪い達成状況（未展開=赤 → 達成=緑）。どの関心事にも関係しないノードは「関連なし」列に置く
+// GSNノードヒートマップ（縦軸＝GSNの深さ × 横軸＝必要情報カテゴリー）の描画コンポーネント
+// 横軸は固定のカテゴリー（src/lib/gsn-categories.ts）。どのカテゴリーにも入らないノードは「該当なし」列に置く
+// セルの色はセル内ノードの最も悪い達成状況（未展開=赤 → 達成=緑）
+// highlightCategories を渡すと、そのステークホルダが必要とするカテゴリーの列を強調する
 // onToggle を渡すと、クリックで「詳述する／しない」を切り替える選択モードになる
 'use client';
 
@@ -25,6 +27,7 @@ import {
   axisLabelClass,
   cellStateClass,
 } from './heatmap-styles';
+import { GSN_CATEGORY_IDS, gsnCategoryLabel } from '@/lib/gsn-categories';
 
 // ノード種別ごとのチップ形状（GSN表記に寄せる: Goal=四角 / Strategy=斜体の角張り / Solution=丸）
 const KIND_SHAPES: Record<GsnNodeKind, string> = {
@@ -34,9 +37,9 @@ const KIND_SHAPES: Record<GsnNodeKind, string> = {
   other: 'rounded',
 };
 
-// 列のキー: 関心事のインデックス（0〜）、関連なし、関心事未設定
-const NO_CONCERN = -1;
-const UNSET_CONCERN = -2;
+// 列のキー: カテゴリーID と「該当なし」
+const NO_CATEGORY = 'none';
+const COLUMNS = [...GSN_CATEGORY_IDS, NO_CATEGORY];
 
 // 達成状況が記載されていないノードだけのセル
 const UNKNOWN_STATUS_CELL = 'bg-gray-200 dark:bg-gray-700';
@@ -48,11 +51,11 @@ const TEXTS = {
   ja: {
     title: 'GSNノードヒートマップ',
     depth: 'GSNの深さ',
-    concernAxis: '関心事',
+    categoryAxis: '必要情報カテゴリー',
+    needed: '必要',
     depthLabel: (d: number) => (d === 0 ? '0 トップ' : String(d)),
     depthUnknown: '不明',
-    noConcern: '関連なし',
-    unsetConcern: '関心事未設定',
+    noCategory: '該当なし',
     status: '達成状況',
     severity: '重大度',
     severitySource: '重大度の出典',
@@ -62,7 +65,7 @@ const TEXTS = {
     empty: 'GSNノードのデータがありません。',
     countNeutral: (total: number) => `GSNノード ${total}件`,
     count: (on: number, total: number, label: string) => `GSNノード ${total}件（うち${label} ${on}件）`,
-    note: '※ 縦軸はトップゴールからの段数、色はセル内で最も悪い達成状況。列見出しをクリックするとその関心事で絞り込み',
+    note: '※ 縦軸はトップゴールからの段数、色はセル内で最も悪い達成状況。列見出しをクリックするとそのカテゴリーで絞り込み',
     noteUnknownDepth: '親子関係が読み取れないノードは「不明」の行に置いています',
     inReport: '本レポートで言及',
     notInReport: '本レポート未言及',
@@ -74,11 +77,11 @@ const TEXTS = {
   en: {
     title: 'GSN Node Heatmap',
     depth: 'GSN depth',
-    concernAxis: 'Concerns',
+    categoryAxis: 'Information categories',
+    needed: 'Needed',
     depthLabel: (d: number) => (d === 0 ? '0 top' : String(d)),
     depthUnknown: 'Unknown',
-    noConcern: 'Unrelated',
-    unsetConcern: 'No concerns set',
+    noCategory: 'None',
     status: 'Status',
     severity: 'Severity',
     severitySource: 'Severity source',
@@ -88,7 +91,7 @@ const TEXTS = {
     empty: 'No GSN node data.',
     countNeutral: (total: number) => `${total} GSN nodes`,
     count: (on: number, total: number, label: string) => `${total} GSN nodes (${label}: ${on})`,
-    note: '* Rows are levels below the top goal; color is the worst status in the cell. Click a column header to filter by that concern',
+    note: '* Rows are levels below the top goal; color is the worst status in the cell. Click a column header to filter by that category',
     noteUnknownDepth: 'Nodes whose parents cannot be read are placed in the "Unknown" row',
     inReport: 'Mentioned in this report',
     notInReport: 'Not mentioned',
@@ -111,13 +114,13 @@ interface GsnHeatmapProps {
   onToggle?: (id: string) => void;
   // ノードID → 強調の理由（一覧に表示）
   reasons?: Record<string, string>;
-  // 横軸に使うステークホルダの関心事と、ノードID → 関係する関心事のインデックス
-  // nodeConcerns が未指定なら各ノードの concernIdxs を使う（レポート内ブロック用）
-  concerns?: string[];
-  nodeConcerns?: Record<string, number[]>;
-  // 絞り込み中の関心事（null = すべて）。onConcernChange が無ければ内部で保持する
-  activeConcern?: number | null;
-  onConcernChange?: (index: number | null) => void;
+  // ステークホルダが必要とするカテゴリーのID（列を強調する）
+  highlightCategories?: string[] | null;
+  // 強調の説明（例: 「CxO が必要」）。未指定なら「必要」
+  highlightLabel?: string;
+  // 絞り込み中のカテゴリー（null = すべて）。onCategoryChange が無ければ内部で保持する
+  activeCategory?: string | null;
+  onCategoryChange?: (id: string | null) => void;
 }
 
 export function GsnHeatmap({
@@ -126,10 +129,10 @@ export function GsnHeatmap({
   labels,
   onToggle,
   reasons,
-  concerns,
-  nodeConcerns,
-  activeConcern: activeConcernProp,
-  onConcernChange,
+  highlightCategories,
+  highlightLabel,
+  activeCategory: activeCategoryProp,
+  onCategoryChange,
 }: GsnHeatmapProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
@@ -141,22 +144,18 @@ export function GsnHeatmap({
   // クリックで固定する選択と、ホバー中の一時的な強調
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [localConcern, setLocalConcern] = useState<number | null>(null);
-  const activeConcern = onConcernChange ? activeConcernProp ?? null : localConcern;
-  const setActiveConcern = onConcernChange ?? setLocalConcern;
+  const [localCategory, setLocalCategory] = useState<string | null>(null);
+  const activeCategory = onCategoryChange ? activeCategoryProp ?? null : localCategory;
+  const setActiveCategory = onCategoryChange ?? setLocalCategory;
 
-  const hasConcerns = !!concerns && concerns.length > 0;
-  const concernsOf = (node: GsnHeatmapItem): number[] =>
-    hasConcerns ? (nodeConcerns ? nodeConcerns[node.id] : node.concernIdxs) ?? [] : [];
-  // ノードが置かれる列（関心事が無いノードは「関連なし」、関心事未設定なら1列）
-  const columnsOf = (node: GsnHeatmapItem): number[] => {
-    if (!hasConcerns) return [UNSET_CONCERN];
-    const idxs = concernsOf(node);
-    return idxs.length > 0 ? idxs : [NO_CONCERN];
+  const highlighted = new Set(highlightCategories ?? []);
+  const hasHighlight = highlighted.size > 0;
+  // ノードが置かれる列（どのカテゴリーにも入らないノードは「該当なし」）
+  const columnsOf = (node: GsnHeatmapItem): string[] => {
+    const ids = (node.categories ?? []).filter((c) => COLUMNS.includes(c));
+    return ids.length > 0 ? ids : [NO_CATEGORY];
   };
-  const columns = hasConcerns ? [...concerns.map((_, i) => i), NO_CONCERN] : [UNSET_CONCERN];
-  const columnLabel = (col: number) =>
-    col === NO_CONCERN ? t.noConcern : col === UNSET_CONCERN ? t.unsetConcern : concerns?.[col] ?? '';
+  const columnLabel = (col: string) => (col === NO_CATEGORY ? t.noCategory : gsnCategoryLabel(col, language));
 
   const depths = computeGsnDepths(nodes);
   const knownDepths = Object.values(depths).filter((d): d is number => d !== null);
@@ -189,18 +188,16 @@ export function GsnHeatmap({
     onFocus: () => setHoveredId(id),
     onBlur: () => setHoveredId(null),
   });
-  // 関心事で絞り込み中に、そのノード・列が対象外か
+  // カテゴリーで絞り込み中に、そのノードが対象外か
   const isFilteredOut = (node: GsnHeatmapItem) =>
-    activeConcern !== null && !columnsOf(node).includes(activeConcern);
+    activeCategory !== null && !columnsOf(node).includes(activeCategory);
   const statusSuffix = (node: GsnHeatmapItem) =>
     neutral ? '' : `（${isInReport(node) ? onLabel : offLabel}）`;
   const chipClass = (node: GsnHeatmapItem) =>
     activeId === node.id ? CHIP_ACTIVE : neutral || isInReport(node) ? CHIP_IN_REPORT : CHIP_DOC_ONLY;
   const statusText = (node: GsnHeatmapItem) => (node.status ? statusLabels[node.status] : t.unknownStatus);
-  const concernNames = (node: GsnHeatmapItem) =>
-    concernsOf(node)
-      .map((i) => concerns?.[i])
-      .filter((c): c is string => !!c);
+  const categoryNames = (node: GsnHeatmapItem) =>
+    (node.categories ?? []).map((c) => gsnCategoryLabel(c, language));
 
   if (nodes.length === 0) {
     return <p className="text-sm text-gray-600 dark:text-gray-400">{t.empty}</p>;
@@ -216,7 +213,7 @@ export function GsnHeatmap({
       </figcaption>
 
       <div className="overflow-x-auto">
-        <div className="flex items-stretch gap-2" style={{ minWidth: `${6 + columns.length * 7}rem` }}>
+        <div className="flex items-stretch gap-2" style={{ minWidth: `${6 + COLUMNS.length * 7}rem` }}>
           {/* 縦軸ラベル */}
           <div className="flex items-center">
             <span className="text-xs font-medium text-gray-700 dark:text-gray-300 [writing-mode:vertical-rl] rotate-180">
@@ -227,27 +224,31 @@ export function GsnHeatmap({
           <div className="flex-1">
             <div
               className="grid gap-1.5"
-              style={{ gridTemplateColumns: `4rem repeat(${columns.length}, minmax(6rem, 1fr))` }}
+              style={{ gridTemplateColumns: `4rem repeat(${COLUMNS.length}, minmax(6rem, 1fr))` }}
             >
-              {/* 横軸見出し（クリックでその関心事に絞り込み） */}
+              {/* 横軸見出し（クリックでそのカテゴリーに絞り込み。ステークホルダが必要とする列は強調） */}
               <div />
-              {columns.map((col) => {
-                const isActiveCol = activeConcern === col || activeColumns.includes(col);
-                return hasConcerns ? (
+              {COLUMNS.map((col) => {
+                const isActiveCol = activeCategory === col || activeColumns.includes(col);
+                const isNeeded = highlighted.has(col);
+                return (
                   <button
                     key={`x-${col}`}
                     type="button"
-                    aria-pressed={activeConcern === col}
-                    onClick={() => setActiveConcern(activeConcern === col ? null : col)}
-                    title={columnLabel(col)}
-                    className={`${axisLabelClass(isActiveCol)} min-h-8 px-1 text-center leading-tight hover:underline`}
+                    aria-pressed={activeCategory === col}
+                    onClick={() => setActiveCategory(activeCategory === col ? null : col)}
+                    title={isNeeded ? `${columnLabel(col)}（${highlightLabel ?? t.needed}）` : columnLabel(col)}
+                    className={`${axisLabelClass(isActiveCol)} min-h-8 flex-col gap-0.5 px-1 text-center leading-tight hover:underline ${
+                      isNeeded && !isActiveCol ? 'border-b-4 border-blue-600 font-bold text-blue-800 dark:border-sky-400 dark:text-sky-200' : ''
+                    } ${hasHighlight && !isNeeded && !isActiveCol ? 'opacity-50' : ''}`}
                   >
-                    {columnLabel(col)}
+                    <span>{columnLabel(col)}</span>
+                    {isNeeded && (
+                      <span className="rounded bg-blue-600 px-1 text-[10px] font-medium text-white dark:bg-sky-400 dark:text-gray-900">
+                        {highlightLabel ?? t.needed}
+                      </span>
+                    )}
                   </button>
-                ) : (
-                  <div key={`x-${col}`} className={`${axisLabelClass(false)} min-h-8 px-1 text-center`}>
-                    {columnLabel(col)}
-                  </div>
                 );
               })}
 
@@ -256,7 +257,7 @@ export function GsnHeatmap({
                   <div className={axisLabelClass(!!active && depths[active.id] === depth)}>
                     {depth === null ? t.depthUnknown : t.depthLabel(depth)}
                   </div>
-                  {columns.map((col) => {
+                  {COLUMNS.map((col) => {
                     const cellNodes = nodes.filter(
                       (n) => depths[n.id] === depth && columnsOf(n).includes(col)
                     );
@@ -265,10 +266,12 @@ export function GsnHeatmap({
                     const band = gsnStatusBand(worstStatus(cellNodes));
                     const background =
                       cellNodes.length === 0 ? EMPTY_CELL : band ? BAND_CELL_STYLES[band] : UNKNOWN_STATUS_CELL;
-                    const filtered = !active && activeConcern !== null && activeConcern !== col;
+                    // カテゴリーで絞り込み中は他の列を、ステークホルダ選択中は不要な列を薄くする
+                    const filtered = !active && activeCategory !== null && activeCategory !== col;
+                    const unneeded = !active && activeCategory === null && hasHighlight && !highlighted.has(col);
                     const stateClass = filtered
                       ? 'border-transparent opacity-20'
-                      : cellStateClass(!!active, isActiveCell, reportNodeCount, cellNodes.length);
+                      : `${cellStateClass(!!active, isActiveCell, reportNodeCount, cellNodes.length)} ${unneeded ? 'opacity-40' : ''}`;
 
                     return (
                       <div
@@ -301,7 +304,7 @@ export function GsnHeatmap({
               ))}
             </div>
             <div className="mt-1 text-center text-xs font-medium text-gray-700 dark:text-gray-300">
-              {hasConcerns ? `${t.concernAxis} →` : ''}
+              {t.categoryAxis} →
             </div>
           </div>
         </div>
@@ -383,7 +386,7 @@ export function GsnHeatmap({
                   </span>
                   <span className="text-gray-500 dark:text-gray-400">{t.kinds[node.kind]}</span>
                   <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{node.text ?? ''}</span>
-                  {concernNames(node).map((name) => (
+                  {categoryNames(node).map((name) => (
                     <span
                       key={name}
                       className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-800 dark:bg-sky-900/40 dark:text-sky-200"
@@ -440,10 +443,10 @@ export function GsnHeatmap({
               {statusText(selected)}
               {selected.rawStatus ? `（${t.documented}: ${selected.rawStatus}）` : ''}
             </span>
-            {concernNames(selected).length > 0 && (
+            {categoryNames(selected).length > 0 && (
               <>
-                <span className="text-gray-500 dark:text-gray-400">{t.concernAxis}</span>
-                <span>{concernNames(selected).join(language === 'ja' ? '・' : ', ')}</span>
+                <span className="text-gray-500 dark:text-gray-400">{t.categoryAxis}</span>
+                <span>{categoryNames(selected).join(language === 'ja' ? '、' : ', ')}</span>
               </>
             )}
             {(selected.severity || selected.rawSeverity) && (

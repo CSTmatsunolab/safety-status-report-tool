@@ -18,7 +18,7 @@ import { useSectionGeneration } from '@/hooks/useSectionGeneration';
 import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
 import { useRiskFocus } from '@/hooks/useRiskFocus';
-import { useGsnConcernFocus } from '@/hooks/useGsnConcernFocus';
+import { useGsnCategoryFocus } from '@/hooks/useGsnCategoryFocus';
 import { RiskFocusPanel } from './components/RiskFocusPanel';
 import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiGrid, FiLoader } from 'react-icons/fi';
 
@@ -74,8 +74,8 @@ export default function Home() {
 
   // ヒートマップ（生成前・リスク／GSNノード）フック
   const riskFocus = useRiskFocus(files, selectedStakeholder, language);
-  // GSNノードの関心事による強調・選択（ステークホルダ選択時にLLMで対応付け）
-  const gsnFocus = useGsnConcernFocus(riskFocus.gsnNodes, selectedStakeholder, language);
+  // GSNノードの必要情報カテゴリーによる強調・選択（ステークホルダが必要とするカテゴリーのノードを詳述）
+  const gsnFocus = useGsnCategoryFocus(riskFocus.gsnNodes, selectedStakeholder, language);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
   // レポート生成中断ハンドラー

@@ -37,11 +37,11 @@ interface HeatmapModalProps {
   onClose: () => void;
   risks: RiskHeatmapItem[];
   gsnNodes: GsnHeatmapItem[];
-  // GSNノードヒートマップの横軸（レポート生成時のステークホルダの関心事）
-  gsnConcerns?: string[];
+  // GSNノードヒートマップで強調する列（レポート対象のステークホルダが必要とする情報カテゴリー）
+  gsnStakeholderCategories?: string[];
 }
 
-export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnConcerns }: HeatmapModalProps) {
+export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderCategories }: HeatmapModalProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
   const riskCount = risks.length > 0 ? risks.length : null;
@@ -93,7 +93,7 @@ export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnConcerns }: 
         {kind === 'risk' ? (
           riskCount ? <RiskHeatmap risks={risks} /> : <p className="text-sm text-gray-600 dark:text-gray-400">{t.noRisk}</p>
         ) : gsnCount ? (
-          <GsnHeatmap nodes={gsnNodes} concerns={gsnConcerns} />
+          <GsnHeatmap nodes={gsnNodes} highlightCategories={gsnStakeholderCategories} />
         ) : (
           <p className="text-sm text-gray-600 dark:text-gray-400">{t.noGsn}</p>
         )}
@@ -125,7 +125,7 @@ function GsnHeatmapBlock({ json, reportContent }: { json: string; reportContent:
     <GsnHeatmap
       nodes={markGsnReportMentions(data.nodes, reportContent)}
       title={data.title}
-      concerns={data.concerns}
+      highlightCategories={data.stakeholderCategories}
     />
   );
 }

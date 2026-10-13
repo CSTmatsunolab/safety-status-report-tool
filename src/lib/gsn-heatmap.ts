@@ -1,5 +1,5 @@
 // src/lib/gsn-heatmap.ts
-// GSNノードヒートマップ（GSNの深さ × ステークホルダの関心事、色＝達成状況）用の共通ロジック
+// GSNノードヒートマップ（GSNの深さ × 必要情報カテゴリー、色＝達成状況）用の共通ロジック
 // LLMがレポート中に出力する ```gsn-heatmap フェンスブロック（JSON）と、生成前の抽出結果を扱う
 
 import {
@@ -14,6 +14,7 @@ import {
   getReportBody,
   replaceHeatmapBlocksWithTable,
 } from './risk-heatmap';
+import { gsnCategoryLabel, normalizeCategoryIds } from './gsn-categories';
 
 export type GsnSeverity = 1 | 2 | 3 | 4;
 export type GsnStatus = 'achieved' | 'partial' | 'unachieved' | 'undeveloped';
@@ -34,16 +35,16 @@ export interface GsnHeatmapItem {
   severitySource?: string;
   // 親ノードのID（[] = トップゴール、undefined = 記載なし）。深さの計算に使う
   parentIds?: string[];
-  // 関係するステークホルダの関心事（GsnHeatmapData.concerns のインデックス）
-  concernIdxs?: number[];
+  // 該当する必要情報カテゴリーのID（src/lib/gsn-categories.ts の GSN_INFO_CATEGORIES）
+  categories?: string[];
   // このレポートの本文で言及されているか（markGsnReportMentions で判定。未判定は undefined）
   inReport?: boolean;
 }
 
 export interface GsnHeatmapData {
   title?: string;
-  // 横軸に使うステークホルダの関心事（ノードの concernIdxs が指す）
-  concerns?: string[];
+  // レポート対象のステークホルダが必要とするカテゴリーのID（ヒートマップで強調する列）
+  stakeholderCategories?: string[];
   nodes: GsnHeatmapItem[];
 }
 
@@ -162,14 +163,6 @@ function toIdList(value: unknown): string[] | undefined {
   return undefined;
 }
 
-function toIndexList(value: unknown): number[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const idxs = value
-    .map((v) => (typeof v === 'number' ? v : Number(v)))
-    .filter((v) => Number.isInteger(v) && v >= 0);
-  return Array.from(new Set(idxs)).sort((a, b) => a - b);
-}
-
 function toOptionalString(value: unknown): string | undefined {
   if (value === null || value === undefined) return undefined;
   const text = String(value).trim();
@@ -192,11 +185,12 @@ export function parseGsnHeatmapBlock(json: string): GsnHeatmapData | null {
   const root = Array.isArray(parsed) ? { nodes: parsed } : parsed;
   if (!root || typeof root !== 'object') return null;
 
-  const { title, nodes, concerns } = root as { title?: unknown; nodes?: unknown; concerns?: unknown };
+  const { title, nodes, stakeholderCategories } = root as {
+    title?: unknown;
+    nodes?: unknown;
+    stakeholderCategories?: unknown;
+  };
   if (!Array.isArray(nodes)) return null;
-  const concernList = Array.isArray(concerns)
-    ? concerns.map((c) => toOptionalString(c)).filter((c): c is string => !!c)
-    : undefined;
 
   const items: GsnHeatmapItem[] = [];
   nodes.forEach((node, index) => {
@@ -215,15 +209,13 @@ export function parseGsnHeatmapBlock(json: string): GsnHeatmapData | null {
       rawSeverity: toOptionalString(n.severity),
       severitySource: toOptionalString(n.severitySource),
       parentIds: toIdList(n.parentIds ?? n.parents ?? n.parent),
-      concernIdxs: concernList
-        ? toIndexList(n.concerns)?.filter((i) => i < concernList.length)
-        : undefined,
+      categories: normalizeCategoryIds(n.categories),
     });
   });
 
   return {
     title: toOptionalString(title),
-    concerns: concernList && concernList.length > 0 ? concernList : undefined,
+    stakeholderCategories: normalizeCategoryIds(stakeholderCategories),
     nodes: items,
   };
 }
@@ -276,7 +268,7 @@ export function mergeGsnNodes(datas: GsnHeatmapData[]): GsnHeatmapItem[] {
           text: item.text ?? existing?.text,
           severitySource: item.severitySource ?? existing?.severitySource,
           parentIds: item.parentIds ?? existing?.parentIds,
-          concernIdxs: item.concernIdxs ?? existing?.concernIdxs,
+          categories: item.categories ?? existing?.categories,
         });
       }
     }
@@ -368,12 +360,12 @@ export const GSN_SEVERITY_LABELS: Record<'ja' | 'en', Record<GsnSeverity, string
 function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): string {
   const ja = lang === 'ja';
   const header = ja
-    ? '| ノードID | 種別 | 内容 | 深さ | 達成状況 | 関心事 | 重大度 | 本レポートでの記載 |'
-    : '| Node ID | Type | Description | Depth | Status | Concerns | Severity | Covered in this report |';
+    ? '| ノードID | 種別 | 内容 | 深さ | 達成状況 | カテゴリー | 重大度 | 本レポートでの記載 |'
+    : '| Node ID | Type | Description | Depth | Status | Categories | Severity | Covered in this report |';
   const depths = computeGsnDepths(data.nodes);
-  const concernText = (item: GsnHeatmapItem) => {
-    const names = (item.concernIdxs ?? []).map((i) => data.concerns?.[i]).filter((c): c is string => !!c);
-    return names.length > 0 ? escapeTableCell(names.join(ja ? '・' : ', ')) : '-';
+  const categoryText = (item: GsnHeatmapItem) => {
+    const names = (item.categories ?? []).map((c) => gsnCategoryLabel(c, lang));
+    return names.length > 0 ? escapeTableCell(names.join(ja ? '、' : ', ')) : '-';
   };
   const unrated = ja ? '記載なし' : 'Not documented';
   const mentionText = (item: GsnHeatmapItem) =>
@@ -392,7 +384,7 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
         ? escapeTableCell(item.rawSeverity)
         : unrated;
     const depth = depths[item.id];
-    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${depth ?? '-'} | ${status} | ${concernText(item)} | ${severity} | ${mentionText(item)} |`;
+    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${depth ?? '-'} | ${status} | ${categoryText(item)} | ${severity} | ${mentionText(item)} |`;
   });
 
   const lines = [header, '|---|---|---|---|---|---|---|---|', ...rows];
@@ -431,12 +423,13 @@ export function replaceAllHeatmapBlocksWithTables(markdown: string, lang?: 'ja' 
 export function collectReportHeatmaps(markdown: string): {
   risks: RiskHeatmapItem[];
   gsnNodes: GsnHeatmapItem[];
-  gsnConcerns?: string[];
+  gsnStakeholderCategories?: string[];
 } {
   const gsnBlocks = extractGsnHeatmapBlocks(markdown);
   return {
     risks: markReportMentions(mergeRisks(extractHeatmapBlocks(markdown)), markdown),
     gsnNodes: markGsnReportMentions(mergeGsnNodes(gsnBlocks), markdown),
-    gsnConcerns: gsnBlocks.find((b) => b.concerns && b.concerns.length > 0)?.concerns,
+    gsnStakeholderCategories: gsnBlocks.find((b) => b.stakeholderCategories && b.stakeholderCategories.length > 0)
+      ?.stakeholderCategories,
   };
 }

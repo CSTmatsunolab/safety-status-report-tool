@@ -11,6 +11,7 @@ import { getUploadedFileText } from '@/lib/uploaded-file-text';
 import { parseHeatmapBlock } from '@/lib/risk-heatmap';
 import { GsnHeatmapItem, parseGsnHeatmapBlock } from '@/lib/gsn-heatmap';
 import { stripCodeFence } from '@/lib/llm-json';
+import { formatCategoryDefinitions } from '@/lib/gsn-categories';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -50,7 +51,7 @@ Rules:
 const GSN_SYSTEM_PROMPT_JA = `あなたはGSN（Goal Structuring Notation）文書からノード情報を抽出するアシスタントです。
 提供された文書のうち「=== GSNファイル:」で始まるファイルに記載されたGSNノードを抽出し、次のJSONのみを出力してください（前置き・説明・コードフェンスは不要）。
 
-{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"識別されたハザードに対策が実施されている","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"]}]}
+{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"識別されたハザードに対策が実施されている","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","open-issues"]}]}
 
 規則:
 - ノードはGSNファイルからのみ抽出する。対象は Goal / Sub-Goal / Strategy / Solution(Evidence) / Undeveloped。Context / Assumption / Justification は含めない
@@ -63,12 +64,14 @@ const GSN_SYSTEM_PROMPT_JA = `あなたはGSN（Goal Structuring Notation）文�
   3. どちらも無ければ null
 - severitySource には severity の出典を書く（例: "ノード記載", "H-101, H-103 (Serious)", "R-104 (影響度 High)"）。severity が null なら null
 - parentIds には親ノードのID（文書の「親ノード」欄やツリー図の接続から転記）を入れる。トップゴールは []。Context 等の除外したノードのIDは含めない。親が記載から読み取れない場合は推定せず null とする（[] はトップゴール専用）
+- categories には、ノードが該当する次の必要情報カテゴリーのIDを入れる（複数可）。ノードの記載内容（内容・達成状況・根拠・参照）から説明できるカテゴリーのみとし、該当が無ければ []（推測は禁止）
+${formatCategoryDefinitions('ja')}
 - GSNファイルにノードが無い場合は {"nodes":[]} を出力する`;
 
 const GSN_SYSTEM_PROMPT_EN = `You extract node information from GSN (Goal Structuring Notation) documents.
 Extract the GSN nodes written in the files that start with "=== GSN file:" and output ONLY the following JSON (no preamble, explanation, or code fences).
 
-{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"Identified hazards are mitigated","status":"Partially achieved","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"]}]}
+{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"Identified hazards are mitigated","status":"Partially achieved","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","open-issues"]}]}
 
 Rules:
 - Extract nodes from the GSN files only. Include Goal / Sub-Goal / Strategy / Solution (Evidence) / Undeveloped. Do NOT include Context / Assumption / Justification
@@ -81,6 +84,8 @@ Rules:
   3. Otherwise null
 - severitySource states where severity came from (e.g. "node", "H-101, H-103 (Serious)", "R-104 (Impact High)"). null when severity is null
 - parentIds lists the IDs of the node's parents (copied from a "parent node" column or the connections in the tree diagram). Use [] for the top goal. Do not include IDs of excluded nodes such as Context. If the parent cannot be read from the document, use null without guessing ([] is only for the top goal)
+- categories lists the IDs of the following information categories the node belongs to (multiple allowed). Include only categories explainable from the node's documented content (statement, status, rationale, references); use [] if none (no guessing)
+${formatCategoryDefinitions('en')}
 - Output {"nodes":[]} if the GSN files contain no nodes`;
 
 const isGSNFile = (file: UploadedFile) => file.type === 'gsn' || !!file.metadata?.userDesignatedGSN;

@@ -7,7 +7,7 @@ import { useState, useCallback, useRef } from 'react';
 import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/types';
 import { RiskHeatmapItem } from '@/lib/risk-heatmap';
 import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
-import { FocusGsnNode } from '@/lib/gsn-concerns';
+import { FocusGsnNode } from '@/lib/gsn-categories';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
@@ -53,11 +53,10 @@ interface GenerateReportParams {
   focusRiskIds?: string[];
   // GSNノードヒートマップの元データ（生成前に抽出したもの。レポート内の gsn-heatmap ブロックに使う）
   heatmapGsnNodes?: GsnHeatmapItem[];
-  // ステークホルダの関心事に基づき、本レポートで詳述するGSNノード
+  // ステークホルダが必要とする情報カテゴリーに基づき、本レポートで詳述するGSNノード
   focusGsnNodes?: FocusGsnNode[];
-  // レポート内GSNヒートマップの横軸（ステークホルダの関心事）と、ノードID → 関心事のインデックス
-  heatmapGsnConcerns?: string[];
-  gsnNodeConcerns?: Record<string, number[]>;
+  // レポート内GSNヒートマップで強調する列（ステークホルダが必要とする情報カテゴリー）
+  heatmapGsnStakeholderCategories?: string[];
 }
 
 interface LambdaStreamMessage {
@@ -130,7 +129,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnConcerns, gsnNodeConcerns } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -197,7 +196,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
           status,
         })),
         focusRiskIds,
-        heatmapGsnNodes: heatmapGsnNodes?.map(({ id, type, text, rawStatus, rawSeverity, severitySource, parentIds }) => ({
+        heatmapGsnNodes: heatmapGsnNodes?.map(({ id, type, text, rawStatus, rawSeverity, severitySource, parentIds, categories }) => ({
           id,
           type,
           text,
@@ -205,9 +204,9 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
           severity: rawSeverity ?? null,
           severitySource,
           parentIds,
-          concerns: gsnNodeConcerns ? gsnNodeConcerns[id] ?? [] : undefined,
+          categories,
         })),
-        heatmapGsnConcerns,
+        heatmapGsnStakeholderCategories,
         focusGsnNodes,
       }),
       signal,

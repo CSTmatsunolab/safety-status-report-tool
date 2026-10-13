@@ -86,14 +86,15 @@ export interface HeatmapGsnNodeInput {
   severitySource?: string;
   // 親ノードのID（[] = トップゴール）。ヒートマップの縦軸（GSNの深さ）に使う
   parentIds?: string[];
-  // 関係する関心事（GenerateReportRequest.heatmapGsnConcerns のインデックス）
-  concerns?: number[];
+  // 該当する必要情報カテゴリーのID（lib/gsn-categories.ts）
+  categories?: string[];
 }
 
-// ステークホルダの関心事に基づき、本レポートで詳述するGSNノード（画面で選択）
+// ステークホルダが必要とする情報カテゴリーに基づき、本レポートで詳述するGSNノード（画面で選択）
 export interface FocusGsnNodeInput {
   id: string;
-  concerns: string[];
+  // 該当する必要情報カテゴリーのラベル
+  categories: string[];
   reason?: string;
 }
 
@@ -110,6 +111,6 @@ export interface GenerateReportRequest {
   // GSNノードヒートマップの元データ（画面で抽出。表示のみで選択はしない）
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
-  // GSNノードヒートマップの横軸（ステークホルダの関心事）
-  heatmapGsnConcerns?: string[];
+  // GSNノードヒートマップで強調する列（ステークホルダが必要とする情報カテゴリーのID）
+  heatmapGsnStakeholderCategories?: string[];
 }
