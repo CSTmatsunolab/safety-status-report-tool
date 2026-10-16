@@ -64,7 +64,7 @@ const GSN_SYSTEM_PROMPT_JA = `あなたはGSN（Goal Structuring Notation）文�
   3. どちらも無ければ null
 - severitySource には severity の出典を書く（例: "ノード記載", "H-101, H-103 (Serious)", "R-104 (影響度 High)"）。severity が null なら null
 - parentIds には親ノードのID（文書の「親ノード」欄やツリー図の接続から転記）を入れる。トップゴールは []。Context 等の除外したノードのIDは含めない。親が記載から読み取れない場合は推定せず null とする（[] はトップゴール専用）
-- categories には、ノードが該当する次の必要情報カテゴリーのIDを入れる（複数可）。ノードの記載内容（内容・達成状況・根拠・参照）から説明できるカテゴリーのみとし、該当が無ければ []（推測は禁止）
+- categories には、ノードが該当する次の必要情報カテゴリーのIDを入れる（複数可）。ノードの記載内容（内容・達成状況・根拠・参照）に加え、ノードが参照するハザード・リスク・要件・試験（H-xxx, R-xxx, SR-xxx, TR-xxx 等）について他の提供文書に記載された事実（試験の不合格、マイルストーンの遅延、予算超過、リリース判断、規格準拠の可否など）から説明できるカテゴリーを入れる。文書に記載のない影響の推測は禁止。該当が無ければ []
 ${formatCategoryDefinitions('ja')}
 - GSNファイルにノードが無い場合は {"nodes":[]} を出力する`;
 
@@ -84,7 +84,7 @@ Rules:
   3. Otherwise null
 - severitySource states where severity came from (e.g. "node", "H-101, H-103 (Serious)", "R-104 (Impact High)"). null when severity is null
 - parentIds lists the IDs of the node's parents (copied from a "parent node" column or the connections in the tree diagram). Use [] for the top goal. Do not include IDs of excluded nodes such as Context. If the parent cannot be read from the document, use null without guessing ([] is only for the top goal)
-- categories lists the IDs of the following information categories the node belongs to (multiple allowed). Include only categories explainable from the node's documented content (statement, status, rationale, references); use [] if none (no guessing)
+- categories lists the IDs of the following information categories the node belongs to (multiple allowed). Include categories explainable from the node's documented content (statement, status, rationale, references) and from facts documented elsewhere in the provided documents about the hazards, risks, requirements, or tests the node cites (H-xxx, R-xxx, SR-xxx, TR-xxx, etc.), such as failed tests, milestone delays, budget overruns, release decisions, or standard conformance. Do not guess impacts that are not documented. Use [] if none
 ${formatCategoryDefinitions('en')}
 - Output {"nodes":[]} if the GSN files contain no nodes`;
 

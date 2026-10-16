@@ -179,6 +179,12 @@ Use different levels of confidence based on the strength of evidence.
 **Consistency of evaluations:**
 - Do not describe something as "minor" in one section if it was characterized as "critical risk" in another
 - Ensure overall evaluations and individual section evaluations do not contradict each other
+- When ranking risks ("the largest risk", "top priority", etc.), state the criterion (severity, score, priority, etc.). If you call a risk the largest while a different risk has the highest score on the risk heatmap, also mention the highest-scoring risk and explain how the two are treated differently
+- If a hazard and its corresponding risk (e.g. H-101 and R-101) have different status wordings in the documents, do not pick one; show both and mark [TO BE CONFIRMED]
+
+**Consistency of schedules:**
+- When proposing or describing a change to a milestone date, align the dates of every dependent milestone and task on the same assumption everywhere in the report (tables, next steps, decision items)
+- If the documents do not give the new dates, write the dependent dates as "[TO BE REPLANNED]" instead of presenting the old dates as the new plan
 
 ### Permitted Statements
 - Direct quotation of documented values (with source citation)
@@ -333,7 +339,7 @@ When about to write \`## number.\`:
 
 ### Appendix Rules
 - If technical terms or abbreviations are used in the report body, include a Glossary as an appendix
-- The Glossary should include:
+- The Glossary should include (only terms, abbreviations, and symbols actually used in the body; omit anything that does not appear there):
   - Technical terms used in the body with plain language explanations
   - Abbreviations with their full forms
 - The Glossary does NOT count toward the main text volume constraints (page/word count)
@@ -408,6 +414,8 @@ Describing the same information multiple times is PROHIBITED. State information 
 1. **Duplicate data entries** → "As the key metrics in Section 1 indicate, ..." (use reference)
 2. **Duplicate risk descriptions** → "For H-001 (see Table X), the countermeasure is..."
 3. **Duplicate conclusions** → Consolidate conclusions in "Recommendations" or "Summary" section
+   - Keep the body of each recommended action / decision item in one place (the Recommendations chapter). In the Executive Summary or GSN analysis, give only the item name and a reference (e.g. "item 1 in Section 6.1") without repeating the explanation
+   - Do not list the same matter twice as separate recommendations (e.g. requirement SR-108 and its corresponding hazard H-108)
 4. **Duplicate GSN information** → "See Table X: GSN Achievement Status (Section Y)"
 5. **Duplicating figure/table content in text** → "See Table X for details" and state only key points in text`;
 
@@ -663,11 +671,11 @@ Do not make it a standalone section; write it as a brief introductory note of a 
 
 **Content to include in the note (all of the following elements):**
 1. This report uses a method called GSN (Goal Structuring Notation) to organize safety claims and evidence
-2. Meaning of symbols appearing in the text:
-   - G1–G10, etc. = Safety objectives (Goals)
-   - S1–S4, etc. = Argumentation approaches (Strategies)
-   - Sn1–Sn6, etc. = Evidence supporting safety (Evidence)
-   - C1–C6, etc. = Preconditions (Contexts)
+2. Meaning of symbols appearing in the text (format example only; list only the node types that actually exist in the provided GSN — e.g. omit the C line if there are no Context nodes):
+   - G1, G1.1, etc. = Safety objectives (Goals)
+   - S1, etc. = Argumentation approaches (Strategies)
+   - Sn1, etc. = Evidence supporting safety (Evidence)
+   - C1, etc. = Preconditions (Contexts)
    - U1, etc. = Items not yet completed (Undeveloped)
 3. These are reference numbers used in GSN
 4. The report is structured so that readers can understand the content by following the explanations, even without GSN knowledge
@@ -711,7 +719,7 @@ Consolidate into one section as follows. Do NOT create separate subsections for 
 
 3. Key Points for Executive Decision (3-5 items)
 
-4. Recommended Actions (2-3 items)
+4. Recommended Actions (2-3 items; if identical to the Recommendations chapter, give only the item name and a reference)
 
 PROHIBITED: Do not create separate subsections for each node; do not use more than 1 page per node`);
   }
@@ -784,7 +792,7 @@ At the first occurrence of each symbol, pair it with a plain language name as in
    - Explain where incomplete items and outstanding evidence create holes in the "safety explanation"
    - Impact level of each gap (High/Medium/Low)
 
-5. Recommended Actions (2-4 items)
+5. Recommended Actions (2-4 items; if identical to the Recommendations chapter, give only the item name and a reference)
 
 Note: Do not use GSN jargon; consistently use the plain language expressions defined in the reading guide above`);
   }
@@ -876,6 +884,7 @@ Assign sequential numbers and titles to all figures and tables.
 - Reference from text: "As shown in Figure 1", "See Figure 2"
 - **Exception: Risk Heatmap / Risk Assessment Matrix** must NOT be a placeholder; output it as the \`risk-heatmap\` code block defined in the RISK ANALYSIS section (the system renders it)
 - **Exception: GSN Node Heatmap** (when a GSN file is provided) must NOT be a placeholder either; output it as the \`gsn-heatmap\` code block defined below (the system renders it)
+- Do not write a \`[Figure X: ... Heatmap]\` placeholder line for heatmaps (put the figure number in the block's title)
 
 ### Figure/Table Insertion Rules
 - Use sequential numbering throughout the document (Table 1, Table 2..., Figure 1, Figure 2...)
@@ -927,6 +936,8 @@ This selection takes precedence over stakeholder-specific filtering and length r
 ${focus.length > 0 ? focus.map(formatRiskLineEN).join('\n') : '- none'}
 
 **All other risks (${others.length})**: do not discuss them individually; mention them only as a count (e.g. "${others.length} other risks"). Do not write their risk IDs or individual names in the body.
+- Statistics / breakdown tables (by priority, status, impact, etc.) show counts only, with no ID column
+- Do not write IDs in the omission note either (NG: "the other ${others.length} risks (R-xxx, R-yyy) are omitted" → OK: "the other ${others.length} risks are not detailed individually")
 
 **risk-heatmap block**: use the following list (all risks extracted from the documents) as \`risks\` exactly as given (only adjust the figure number in title to match the document numbering).
 \`\`\`risk-heatmap
@@ -1144,7 +1155,7 @@ export function generateGsnHeatmapPromptEN(
       : stakeholder
         ? STAKEHOLDER_CATEGORY_MAP[stakeholder.id]
         : undefined;
-  const categoryRule = `- Each node's \`categories\` lists the IDs of the following information categories the node belongs to (multiple allowed). Include only those explainable from the node's documented content; use \`[]\` if none (no guessing)
+  const categoryRule = `- Each node's \`categories\` lists the IDs of the following information categories the node belongs to (multiple allowed). Include those explainable from the node's documented content and from facts documented in the provided documents about the hazards, requirements, or tests the node cites (failed tests, milestone delays, budget overruns, standard conformance, etc.). Do not guess undocumented impacts. Use \`[]\` if none
 ${formatCategoryDefinitions('en')}`;
   const stakeholderCategoryRule = stakeholderCategories
     ? ''
@@ -1184,7 +1195,8 @@ ${dataRule}
 
 ### GSN Node IDs (required)
 Whenever the body (including tables and bullet lists) refers to an individual GSN node, always include its node ID (e.g. G1.2, Sn3).
-Heatmap highlighting is determined by the node IDs appearing in the body.${generateFocusGsnNodePromptEN(heatmapGsnNodes, focusGsnNodes, stakeholder)}`;
+When you refer to the content of evidence (test results, records, evaluation results, etc.), also include the ID of that evidence node (e.g. "TR-101 failed (evidence Sn4: Verification results summary)").
+Heatmap highlighting is determined by the node IDs appearing in the body (symbol explanations in the reading guide or glossary do not count).${generateFocusGsnNodePromptEN(heatmapGsnNodes, focusGsnNodes, stakeholder)}`;
 }
 
 // ============================================================================

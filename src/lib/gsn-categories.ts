@@ -54,8 +54,8 @@ export const GSN_INFO_CATEGORIES: GsnInfoCategory[] = [
     id: 'compliance',
     label: { ja: '規格適合・説明責任', en: 'Compliance & accountability' },
     definition: {
-      ja: '規格・法規への適合、認証、対外的な説明根拠に関わるノード',
-      en: 'Nodes concerning conformance to standards/regulations, certification, or the basis for external accountability',
+      ja: '規格・法規への適合、認証、対外的な説明根拠に関わるノード。規格の手法に基づく論証（例: ISO 26262 のASILに応じた検証、SOTIFのシナリオ評価）や、未達成だと規格準拠・認証申請を主張できなくなるノードを含む',
+      en: 'Nodes concerning conformance to standards/regulations, certification, or the basis for external accountability, including arguments built on a standard\'s method (e.g. ISO 26262 ASIL-dependent verification, SOTIF scenario evaluation) and nodes whose non-achievement prevents claiming conformance or applying for certification',
     },
   },
   {
@@ -86,8 +86,8 @@ export const GSN_INFO_CATEGORIES: GsnInfoCategory[] = [
     id: 'business',
     label: { ja: '事業・製品への影響', en: 'Business & product impact' },
     definition: {
-      ja: '製品品質・スケジュール・コスト・市場投入など事業や製品への影響が文書に記載されたノード',
-      en: 'Nodes whose documented content affects product quality, schedule, cost, or market launch',
+      ja: '製品品質・スケジュール・コスト・市場投入など事業や製品への影響があるノード。ノード自身の記載に加え、ノードが参照するハザード・要件・試験について、提供文書にマイルストーン遅延・予算超過・リリース判断・量産移行などへの影響が記載されているノードを含む',
+      en: 'Nodes affecting the business or product, such as product quality, schedule, cost, or market launch, including nodes whose cited hazards, requirements, or tests are documented (anywhere in the provided documents) as affecting milestones, budget, release decisions, or production',
     },
   },
 ];

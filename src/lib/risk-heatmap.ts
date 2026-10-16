@@ -27,6 +27,17 @@ export type RiskBand = 'high' | 'medium' | 'low' | 'minimal';
 export const RISK_HEATMAP_LANG = 'risk-heatmap';
 
 const HEATMAP_BLOCK_REGEX = /```risk-heatmap[^\n]*\n([\s\S]*?)```/g;
+// エクスポート用: ブロックの直前に残った図のプレースホルダー行（[図1: リスクヒートマップ] 等）と、
+// 直後の「※ 本図は〜」の説明（色・強調の説明で表には当てはまらない）も含めて置き換える
+export function heatmapExportRegex(lang: string): RegExp {
+  return new RegExp(
+    String.raw`(?:^[ \t]*\[(?:図|Figure)\s*[^\]\n]*(?:ヒートマップ|heatmap)[^\]\n]*\][ \t]*\n\s*)?` +
+      '```' + lang + String.raw`[^\n]*\n([\s\S]*?)` + '```' +
+      String.raw`(?:\s*\n[ \t]*(?:※|\*)\s*(?:本図|This figure)[^\n]*)?`,
+    'gim'
+  );
+}
+
 // リスク・GSNの両ヒートマップブロック（本文判定ではどちらのJSONも本文として扱わない）
 const ALL_HEATMAP_BLOCKS_REGEX = /```(?:risk-heatmap|gsn-heatmap)[^\n]*\n[\s\S]*?```/g;
 
@@ -146,11 +157,48 @@ export function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// 言及判定から除外する補助的な節（読み方ガイド・用語集・略語一覧）の見出し
+const AUXILIARY_SECTION_REGEX = /読み方|用語集|略語|glossary|how to read|reading (?:this report|guide)|abbreviation/i;
+const HEADING_REGEX = /^(#{1,6})\s+(.*)$/;
+const HORIZONTAL_RULE_REGEX = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
+
 /**
- * レポート本文（risk-heatmap / gsn-heatmap ブロックを除いた部分）を返す
+ * 読み方ガイド・用語集などの補助的な節を取り除く
+ * - 見出しの節は、同じかそれより上位の見出しまでを除く
+ * - 見出しにしていない注記（「**本報告書の読み方について:**」等）は、次の見出しか水平線までを除く
+ * 記号の一覧や用語の説明に出てくるIDは、本文で扱ったことを意味しないため
+ */
+function stripAuxiliarySections(markdown: string): string {
+  const kept: string[] = [];
+  // 除外中の見出しレベル（0 = 見出しでない注記。次の見出し・水平線で終わる）
+  let skipLevel: number | null = null;
+  for (const line of markdown.split('\n')) {
+    const heading = line.match(HEADING_REGEX);
+    if (skipLevel !== null) {
+      const ends = heading
+        ? skipLevel === 0 || heading[1].length <= skipLevel
+        : skipLevel === 0 && HORIZONTAL_RULE_REGEX.test(line);
+      if (!ends) continue;
+      skipLevel = null;
+    }
+    if (heading && AUXILIARY_SECTION_REGEX.test(heading[2])) {
+      skipLevel = heading[1].length;
+      continue;
+    }
+    if (!heading && /^\s*(?:\*\*|__)?\s*(?:本報告書の読み方|本レポートの読み方|how to read|about reading this report)/i.test(line)) {
+      skipLevel = 0;
+      continue;
+    }
+    kept.push(line);
+  }
+  return kept.join('\n');
+}
+
+/**
+ * レポート本文（risk-heatmap / gsn-heatmap ブロック、読み方ガイド・用語集を除いた部分）を返す
  */
 export function getReportBody(markdown: string): string {
-  return markdown.replace(ALL_HEATMAP_BLOCKS_REGEX, '');
+  return stripAuxiliarySections(markdown.replace(ALL_HEATMAP_BLOCKS_REGEX, ''));
 }
 
 /**
@@ -248,6 +296,12 @@ function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): strin
 
   const lines = [header, '|---|---|---|---|---|---|---|', ...rows];
   if (data.title) lines.unshift(`**${data.title}**`, '');
+  lines.push(
+    '',
+    ja
+      ? '※ ヒートマップ（影響度×発生確率）の内容を表形式で示したもの。スコア＝影響度×発生確率。「本レポートでの記載」は本文でのリスクIDの言及の有無。'
+      : 'Note: The heatmap (impact x likelihood) shown as a table. Score = impact x likelihood. "Covered in this report" shows whether the risk ID appears in the body.'
+  );
   return lines.join('\n');
 }
 
@@ -262,7 +316,7 @@ export function replaceHeatmapBlocksWithTable(
   mentionSource: string = markdown
 ): string {
   const language = lang ?? detectLanguage(markdown);
-  return markdown.replace(HEATMAP_BLOCK_REGEX, (_whole, json: string) => {
+  return markdown.replace(heatmapExportRegex(RISK_HEATMAP_LANG), (_whole, json: string) => {
     const data = parseHeatmapBlock(json);
     if (!data || data.risks.length === 0) return '';
     data.risks = markReportMentions(data.risks, mentionSource);

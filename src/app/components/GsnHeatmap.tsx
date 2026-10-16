@@ -62,6 +62,7 @@ const TEXTS = {
     documented: '文書記載値',
     type: '種別',
     unknownStatus: '記載なし',
+    aggregated: '・配下から集約',
     empty: 'GSNノードのデータがありません。',
     countNeutral: (total: number) => `GSNノード ${total}件`,
     count: (on: number, total: number, label: string) => `GSNノード ${total}件（うち${label} ${on}件）`,
@@ -88,6 +89,7 @@ const TEXTS = {
     documented: 'Documented value',
     type: 'Type',
     unknownStatus: 'Not documented',
+    aggregated: ' / from child nodes',
     empty: 'No GSN node data.',
     countNeutral: (total: number) => `${total} GSN nodes`,
     count: (on: number, total: number, label: string) => `${total} GSN nodes (${label}: ${on})`,
@@ -195,7 +197,8 @@ export function GsnHeatmap({
     neutral ? '' : `（${isInReport(node) ? onLabel : offLabel}）`;
   const chipClass = (node: GsnHeatmapItem) =>
     activeId === node.id ? CHIP_ACTIVE : neutral || isInReport(node) ? CHIP_IN_REPORT : CHIP_DOC_ONLY;
-  const statusText = (node: GsnHeatmapItem) => (node.status ? statusLabels[node.status] : t.unknownStatus);
+  const statusText = (node: GsnHeatmapItem) =>
+    node.status ? `${statusLabels[node.status]}${node.statusAggregated ? t.aggregated : ''}` : t.unknownStatus;
   const categoryNames = (node: GsnHeatmapItem) =>
     (node.categories ?? []).map((c) => gsnCategoryLabel(c, language));
 

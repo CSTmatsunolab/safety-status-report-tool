@@ -12,6 +12,7 @@ import {
   escapeRegExp,
   escapeTableCell,
   getReportBody,
+  heatmapExportRegex,
   replaceHeatmapBlocksWithTable,
 } from './risk-heatmap';
 import { gsnCategoryLabel, normalizeCategoryIds } from './gsn-categories';
@@ -37,6 +38,8 @@ export interface GsnHeatmapItem {
   parentIds?: string[];
   // 該当する必要情報カテゴリーのID（src/lib/gsn-categories.ts の GSN_INFO_CATEGORIES）
   categories?: string[];
+  // Strategy の達成状況を配下ノードから集約したか（文書記載値は rawStatus に残る）
+  statusAggregated?: boolean;
   // このレポートの本文で言及されているか（markGsnReportMentions で判定。未判定は undefined）
   inReport?: boolean;
 }
@@ -216,8 +219,48 @@ export function parseGsnHeatmapBlock(json: string): GsnHeatmapData | null {
   return {
     title: toOptionalString(title),
     stakeholderCategories: normalizeCategoryIds(stakeholderCategories),
-    nodes: items,
+    nodes: aggregateStrategyStatuses(items),
   };
+}
+
+/**
+ * Strategy の達成状況を配下ノードの最悪の状況に揃える
+ * - 文書の Strategy の状況は「論証方針として有効か」で、配下ゴールの達成状況とは別の概念のため、
+ *   そのままだと「S1=達成（緑）なのに配下の G1.2 は部分達成（黄）」のように見えてしまう
+ * - 自身の記載値と子ノード（子が Strategy なら再帰的に集約した値）のうち最悪のものを使う
+ * - 記載値より悪化した場合のみ statusAggregated を立てる（文書記載値は rawStatus に残る）
+ */
+export function aggregateStrategyStatuses(nodes: GsnHeatmapItem[]): GsnHeatmapItem[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const children = new Map<string, GsnHeatmapItem[]>();
+  for (const node of nodes) {
+    for (const parentId of node.parentIds ?? []) {
+      if (!byId.has(parentId)) continue;
+      children.set(parentId, [...(children.get(parentId) ?? []), node]);
+    }
+  }
+
+  const memo = new Map<string, GsnStatus | null>();
+  const visiting = new Set<string>();
+  const effective = (node: GsnHeatmapItem): GsnStatus | null => {
+    if (node.kind !== 'strategy') return node.status;
+    if (memo.has(node.id)) return memo.get(node.id)!;
+    if (visiting.has(node.id)) return node.status;
+    visiting.add(node.id);
+    let worst = node.status;
+    for (const child of children.get(node.id) ?? []) {
+      const status = effective(child);
+      if (gsnStatusRank(status) > gsnStatusRank(worst)) worst = status;
+    }
+    visiting.delete(node.id);
+    memo.set(node.id, worst);
+    return worst;
+  };
+
+  return nodes.map((node) => {
+    const status = effective(node);
+    return status === node.status ? node : { ...node, status, statusAggregated: true };
+  });
 }
 
 /**
@@ -232,14 +275,24 @@ export function extractGsnHeatmapBlocks(markdown: string): GsnHeatmapData[] {
   return results;
 }
 
+// 「G1〜G1.5」「Sn1～Sn5」のような記号の範囲表記（読み方の説明であってノードへの言及ではない）
+const GSN_ID_RANGE_REGEX = /[A-Za-z]+\d+(?:\.\d+)*\s*[〜～~–]\s*[A-Za-z]+\d+(?:\.\d+)*/g;
+// ノードの記載文そのものの出現で言及ありとみなす最小文字数（短い語の偶然の一致を避ける）
+const MIN_NODE_TEXT_MATCH = 6;
+
 /**
  * ノードがレポート本文で言及されているかを判定する
  * - G1 と G1.1、S1 と Sn1 は区別する
+ * - 範囲表記（G1〜G1.5 等）は言及に数えない
+ * - IDが無くても、ノードの記載文（例: 「検証結果サマリー」）がそのまま出現すれば言及あり
+ * - body は getReportBody で読み方ガイド・用語集を除いたものを渡す
  */
 export function isGsnNodeMentioned(item: GsnHeatmapItem, body: string): boolean {
+  const text = item.text?.trim();
+  if (text && text.length >= MIN_NODE_TEXT_MATCH && body.includes(text)) return true;
   if (item.id.startsWith('#')) return false;
   const pattern = new RegExp(`(?<![A-Za-z0-9.])${escapeRegExp(item.id)}(?![0-9A-Za-z]|\\.\\d)`);
-  return pattern.test(body);
+  return pattern.test(body.replace(GSN_ID_RANGE_REGEX, ''));
 }
 
 /**
@@ -363,8 +416,10 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
     ? '| ノードID | 種別 | 内容 | 深さ | 達成状況 | カテゴリー | 重大度 | 本レポートでの記載 |'
     : '| Node ID | Type | Description | Depth | Status | Categories | Severity | Covered in this report |';
   const depths = computeGsnDepths(data.nodes);
+  // 読者が必要とするカテゴリーには ★ を付ける（画面の列の強調に相当）
+  const wanted = new Set(data.stakeholderCategories ?? []);
   const categoryText = (item: GsnHeatmapItem) => {
-    const names = (item.categories ?? []).map((c) => gsnCategoryLabel(c, lang));
+    const names = (item.categories ?? []).map((c) => `${wanted.has(c) ? '★' : ''}${gsnCategoryLabel(c, lang)}`);
     return names.length > 0 ? escapeTableCell(names.join(ja ? '、' : ', ')) : '-';
   };
   const unrated = ja ? '記載なし' : 'Not documented';
@@ -372,9 +427,15 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
     item.inReport === undefined ? '-' : item.inReport ? (ja ? 'あり' : 'Yes') : (ja ? 'なし' : 'No');
   const cell = (text?: string) => (text ? escapeTableCell(text) : '-');
 
+  const aggregatedNote = (item: GsnHeatmapItem) =>
+    item.statusAggregated
+      ? ja
+        ? `（配下から集約${item.rawStatus ? `。文書記載: ${escapeTableCell(item.rawStatus)}` : ''}）`
+        : ` (from child nodes${item.rawStatus ? `; documented: ${escapeTableCell(item.rawStatus)}` : ''})`
+      : '';
   const rows = data.nodes.map((item) => {
     const status = item.status
-      ? GSN_STATUS_LABELS[lang][item.status]
+      ? `${GSN_STATUS_LABELS[lang][item.status]}${aggregatedNote(item)}`
       : item.rawStatus
         ? escapeTableCell(item.rawStatus)
         : unrated;
@@ -389,6 +450,13 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
 
   const lines = [header, '|---|---|---|---|---|---|---|---|', ...rows];
   if (data.title) lines.unshift(`**${data.title}**`, '');
+  const wantedNames = [...wanted].map((c) => gsnCategoryLabel(c, lang));
+  lines.push(
+    '',
+    ja
+      ? `※ GSNノードヒートマップ（GSNの深さ×必要情報カテゴリー、色＝達成状況）の内容を表形式で示したもの。${wantedNames.length > 0 ? `★は本レポートの読者が必要とするカテゴリー（${wantedNames.join('、')}）。` : ''}「本レポートでの記載」は本文でのノードの言及の有無。`
+      : `Note: The GSN node heatmap (GSN depth x information category, color = status) shown as a table.${wantedNames.length > 0 ? ` ★ marks the categories this report's readers need (${wantedNames.join(', ')}).` : ''} "Covered in this report" shows whether the node is mentioned in the body.`
+  );
   return lines.join('\n');
 }
 
@@ -398,7 +466,7 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
  */
 export function replaceGsnHeatmapBlocksWithTable(markdown: string, lang?: 'ja' | 'en'): string {
   const language = lang ?? detectLanguage(markdown);
-  return markdown.replace(GSN_HEATMAP_BLOCK_REGEX, (_whole, json: string) => {
+  return markdown.replace(heatmapExportRegex(GSN_HEATMAP_LANG), (_whole, json: string) => {
     const data = parseGsnHeatmapBlock(json);
     if (!data || data.nodes.length === 0) return '';
     data.nodes = markGsnReportMentions(data.nodes, markdown);
