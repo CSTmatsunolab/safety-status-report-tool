@@ -1,7 +1,8 @@
 // lambda/src/lib/gsn-categories.ts
-// GSNノードヒートマップの横軸: ステークホルダが必要とする情報の共通カテゴリー（固定）
+// GSNノードヒートマップ（縦=ステークホルダへの関連度 × 横=達成状況）の分類に使う定義
+// ノードの話題カテゴリー（固定6種）・論証レイヤー・既定ステークホルダの要求
 //
-// ⚠️ src/lib/gsn-categories.ts の GSN_INFO_CATEGORIES / STAKEHOLDER_CATEGORY_MAP と同一内容を手動で同期すること
+// ⚠️ src/lib/gsn-categories.ts の GSN_INFO_CATEGORIES / GSN_LAYERS / STAKEHOLDER_PROFILE_MAP と同一内容を手動で同期すること
 // （Next.js と Lambda は独立ビルドのため共有パッケージを持たない）
 
 export interface GsnInfoCategory {
@@ -11,14 +12,6 @@ export interface GsnInfoCategory {
 }
 
 export const GSN_INFO_CATEGORIES: GsnInfoCategory[] = [
-  {
-    id: 'goal-status',
-    label: { ja: '安全目標の達成状況', en: 'Safety goal status' },
-    definition: {
-      ja: 'システム全体または主要な安全目標が達成されているか（論証全体の結論）を示すノード',
-      en: 'Nodes showing whether the overall system or major safety goals are achieved (the conclusion of the argument)',
-    },
-  },
   {
     id: 'hazard-risk',
     label: { ja: 'ハザード・リスクと対策', en: 'Hazards, risks & mitigation' },
@@ -41,14 +34,6 @@ export const GSN_INFO_CATEGORIES: GsnInfoCategory[] = [
     definition: {
       ja: '規格・法規への適合、認証、対外的な説明根拠に関わるノード。規格の手法に基づく論証（例: ISO 26262 のASILに応じた検証、SOTIFのシナリオ評価）や、未達成だと規格準拠・認証申請を主張できなくなるノードを含む',
       en: 'Nodes concerning conformance to standards/regulations, certification, or the basis for external accountability, including arguments built on a standard\'s method (e.g. ISO 26262 ASIL-dependent verification, SOTIF scenario evaluation) and nodes whose non-achievement prevents claiming conformance or applying for certification',
-    },
-  },
-  {
-    id: 'open-issues',
-    label: { ja: '未解決課題・残作業', en: 'Open issues & remaining work' },
-    definition: {
-      ja: '未達成・部分達成・未展開で、対策中・検証中などの残作業や未解決の課題を含むノード',
-      en: 'Nodes that are not (fully) achieved or undeveloped and carry remaining work or unresolved issues',
     },
   },
   {
@@ -99,12 +84,62 @@ export function formatCategoryDefinitions(language: 'ja' | 'en'): string {
   return GSN_INFO_CATEGORIES.map((c) => `- ${c.id}（${c.label[language]}）: ${c.definition[language]}`).join('\n');
 }
 
-// 既定ステークホルダが必要とするカテゴリー
-export const STAKEHOLDER_CATEGORY_MAP: Record<string, string[]> = {
-  cxo: ['goal-status', 'hazard-risk', 'compliance', 'business'],
-  business: ['goal-status', 'hazard-risk', 'business'],
-  product: ['goal-status', 'hazard-risk', 'open-issues', 'business'],
-  architect: ['architecture', 'verification', 'open-issues', 'technology'],
-  'technical-fellows': ['verification', 'technology', 'architecture', 'hazard-risk'],
-  'r-and-d': ['technology', 'open-issues', 'verification'],
+// 論証レイヤー（関連度の判定に使う。ノードのレイヤーは種別と親子関係から画面側で決める）
+export const GSN_LAYERS: { id: string; label: { ja: string; en: string }; definition: { ja: string; en: string } }[] = [
+  {
+    id: 'top',
+    label: { ja: 'トップゴール', en: 'Top goal' },
+    definition: { ja: 'システム全体の安全性の結論', en: 'The overall safety conclusion of the system' },
+  },
+  {
+    id: 'subgoal',
+    label: { ja: 'サブゴール', en: 'Sub-goal' },
+    definition: { ja: '個々の安全目標・主張（未展開の論証を含む）', en: 'Individual safety goals/claims (including undeveloped arguments)' },
+  },
+  {
+    id: 'strategy',
+    label: { ja: '論証方針', en: 'Strategy' },
+    definition: { ja: '主張を分解する論証の方針・手法', en: 'How claims are decomposed and argued' },
+  },
+  {
+    id: 'evidence',
+    label: { ja: '証拠', en: 'Evidence' },
+    definition: { ja: '試験結果・解析・記録などの証拠', en: 'Evidence such as test results, analyses, and records' },
+  },
+];
+
+export const GSN_LAYER_IDS: string[] = GSN_LAYERS.map((l) => l.id);
+
+/**
+ * LLM プロンプトに埋め込むレイヤー一覧（"- id（ラベル）: 定義" 形式）
+ */
+export function formatLayerDefinitions(language: 'ja' | 'en'): string {
+  return GSN_LAYERS.map((l) => `- ${l.id}（${l.label[language]}）: ${l.definition[language]}`).join('\n');
+}
+
+/**
+ * 既知のレイヤーIDのみを残し、定義順に並べる
+ */
+export function normalizeLayerIds(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const ids = new Set(value.filter((v): v is string => typeof v === 'string'));
+  return GSN_LAYER_IDS.filter((id) => ids.has(id));
+}
+
+export interface StakeholderProfile {
+  categories: string[];
+  layers: string[];
+}
+
+// 既定ステークホルダの要求（必要とする話題カテゴリー＋重視する論証レイヤー）
+export const STAKEHOLDER_PROFILE_MAP: Record<string, StakeholderProfile> = {
+  cxo: { categories: ['hazard-risk', 'compliance', 'business'], layers: ['top', 'subgoal'] },
+  business: { categories: ['hazard-risk', 'business'], layers: ['top', 'subgoal'] },
+  product: { categories: ['hazard-risk', 'business', 'verification'], layers: ['top', 'subgoal'] },
+  architect: { categories: ['architecture', 'verification', 'technology'], layers: ['strategy', 'evidence'] },
+  'technical-fellows': {
+    categories: ['verification', 'technology', 'architecture', 'hazard-risk'],
+    layers: ['strategy', 'evidence'],
+  },
+  'r-and-d': { categories: ['technology', 'verification'], layers: ['subgoal', 'evidence'] },
 };

@@ -1,7 +1,7 @@
 // src/hooks/useGsnCategoryFocus.ts
 // GSNノードヒートマップ用フック
-// 横軸は固定の必要情報カテゴリー。選択中のステークホルダが必要とするカテゴリーを決め（既定は対応表、
-// カスタムはLLMで判定）、そのカテゴリーに入るノードを強調・レポートで詳述するノードとして選択・調整する
+// 選択中のステークホルダの要求（必要なカテゴリー＋重視する論証レイヤー）を決め（既定は対応表、カスタムはLLMで判定）、
+// 関連度（必須/関連/参考）から、レポートで詳述するノードを初期選択・調整する
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Stakeholder } from '@/types';
@@ -9,10 +9,13 @@ import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
 import {
   FocusGsnNode,
   GSN_CATEGORY_IDS,
-  GsnCategoryId,
-  categoriesForStakeholder,
+  GSN_LAYER_IDS,
+  StakeholderProfile,
   gsnCategoryLabel,
   isPredefinedCategoryStakeholder,
+  normalizeCategoryIds,
+  normalizeLayerIds,
+  profileForStakeholder,
   selectFocusGsnNodes,
   stakeholderCategoryKey,
 } from '@/lib/gsn-categories';
@@ -23,7 +26,7 @@ export function useGsnCategoryFocus(
   language: 'ja' | 'en'
 ) {
   // カスタムステークホルダの判定結果（キー: stakeholderCategoryKey）
-  const [customMap, setCustomMap] = useState<Record<string, GsnCategoryId[]>>({});
+  const [customMap, setCustomMap] = useState<Record<string, StakeholderProfile>>({});
   const [isMapping, setIsMapping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focusIds, setFocusIds] = useState<Set<string>>(new Set());
@@ -34,8 +37,8 @@ export function useGsnCategoryFocus(
 
   const isCustom = !!stakeholder && !isPredefinedCategoryStakeholder(stakeholder);
   const key = stakeholder ? stakeholderCategoryKey(stakeholder) : null;
-  const stakeholderCategories = useMemo(
-    () => (stakeholder ? categoriesForStakeholder(stakeholder, customMap) : null),
+  const stakeholderProfile = useMemo(
+    () => (stakeholder ? profileForStakeholder(stakeholder, customMap) : null),
     [stakeholder, customMap]
   );
 
@@ -61,11 +64,14 @@ export function useGsnCategoryFocus(
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       if (seq !== requestSeq.current) return;
-      setCustomMap((prev) => ({ ...prev, [key]: data.categoryIds as GsnCategoryId[] }));
+      setCustomMap((prev) => ({
+        ...prev,
+        [key]: { categories: normalizeCategoryIds(data.categoryIds) ?? [], layers: normalizeLayerIds(data.layers) ?? [] },
+      }));
     } catch (e) {
       if (seq !== requestSeq.current) return;
-      // 判定できなかった場合は全カテゴリーを必要として扱う
-      setCustomMap((prev) => ({ ...prev, [key]: GSN_CATEGORY_IDS }));
+      // 判定できなかった場合は全カテゴリー・全レイヤーを必要として扱う
+      setCustomMap((prev) => ({ ...prev, [key]: { categories: GSN_CATEGORY_IDS, layers: GSN_LAYER_IDS } }));
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (seq === requestSeq.current) setIsMapping(false);
@@ -82,15 +88,15 @@ export function useGsnCategoryFocus(
   }, [isCustom, key, gsnNodes, customMap]);
 
   const applyRule = useCallback(() => {
-    if (!gsnNodes || !stakeholderCategories) {
+    if (!gsnNodes || !stakeholderProfile) {
       setFocusIds(new Set());
       setReasons({});
       return;
     }
-    const selected = selectFocusGsnNodes(gsnNodes, stakeholderCategories, language);
+    const selected = selectFocusGsnNodes(gsnNodes, stakeholderProfile, language);
     setFocusIds(new Set(selected.keys()));
     setReasons(Object.fromEntries(selected));
-  }, [gsnNodes, stakeholderCategories, language]);
+  }, [gsnNodes, stakeholderProfile, language]);
 
   // 抽出時・ステークホルダ変更時にルールで初期選択し直す（手動調整はリセット）
   useEffect(() => {
@@ -111,27 +117,27 @@ export function useGsnCategoryFocus(
     () =>
       (gsnNodes ?? []).map((node) => ({
         ...node,
-        inReport: stakeholderCategories ? focusIds.has(node.id) : undefined,
+        inReport: stakeholderProfile ? focusIds.has(node.id) : undefined,
       })),
-    [gsnNodes, stakeholderCategories, focusIds]
+    [gsnNodes, stakeholderProfile, focusIds]
   );
 
-  // レポート生成に渡すデータ（必要カテゴリーが決まっているときのみ）
+  // レポート生成に渡すデータ（要求が決まっているときのみ）
   const focusGsnNodes: FocusGsnNode[] | undefined =
-    gsnNodes && stakeholderCategories
+    gsnNodes && stakeholderProfile
       ? gsnNodes
           .filter((n) => focusIds.has(n.id))
           .map((n) => ({
             id: n.id,
             categories: (n.categories ?? [])
-              .filter((c) => stakeholderCategories.includes(c as GsnCategoryId))
+              .filter((c) => (stakeholderProfile.categories as string[]).includes(c))
               .map((c) => gsnCategoryLabel(c, language)),
             reason: reasons[n.id],
           }))
       : undefined;
 
   return {
-    stakeholderCategories,
+    stakeholderProfile,
     isCustom,
     heatmapItems,
     focusIds,
@@ -143,10 +149,14 @@ export function useGsnCategoryFocus(
     toggle,
     resetToRule: applyRule,
     remap: mapCustom,
-    // focusGsnNodes: 詳述するノード、heatmapGsnStakeholderCategories: レポート内ヒートマップで強調する列
+    // focusGsnNodes: 詳述するノード、heatmapGsnStakeholderCategories/Layers: レポート内ヒートマップの関連度の算出に使う要求
     generationParams:
-      focusGsnNodes && stakeholderCategories
-        ? { focusGsnNodes, heatmapGsnStakeholderCategories: stakeholderCategories }
+      focusGsnNodes && stakeholderProfile
+        ? {
+            focusGsnNodes,
+            heatmapGsnStakeholderCategories: stakeholderProfile.categories,
+            heatmapGsnStakeholderLayers: stakeholderProfile.layers,
+          }
         : {},
   };
 }

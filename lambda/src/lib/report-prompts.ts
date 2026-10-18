@@ -8,7 +8,7 @@
 //   - 各関数から「因果関係は文書記載がある場合のみ」等の重複記述を除去
 
 import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, Stakeholder } from '../types';
-import { STAKEHOLDER_CATEGORY_MAP, formatCategoryDefinitions } from './gsn-categories';
+import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions } from './gsn-categories';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -1092,7 +1092,7 @@ ${sectionsFormatted}`;
 // ============================================================================
 
 /**
- * ステークホルダが必要とする情報カテゴリーに基づきユーザーが選んだ「詳述するGSNノード」の指示
+ * ステークホルダへの関連度に基づきユーザーが選んだ「詳述するGSNノード」の指示
  * （指定がない場合は空文字＝従来どおり）
  */
 function generateFocusGsnNodePrompt(
@@ -1116,9 +1116,9 @@ function generateFocusGsnNodePrompt(
 
   return `
 
-### 本レポートで詳述するGSNノード（ユーザー指定・必要情報カテゴリーとの対応）
+### 本レポートで詳述するGSNノード（ユーザー指定・読者への関連度に基づく）
 ※ これはセクション定義ではない。レポート構成に新しい章・節を追加せず、既存の章の中で記述すること。
-ユーザーがGSNノードヒートマップ上で、${role} が必要とする情報カテゴリーに該当するノードを、本レポートで詳しく記述すべきものとして選択した。
+ユーザーがGSNノードヒートマップ上で、${role} への関連度（必要とするカテゴリー・重視する論証レイヤーとの一致）と達成状況をもとに、本レポートで詳しく記述すべきノードを選択した。
 この指定は、ステークホルダー別の情報の絞り込み・分量規則、およびGSN分析の「主要ゴールのみ」等の対象ノードの制限より優先する。
 
 **詳述するノード（${focusGsnNodes.length}件）**: 各ノードを個別に取り上げ、必ずノードIDを併記する。文書記載の範囲で次を記述する。
@@ -1137,6 +1137,7 @@ ${lines.join('\n')}
  * GSNノードヒートマップ（gsn-heatmap ブロック）の出力指示
  * - GSNファイルが無い場合は空文字
  * - heatmapGsnNodes（画面で抽出済み）があればそのまま使わせる
+ * - 関連度はシステムが stakeholderCategories / stakeholderLayers から算出するため、LLMには関連度を出力させない
  * ※ ## 見出しを含めると GSN由来アウトラインと競合する第2の構成定義になるため ### のみ使う
  */
 export function generateGsnHeatmapPrompt(
@@ -1144,30 +1145,46 @@ export function generateGsnHeatmapPrompt(
   heatmapGsnNodes?: HeatmapGsnNodeInput[],
   focusGsnNodes?: FocusGsnNodeInput[],
   stakeholder?: Stakeholder,
-  heatmapGsnStakeholderCategories?: string[]
+  heatmapGsnStakeholderCategories?: string[],
+  heatmapGsnStakeholderLayers?: string[]
 ): string {
   if (!hasGSN) return '';
 
   const role = stakeholder?.role ?? '読者';
-  // 強調する列（画面で決めたもの → 既定ステークホルダの対応表 → 無ければLLMに判定させる）
+  // 読者の要求（画面で決めたもの → 既定ステークホルダの対応表 → 無ければLLMに判定させる）
+  const preset = stakeholder ? STAKEHOLDER_PROFILE_MAP[stakeholder.id] : undefined;
   const stakeholderCategories =
     heatmapGsnStakeholderCategories && heatmapGsnStakeholderCategories.length > 0
       ? heatmapGsnStakeholderCategories
-      : stakeholder
-        ? STAKEHOLDER_CATEGORY_MAP[stakeholder.id]
-        : undefined;
-  const categoryRule = `- 各ノードの \`categories\` には、ノードが該当する次の必要情報カテゴリーのIDを入れる（複数可）。ノードの記載内容に加え、ノードが参照するハザード・要件・試験について提供文書に記載された事実（試験不合格、マイルストーン遅延、予算超過、規格準拠の可否 等）から説明できるものを入れる。記載のない影響の推測は禁止。該当が無ければ \`[]\`
+      : preset?.categories;
+  const stakeholderLayers =
+    heatmapGsnStakeholderLayers && heatmapGsnStakeholderLayers.length > 0
+      ? heatmapGsnStakeholderLayers
+      : preset?.layers;
+  const categoryRule = `- 各ノードの \`categories\` には、ノードが該当する次の話題カテゴリーのIDを入れる（複数可）。ノードの記載内容に加え、ノードが参照するハザード・要件・試験について提供文書に記載された事実（試験不合格、マイルストーン遅延、予算超過、規格準拠の可否 等）から説明できるものを入れる。記載のない影響の推測は禁止。該当が無ければ \`[]\`
 ${formatCategoryDefinitions('ja')}`;
-  const stakeholderCategoryRule = stakeholderCategories
-    ? ''
-    : `\n- \`stakeholderCategories\` には、上記カテゴリーのうち ${role} の関心事（${(stakeholder?.concerns ?? []).join('・') || '記載なし'}）から必要と判断できるもののIDを入れる`;
+  const concerns = (stakeholder?.concerns ?? []).join('・') || '記載なし';
+  const profileRules = [
+    stakeholderCategories
+      ? `- \`stakeholderCategories\` は ${JSON.stringify(stakeholderCategories)} とする`
+      : `- \`stakeholderCategories\` には、上記カテゴリーのうち ${role} の関心事（${concerns}）から必要と判断できるもののIDを入れる`,
+    stakeholderLayers
+      ? `- \`stakeholderLayers\` は ${JSON.stringify(stakeholderLayers)} とする`
+      : `- \`stakeholderLayers\` には、次の論証レイヤーのうち ${role} が主に読むもの（1〜2個）のIDを入れる
+${formatLayerDefinitions('ja')}`,
+  ];
+  const profileJson = {
+    ...(stakeholderCategories ? { stakeholderCategories } : {}),
+    ...(stakeholderLayers ? { stakeholderLayers } : {}),
+  };
+  const missingProfileRules = profileRules.filter((_, i) => (i === 0 ? !stakeholderCategories : !stakeholderLayers));
 
   const dataRule =
     heatmapGsnNodes && heatmapGsnNodes.length > 0
       ? `- 次のJSON（文書から抽出した全ノード）をそのまま使用する（title の図番号のみ本文の通し番号に合わせて変更する）。
 \`\`\`gsn-heatmap
-${JSON.stringify({ title: '図X: GSNノードヒートマップ', ...(stakeholderCategories ? { stakeholderCategories } : {}), nodes: heatmapGsnNodes })}
-\`\`\`${stakeholderCategoryRule ? `\n${categoryRule}${stakeholderCategoryRule}` : ''}`
+${JSON.stringify({ title: '図X: GSNノードヒートマップ', ...profileJson, nodes: heatmapGsnNodes })}
+\`\`\`${missingProfileRules.length > 0 ? `\n${!stakeholderCategories ? `${categoryRule}\n` : ''}${missingProfileRules.join('\n')}` : ''}`
       : `- \`nodes\` にはGSNファイルに記載された Goal / Strategy / Solution / Undeveloped ノードを**すべて**列挙する（Context / Assumption / Justification は含めない。本文で扱わないノードも含める）
 - \`status\`（達成状況）は文書の記載値をそのまま転記する（達成/部分達成/未達成/未展開 等）。記載がなければ \`null\`
 - \`parentIds\` には親ノードのIDを文書（親ノード欄・ツリー図）から転記する。トップゴールは \`[]\`、読み取れなければ \`null\`（推定は禁止）
@@ -1176,23 +1193,24 @@ ${JSON.stringify({ title: '図X: GSNノードヒートマップ', ...(stakeholde
   2. 無ければ、ノードの内容・根拠が参照するハザード／リスク（H-xxx, R-xxx 等）の文書記載の重大度・影響度のうち最も高い値
   3. どちらも無ければ \`null\`
 - \`severitySource\` には severity の出典（例: "H-101, H-103 (Serious)"）を書く
-${categoryRule}${stakeholderCategories ? `\n- \`stakeholderCategories\` は ${JSON.stringify(stakeholderCategories)} とする` : stakeholderCategoryRule}`;
+${categoryRule}
+${profileRules.join('\n')}`;
 
   return `
 
 ### GSNノードヒートマップ（gsn-heatmap ブロック）
 ※ これはセクション定義ではない。レポート構成に新しい章・節を追加せず、既存の章の中に出力すること。
-以下の形式のコードブロックを**レポート全体で1つ**出力すること。システムがこれを「GSNの深さ（縦軸）× 必要情報カテゴリー（横軸）」のヒートマップとして描画し（セルの色＝達成状況）、
-${role} が必要とするカテゴリー（\`stakeholderCategories\`）の列と、本レポートの本文で言及したノードを強調表示する。
+以下の形式のコードブロックを**レポート全体で1つ**出力すること。システムがこれを「${role} への関連度（縦軸: 必須/関連/参考）× 達成状況（横軸）」のヒートマップとして描画する。
+関連度は、${role} が必要とするカテゴリー（\`stakeholderCategories\`）と重視する論証レイヤー（\`stakeholderLayers\`）にノードがどれだけ一致するかからシステムが算出する（関連度をJSONに書く必要はない）。
 
 \`\`\`gsn-heatmap
-{"title":"図X: GSNノードヒートマップ","stakeholderCategories":["goal-status","hazard-risk"],"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"ノードの記載内容","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","open-issues"]}]}
+{"title":"図X: GSNノードヒートマップ","stakeholderCategories":["hazard-risk","business"],"stakeholderLayers":["top","subgoal"],"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"ノードの記載内容","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","verification"]}]}
 \`\`\`
 
 - 出力位置: GSN分析・論証の達成状況を扱う章の中。該当する章がない場合はレポートの末尾
 - 言語指定は必ず \`gsn-heatmap\` とし、中身は有効なJSONのみ（コメント・末尾カンマ禁止）
 ${dataRule}
-- ブロックの直後に「※ 本図はGSNノードをGSNの深さ（縦軸）と必要情報カテゴリー（横軸）のマトリクスに配置し、色で達成状況を、強調で${role}が必要とするカテゴリーと本レポートで言及したノードを示したもの。」のような1行の説明を付ける
+- ブロックの直後に「※ 本図はGSNノードを${role}への関連度（縦軸）と達成状況（横軸）のマトリクスに配置し、色で優先度（関連度が高く未達成のものほど濃い）を示したもの。」のような1行の説明を付ける
 
 ### GSNノードIDの併記（必須）
 本文（表・箇条書きを含む）で個別のGSNノードに言及する際は、必ずノードID（例: G1.2, Sn3）を併記すること。
@@ -1216,8 +1234,9 @@ export function buildCompleteUserPrompt(params: {
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
+  heatmapGsnStakeholderLayers?: string[];
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   const parts = [
@@ -1246,7 +1265,7 @@ export function buildCompleteUserPrompt(params: {
     generateGSNAnalysisPrompt(hasGSN, stakeholder),
     generateFigureRequirementsPrompt(hasGSN, stakeholder),
     generateRiskAnalysisPrompt(heatmapRisks, focusRiskIds),
-    generateGsnHeatmapPrompt(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories),
+    generateGsnHeatmapPrompt(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers),
     
     // 9. 不適切ファイル対応（参考）
     generateInvalidFileGuidelines(),

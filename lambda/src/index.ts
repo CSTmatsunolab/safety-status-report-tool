@@ -25,7 +25,7 @@ import {
 } from './types';
 import { buildCompleteUserPrompt } from './lib/report-prompts';
 import { buildCompleteUserPromptEN } from './lib/report-prompts-en';
-import { normalizeCategoryIds } from './lib/gsn-categories';
+import { normalizeCategoryIds, normalizeLayerIds } from './lib/gsn-categories';
 import { 
   determineAdvancedRhetoricStrategy, 
   getRhetoricStrategyDisplayName,
@@ -161,22 +161,27 @@ const MAX_PARENT_IDS = 20;
 /**
  * GSNノードヒートマップ指定（クライアント入力）を検証・整形する
  * focusGsnNodes（詳述するノード）は heatmapGsnNodes に含まれるIDのみ残す
- * カテゴリーIDは既知のもの（lib/gsn-categories.ts）のみ残す
+ * カテゴリー・レイヤーのIDは既知のもの（lib/gsn-categories.ts）のみ残す
  */
 function sanitizeGsnHeatmapInput(
   heatmapGsnNodes: unknown,
   focusGsnNodes: unknown,
-  heatmapGsnStakeholderCategories: unknown
+  heatmapGsnStakeholderCategories: unknown,
+  heatmapGsnStakeholderLayers: unknown
 ): {
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
+  heatmapGsnStakeholderLayers?: string[];
 } {
   const stakeholderCategories = normalizeCategoryIds(heatmapGsnStakeholderCategories);
-  const categoriesResult =
-    stakeholderCategories && stakeholderCategories.length > 0
+  const stakeholderLayers = normalizeLayerIds(heatmapGsnStakeholderLayers);
+  const categoriesResult = {
+    ...(stakeholderCategories && stakeholderCategories.length > 0
       ? { heatmapGsnStakeholderCategories: stakeholderCategories }
-      : {};
+      : {}),
+    ...(stakeholderLayers && stakeholderLayers.length > 0 ? { heatmapGsnStakeholderLayers: stakeholderLayers } : {}),
+  };
   if (!Array.isArray(heatmapGsnNodes) || heatmapGsnNodes.length === 0) return categoriesResult;
 
   const clip = (value: unknown): string | undefined => {
@@ -265,11 +270,13 @@ async function streamHandler(
       userIdentifier = 'anonymous',
     } = body;
     const { heatmapRisks, focusRiskIds } = sanitizeHeatmapInput(body.heatmapRisks, body.focusRiskIds);
-    const { heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories } = sanitizeGsnHeatmapInput(
-      body.heatmapGsnNodes,
-      body.focusGsnNodes,
-      body.heatmapGsnStakeholderCategories
-    );
+    const { heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } =
+      sanitizeGsnHeatmapInput(
+        body.heatmapGsnNodes,
+        body.focusGsnNodes,
+        body.heatmapGsnStakeholderCategories,
+        body.heatmapGsnStakeholderLayers
+      );
 
     // バリデーション
     if (!stakeholder || !reportStructure) {
@@ -430,6 +437,7 @@ async function streamHandler(
       heatmapGsnNodes,
       focusGsnNodes,
       heatmapGsnStakeholderCategories,
+      heatmapGsnStakeholderLayers,
     });
 
     // ステップ5: Claude APIストリーミング呼び出し

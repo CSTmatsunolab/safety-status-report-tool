@@ -14,7 +14,7 @@ import { RiskHeatmap } from './RiskHeatmap';
 import { GsnHeatmap } from './GsnHeatmap';
 import { HeatmapKind, HeatmapSwitcher, defaultHeatmapKind } from './HeatmapSwitcher';
 import type { useGsnCategoryFocus } from '@/hooks/useGsnCategoryFocus';
-import { gsnCategoryLabel } from '@/lib/gsn-categories';
+import { gsnCategoryLabel, gsnLayerLabel } from '@/lib/gsn-categories';
 
 interface RiskFocusPanelProps {
   stakeholder: Stakeholder | null;
@@ -83,13 +83,13 @@ export function RiskFocusPanel({
           </div>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             {kind === 'gsn'
-              ? stakeholder && gsnFocus.stakeholderCategories
+              ? stakeholder && gsnFocus.stakeholderProfile
                 ? en
-                  ? `GSN nodes are placed by depth (vertical) and information category (horizontal); color shows the worst status. The categories ${stakeholder.role} needs (${gsnFocus.stakeholderCategories.map((c) => gsnCategoryLabel(c, language)).join(', ')}) and their nodes are highlighted (${gsnFocus.focusIds.size} to detail). Click a node to include/exclude it; the selection is passed to report generation.`
-                  : `GSNノードを深さ（縦軸）×必要情報カテゴリー（横軸）に配置しています（色＝達成状況の悪さ）。${stakeholder.role} が必要とするカテゴリー（${gsnFocus.stakeholderCategories.map((c) => gsnCategoryLabel(c, language)).join('、')}）とそのノードを強調しています（詳述 ${gsnFocus.focusIds.size}件）。クリックで追加・除外でき、選択内容はレポート生成に反映されます。`
+                  ? `GSN nodes are placed by relevance to ${stakeholder.role} (vertical) and status (horizontal). Relevance comes from the categories they need (${gsnFocus.stakeholderProfile.categories.map((c) => gsnCategoryLabel(c, language)).join(', ') || '-'}) and the argument layers they focus on (${gsnFocus.stakeholderProfile.layers.map((l) => gsnLayerLabel(l, language)).join(', ') || '-'}); ${gsnFocus.focusIds.size} nodes are selected to detail. Click a node to include/exclude it; the selection is passed to report generation.`
+                  : `GSNノードを ${stakeholder.role} への関連度（縦軸）×達成状況（横軸）に配置しています。関連度は、必要とするカテゴリー（${gsnFocus.stakeholderProfile.categories.map((c) => gsnCategoryLabel(c, language)).join('、') || '-'}）と重視する論証レイヤー（${gsnFocus.stakeholderProfile.layers.map((l) => gsnLayerLabel(l, language)).join('、') || '-'}）から算出しています（詳述 ${gsnFocus.focusIds.size}件）。クリックで追加・除外でき、選択内容はレポート生成に反映されます。`
                 : en
-                  ? 'GSN nodes are placed by depth (vertical) and information category (horizontal); color shows the worst status. Select a stakeholder to highlight the categories they need.'
-                  : 'GSNノードを深さ（縦軸）×必要情報カテゴリー（横軸）に配置しています（色＝達成状況の悪さ）。ステークホルダを選択すると、そのステークホルダが必要とするカテゴリーとノードが強調されます。'
+                  ? 'GSN nodes are placed by argument layer (vertical) and status (horizontal). Select a stakeholder to switch the rows to relevance to that stakeholder.'
+                  : 'GSNノードを論証レイヤー（縦軸）×達成状況（横軸）に配置しています。ステークホルダを選択すると、縦軸がそのステークホルダへの関連度（必須/関連/参考）に変わります。'
               : stakeholder
               ? en
                 ? `Risks to cover for ${stakeholder.role} are highlighted (${focusCount}). Click a risk to include/exclude it; the selection is passed to report generation.`
@@ -112,7 +112,7 @@ export function RiskFocusPanel({
           )}
           {kind === 'gsn' && stakeholder && gsnNodes && gsnNodes.length > 0 && (
             <>
-              {gsnFocus.stakeholderCategories && (
+              {gsnFocus.stakeholderProfile && (
                 <button
                   type="button"
                   onClick={gsnFocus.resetToRule}
@@ -130,7 +130,7 @@ export function RiskFocusPanel({
                   className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-sm transition-colors disabled:opacity-50"
                 >
                   {gsnFocus.isMapping ? <FiLoader className="mr-1 animate-spin" /> : <FiTarget className="mr-1" />}
-                  {en ? 'Re-assign categories' : 'カテゴリーを再判定'}
+                  {en ? 'Re-assess needs' : '必要情報を再判定'}
                 </button>
               )}
             </>
@@ -210,19 +210,19 @@ export function RiskFocusPanel({
           )}
           {stakeholder && gsnFocus.error && (
             <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-              {en ? 'Failed to assign categories (all categories are treated as needed): ' : 'カテゴリーの判定に失敗しました（全カテゴリーを必要として扱います）: '}
+              {en ? 'Failed to assess the stakeholder needs (all categories and layers are treated as needed): ' : '必要情報の判定に失敗しました（全カテゴリー・全レイヤーを必要として扱います）: '}
               {gsnFocus.error}
             </div>
           )}
           {gsnNodes &&
-            (stakeholder && gsnFocus.stakeholderCategories ? (
+            (stakeholder && gsnFocus.stakeholderProfile ? (
               <GsnHeatmap
                 nodes={gsnFocus.heatmapItems}
                 labels={en ? { on: 'Detail in this report', off: 'Not detailed' } : { on: 'このレポートで詳述', off: '詳述しない' }}
                 onToggle={gsnFocus.toggle}
                 reasons={gsnFocus.reasons}
-                highlightCategories={gsnFocus.stakeholderCategories}
-                highlightLabel={en ? `Needed by ${stakeholder.role}` : `${stakeholder.role} が必要`}
+                profile={gsnFocus.stakeholderProfile}
+                profileLabel={stakeholder.role}
                 activeCategory={gsnFocus.activeCategory}
                 onCategoryChange={gsnFocus.setActiveCategory}
               />

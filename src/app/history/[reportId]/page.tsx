@@ -732,7 +732,7 @@ export default function ReportDetailPage() {
         onClose={closeHeatmap}
         risks={heatmaps?.risks ?? []}
         gsnNodes={heatmaps?.gsnNodes ?? []}
-        gsnStakeholderCategories={heatmaps?.gsnStakeholderCategories}
+        gsnStakeholderProfile={heatmaps?.gsnStakeholderProfile}
       />
     </main>
   );

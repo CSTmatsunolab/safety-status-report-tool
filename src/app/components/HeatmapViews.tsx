@@ -12,6 +12,7 @@ import { GsnHeatmap } from './GsnHeatmap';
 import { HeatmapKind, HeatmapSwitcher, defaultHeatmapKind } from './HeatmapSwitcher';
 import { RISK_HEATMAP_LANG, RiskHeatmapItem, markReportMentions, parseHeatmapBlock } from '@/lib/risk-heatmap';
 import { GSN_HEATMAP_LANG, GsnHeatmapItem, markGsnReportMentions, parseGsnHeatmapBlock } from '@/lib/gsn-heatmap';
+import { StakeholderProfile, toStakeholderProfile } from '@/lib/gsn-categories';
 
 const TEXTS = {
   ja: {
@@ -38,10 +39,10 @@ interface HeatmapModalProps {
   risks: RiskHeatmapItem[];
   gsnNodes: GsnHeatmapItem[];
   // GSNノードヒートマップで強調する列（レポート対象のステークホルダが必要とする情報カテゴリー）
-  gsnStakeholderCategories?: string[];
+  gsnStakeholderProfile?: StakeholderProfile | null;
 }
 
-export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderCategories }: HeatmapModalProps) {
+export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderProfile }: HeatmapModalProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
   const riskCount = risks.length > 0 ? risks.length : null;
@@ -93,7 +94,7 @@ export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderC
         {kind === 'risk' ? (
           riskCount ? <RiskHeatmap risks={risks} /> : <p className="text-sm text-gray-600 dark:text-gray-400">{t.noRisk}</p>
         ) : gsnCount ? (
-          <GsnHeatmap nodes={gsnNodes} highlightCategories={gsnStakeholderCategories} />
+          <GsnHeatmap nodes={gsnNodes} profile={gsnStakeholderProfile} />
         ) : (
           <p className="text-sm text-gray-600 dark:text-gray-400">{t.noGsn}</p>
         )}
@@ -125,7 +126,7 @@ function GsnHeatmapBlock({ json, reportContent }: { json: string; reportContent:
     <GsnHeatmap
       nodes={markGsnReportMentions(data.nodes, reportContent)}
       title={data.title}
-      highlightCategories={data.stakeholderCategories}
+      profile={toStakeholderProfile(data.stakeholderCategories, data.stakeholderLayers)}
     />
   );
 }

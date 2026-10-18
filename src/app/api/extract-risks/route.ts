@@ -51,7 +51,7 @@ Rules:
 const GSN_SYSTEM_PROMPT_JA = `あなたはGSN（Goal Structuring Notation）文書からノード情報を抽出するアシスタントです。
 提供された文書のうち「=== GSNファイル:」で始まるファイルに記載されたGSNノードを抽出し、次のJSONのみを出力してください（前置き・説明・コードフェンスは不要）。
 
-{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"識別されたハザードに対策が実施されている","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","open-issues"]}]}
+{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"識別されたハザードに対策が実施されている","status":"部分達成","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","verification"]}]}
 
 規則:
 - ノードはGSNファイルからのみ抽出する。対象は Goal / Sub-Goal / Strategy / Solution(Evidence) / Undeveloped。Context / Assumption / Justification は含めない
@@ -71,7 +71,7 @@ ${formatCategoryDefinitions('ja')}
 const GSN_SYSTEM_PROMPT_EN = `You extract node information from GSN (Goal Structuring Notation) documents.
 Extract the GSN nodes written in the files that start with "=== GSN file:" and output ONLY the following JSON (no preamble, explanation, or code fences).
 
-{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"Identified hazards are mitigated","status":"Partially achieved","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","open-issues"]}]}
+{"nodes":[{"id":"G1.2","type":"Sub-Goal","text":"Identified hazards are mitigated","status":"Partially achieved","severity":"Serious","severitySource":"H-101, H-103 (Serious)","parentIds":["S1"],"categories":["hazard-risk","verification"]}]}
 
 Rules:
 - Extract nodes from the GSN files only. Include Goal / Sub-Goal / Strategy / Solution (Evidence) / Undeveloped. Do NOT include Context / Assumption / Justification

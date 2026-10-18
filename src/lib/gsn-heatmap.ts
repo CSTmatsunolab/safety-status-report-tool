@@ -15,7 +15,19 @@ import {
   heatmapExportRegex,
   replaceHeatmapBlocksWithTable,
 } from './risk-heatmap';
-import { gsnCategoryLabel, normalizeCategoryIds } from './gsn-categories';
+import {
+  GSN_RELEVANCES,
+  GSN_RELEVANCE_LABELS,
+  GsnRelevance,
+  StakeholderProfile,
+  gsnCategoryLabel,
+  gsnLayerLabel,
+  gsnNodeLayer,
+  gsnRelevance,
+  normalizeCategoryIds,
+  normalizeLayerIds,
+  toStakeholderProfile,
+} from './gsn-categories';
 
 export type GsnSeverity = 1 | 2 | 3 | 4;
 export type GsnStatus = 'achieved' | 'partial' | 'unachieved' | 'undeveloped';
@@ -46,8 +58,9 @@ export interface GsnHeatmapItem {
 
 export interface GsnHeatmapData {
   title?: string;
-  // レポート対象のステークホルダが必要とするカテゴリーのID（ヒートマップで強調する列）
+  // レポート対象のステークホルダの要求（関連度の算出に使う）: 必要とするカテゴリーのID・重視する論証レイヤー
   stakeholderCategories?: string[];
+  stakeholderLayers?: string[];
   nodes: GsnHeatmapItem[];
 }
 
@@ -188,10 +201,11 @@ export function parseGsnHeatmapBlock(json: string): GsnHeatmapData | null {
   const root = Array.isArray(parsed) ? { nodes: parsed } : parsed;
   if (!root || typeof root !== 'object') return null;
 
-  const { title, nodes, stakeholderCategories } = root as {
+  const { title, nodes, stakeholderCategories, stakeholderLayers } = root as {
     title?: unknown;
     nodes?: unknown;
     stakeholderCategories?: unknown;
+    stakeholderLayers?: unknown;
   };
   if (!Array.isArray(nodes)) return null;
 
@@ -219,6 +233,7 @@ export function parseGsnHeatmapBlock(json: string): GsnHeatmapData | null {
   return {
     title: toOptionalString(title),
     stakeholderCategories: normalizeCategoryIds(stakeholderCategories),
+    stakeholderLayers: normalizeLayerIds(stakeholderLayers),
     nodes: aggregateStrategyStatuses(items),
   };
 }
@@ -400,6 +415,17 @@ export function computeGsnDepths(nodes: GsnHeatmapItem[]): Record<string, number
   return depths;
 }
 
+// 関連度と達成状況の組み合わせによるセルの優先度（リスクヒートマップの帯と同じ色）
+// 必須×未達成・未展開＝高、必須×部分・関連×未達成＝中、…、達成＝極低、記載なし＝undefined
+export function gsnPriorityBand(relevance: GsnRelevance, status: GsnStatus | null): RiskBand | undefined {
+  if (status === null) return undefined;
+  if (status === 'achieved') return 'minimal';
+  const unresolved = status === 'unachieved' || status === 'undeveloped';
+  if (relevance === 'required') return unresolved ? 'high' : 'medium';
+  if (relevance === 'related') return unresolved ? 'medium' : 'low';
+  return 'low';
+}
+
 export const GSN_STATUS_LABELS: Record<'ja' | 'en', Record<GsnStatus, string>> = {
   ja: { achieved: '達成', partial: '部分達成', unachieved: '未達成', undeveloped: '未展開' },
   en: { achieved: 'Achieved', partial: 'Partial', unachieved: 'Not achieved', undeveloped: 'Undeveloped' },
@@ -412,14 +438,17 @@ export const GSN_SEVERITY_LABELS: Record<'ja' | 'en', Record<GsnSeverity, string
 
 function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): string {
   const ja = lang === 'ja';
-  const header = ja
-    ? '| ノードID | 種別 | 内容 | 深さ | 達成状況 | カテゴリー | 重大度 | 本レポートでの記載 |'
-    : '| Node ID | Type | Description | Depth | Status | Categories | Severity | Covered in this report |';
-  const depths = computeGsnDepths(data.nodes);
-  // 読者が必要とするカテゴリーには ★ を付ける（画面の列の強調に相当）
-  const wanted = new Set(data.stakeholderCategories ?? []);
+  const profile = toStakeholderProfile(data.stakeholderCategories, data.stakeholderLayers);
+  // 読者の要求があれば関連度、無ければ論証レイヤーを示す
+  const header = profile
+    ? ja
+      ? '| ノードID | 種別 | 内容 | 関連度（根拠） | 達成状況 | カテゴリー | 重大度 | 本レポートでの記載 |'
+      : '| Node ID | Type | Description | Relevance (basis) | Status | Categories | Severity | Covered in this report |'
+    : ja
+      ? '| ノードID | 種別 | 内容 | 論証レイヤー | 達成状況 | カテゴリー | 重大度 | 本レポートでの記載 |'
+      : '| Node ID | Type | Description | Argument layer | Status | Categories | Severity | Covered in this report |';
   const categoryText = (item: GsnHeatmapItem) => {
-    const names = (item.categories ?? []).map((c) => `${wanted.has(c) ? '★' : ''}${gsnCategoryLabel(c, lang)}`);
+    const names = (item.categories ?? []).map((c) => gsnCategoryLabel(c, lang));
     return names.length > 0 ? escapeTableCell(names.join(ja ? '、' : ', ')) : '-';
   };
   const unrated = ja ? '記載なし' : 'Not documented';
@@ -433,7 +462,21 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
         ? `（配下から集約${item.rawStatus ? `。文書記載: ${escapeTableCell(item.rawStatus)}` : ''}）`
         : ` (from child nodes${item.rawStatus ? `; documented: ${escapeTableCell(item.rawStatus)}` : ''})`
       : '';
-  const rows = data.nodes.map((item) => {
+
+  const entries = data.nodes.map((item) => ({
+    item,
+    relevance: profile ? gsnRelevance(item, profile, lang) : null,
+  }));
+  // 関連度の高い順、その中は達成状況の悪い順（要求が無ければ文書の順）
+  if (profile) {
+    entries.sort(
+      (a, b) =>
+        GSN_RELEVANCES.indexOf(a.relevance!.relevance) - GSN_RELEVANCES.indexOf(b.relevance!.relevance) ||
+        gsnStatusRank(b.item.status) - gsnStatusRank(a.item.status)
+    );
+  }
+
+  const rows = entries.map(({ item, relevance }) => {
     const status = item.status
       ? `${GSN_STATUS_LABELS[lang][item.status]}${aggregatedNote(item)}`
       : item.rawStatus
@@ -444,20 +487,30 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
       : item.rawSeverity
         ? escapeTableCell(item.rawSeverity)
         : unrated;
-    const depth = depths[item.id];
-    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${depth ?? '-'} | ${status} | ${categoryText(item)} | ${severity} | ${mentionText(item)} |`;
+    const position = relevance
+      ? `${GSN_RELEVANCE_LABELS[lang][relevance.relevance]}（${escapeTableCell(relevance.reason)}）`
+      : gsnLayerLabel(gsnNodeLayer(item), lang);
+    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${position} | ${status} | ${categoryText(item)} | ${severity} | ${mentionText(item)} |`;
   });
 
   const lines = [header, '|---|---|---|---|---|---|---|---|', ...rows];
   if (data.title) lines.unshift(`**${data.title}**`, '');
-  const wantedNames = [...wanted].map((c) => gsnCategoryLabel(c, lang));
-  lines.push(
-    '',
-    ja
-      ? `※ GSNノードヒートマップ（GSNの深さ×必要情報カテゴリー、色＝達成状況）の内容を表形式で示したもの。${wantedNames.length > 0 ? `★は本レポートの読者が必要とするカテゴリー（${wantedNames.join('、')}）。` : ''}「本レポートでの記載」は本文でのノードの言及の有無。`
-      : `Note: The GSN node heatmap (GSN depth x information category, color = status) shown as a table.${wantedNames.length > 0 ? ` ★ marks the categories this report's readers need (${wantedNames.join(', ')}).` : ''} "Covered in this report" shows whether the node is mentioned in the body.`
-  );
+  lines.push('', gsnTableNote(profile, lang));
   return lines.join('\n');
+}
+
+function gsnTableNote(profile: StakeholderProfile | null, lang: 'ja' | 'en'): string {
+  const ja = lang === 'ja';
+  if (!profile) {
+    return ja
+      ? '※ GSNノードヒートマップ（論証レイヤー×達成状況）の内容を表形式で示したもの。「本レポートでの記載」は本文でのノードの言及の有無。'
+      : 'Note: The GSN node heatmap (argument layer x status) shown as a table. "Covered in this report" shows whether the node is mentioned in the body.';
+  }
+  const cats = profile.categories.map((c) => gsnCategoryLabel(c, lang)).join(ja ? '、' : ', ') || '-';
+  const layers = profile.layers.map((l) => gsnLayerLabel(l, lang)).join(ja ? '、' : ', ') || '-';
+  return ja
+    ? `※ GSNノードヒートマップ（読者への関連度×達成状況）の内容を表形式で示したもの。関連度は、読者が必要とするカテゴリー（${cats}）と重視する論証レイヤー（${layers}）への一致から算出した。「本レポートでの記載」は本文でのノードの言及の有無。`
+    : `Note: The GSN node heatmap (relevance to the reader x status) shown as a table. Relevance is computed from matches with the categories the reader needs (${cats}) and the argument layers they focus on (${layers}). "Covered in this report" shows whether the node is mentioned in the body.`;
 }
 
 /**
@@ -491,13 +544,17 @@ export function replaceAllHeatmapBlocksWithTables(markdown: string, lang?: 'ja' 
 export function collectReportHeatmaps(markdown: string): {
   risks: RiskHeatmapItem[];
   gsnNodes: GsnHeatmapItem[];
-  gsnStakeholderCategories?: string[];
+  gsnStakeholderProfile: StakeholderProfile | null;
 } {
   const gsnBlocks = extractGsnHeatmapBlocks(markdown);
+  const profileBlock = gsnBlocks.find(
+    (b) => (b.stakeholderCategories?.length ?? 0) > 0 || (b.stakeholderLayers?.length ?? 0) > 0
+  );
   return {
     risks: markReportMentions(mergeRisks(extractHeatmapBlocks(markdown)), markdown),
     gsnNodes: markGsnReportMentions(mergeGsnNodes(gsnBlocks), markdown),
-    gsnStakeholderCategories: gsnBlocks.find((b) => b.stakeholderCategories && b.stakeholderCategories.length > 0)
-      ?.stakeholderCategories,
+    gsnStakeholderProfile: profileBlock
+      ? toStakeholderProfile(profileBlock.stakeholderCategories, profileBlock.stakeholderLayers)
+      : null,
   };
 }

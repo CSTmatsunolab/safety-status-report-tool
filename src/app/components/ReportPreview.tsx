@@ -513,7 +513,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
         onClose={closeHeatmap}
         risks={heatmaps?.risks ?? []}
         gsnNodes={heatmaps?.gsnNodes ?? []}
-        gsnStakeholderCategories={heatmaps?.gsnStakeholderCategories}
+        gsnStakeholderProfile={heatmaps?.gsnStakeholderProfile}
       />
     </div>
   );

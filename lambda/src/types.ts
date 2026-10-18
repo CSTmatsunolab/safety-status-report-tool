@@ -111,6 +111,7 @@ export interface GenerateReportRequest {
   // GSNノードヒートマップの元データ（画面で抽出。表示のみで選択はしない）
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
-  // GSNノードヒートマップで強調する列（ステークホルダが必要とする情報カテゴリーのID）
+  // GSNノードヒートマップの関連度の算出に使うステークホルダの要求（必要な情報カテゴリー・重視する論証レイヤーのID）
   heatmapGsnStakeholderCategories?: string[];
+  heatmapGsnStakeholderLayers?: string[];
 }

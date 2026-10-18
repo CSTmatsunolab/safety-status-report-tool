@@ -57,6 +57,7 @@ interface GenerateReportParams {
   focusGsnNodes?: FocusGsnNode[];
   // レポート内GSNヒートマップで強調する列（ステークホルダが必要とする情報カテゴリー）
   heatmapGsnStakeholderCategories?: string[];
+  heatmapGsnStakeholderLayers?: string[];
 }
 
 interface LambdaStreamMessage {
@@ -129,7 +130,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -207,6 +208,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
           categories,
         })),
         heatmapGsnStakeholderCategories,
+        heatmapGsnStakeholderLayers,
         focusGsnNodes,
       }),
       signal,
