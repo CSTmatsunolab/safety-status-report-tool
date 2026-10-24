@@ -3,8 +3,10 @@
 // LLMがレポート中に出力する ```gsn-heatmap フェンスブロック（JSON）と、生成前の抽出結果を扱う
 
 import {
+  ReportCoverage,
   RiskBand,
   RiskHeatmapItem,
+  coverageText,
   detectLanguage,
   extractHeatmapBlocks,
   markReportMentions,
@@ -12,8 +14,10 @@ import {
   escapeRegExp,
   escapeTableCell,
   getReportBody,
+  getReportHeadings,
   heatmapExportRegex,
   replaceHeatmapBlocksWithTable,
+  reportCoverage,
 } from './risk-heatmap';
 import {
   GSN_RELEVANCES,
@@ -54,6 +58,8 @@ export interface GsnHeatmapItem {
   statusAggregated?: boolean;
   // このレポートの本文で言及されているか（markGsnReportMentions で判定。未判定は undefined）
   inReport?: boolean;
+  // 本文での扱いの深さ（詳述／言及のみ／なし）。未判定は undefined
+  coverage?: ReportCoverage;
 }
 
 export interface GsnHeatmapData {
@@ -315,7 +321,11 @@ export function isGsnNodeMentioned(item: GsnHeatmapItem, body: string): boolean 
  */
 export function markGsnReportMentions(nodes: GsnHeatmapItem[], markdown: string): GsnHeatmapItem[] {
   const body = getReportBody(markdown);
-  return nodes.map((item) => ({ ...item, inReport: isGsnNodeMentioned(item, body) }));
+  const headings = getReportHeadings(body);
+  return nodes.map((item) => {
+    const coverage = reportCoverage((text) => isGsnNodeMentioned(item, text), body, headings);
+    return { ...item, inReport: coverage !== 'none', coverage };
+  });
 }
 
 function isRated(item: GsnHeatmapItem): boolean {
@@ -452,8 +462,6 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
     return names.length > 0 ? escapeTableCell(names.join(ja ? '、' : ', ')) : '-';
   };
   const unrated = ja ? '記載なし' : 'Not documented';
-  const mentionText = (item: GsnHeatmapItem) =>
-    item.inReport === undefined ? '-' : item.inReport ? (ja ? 'あり' : 'Yes') : (ja ? 'なし' : 'No');
   const cell = (text?: string) => (text ? escapeTableCell(text) : '-');
 
   const aggregatedNote = (item: GsnHeatmapItem) =>
@@ -490,7 +498,7 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
     const position = relevance
       ? `${GSN_RELEVANCE_LABELS[lang][relevance.relevance]}（${escapeTableCell(relevance.reason)}）`
       : gsnLayerLabel(gsnNodeLayer(item), lang);
-    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${position} | ${status} | ${categoryText(item)} | ${severity} | ${mentionText(item)} |`;
+    return `| ${escapeTableCell(item.id)} | ${cell(item.type)} | ${cell(item.text)} | ${position} | ${status} | ${categoryText(item)} | ${severity} | ${coverageText(item, lang)} |`;
   });
 
   const lines = [header, '|---|---|---|---|---|---|---|---|', ...rows];
@@ -499,18 +507,23 @@ function gsnHeatmapToMarkdownTable(data: GsnHeatmapData, lang: 'ja' | 'en'): str
   return lines.join('\n');
 }
 
+const COVERAGE_NOTE = {
+  ja: '「本レポートでの記載」は本文での扱い（詳述＝見出しで個別に取り上げた、言及のみ＝本文・表で触れた、なし）。',
+  en: '"Covered in this report" shows how the node is covered in the body (Detailed = has its own heading, Mentioned = referred to in text or tables, No).',
+};
+
 function gsnTableNote(profile: StakeholderProfile | null, lang: 'ja' | 'en'): string {
   const ja = lang === 'ja';
   if (!profile) {
     return ja
-      ? '※ GSNノードヒートマップ（論証レイヤー×達成状況）の内容を表形式で示したもの。「本レポートでの記載」は本文でのノードの言及の有無。'
-      : 'Note: The GSN node heatmap (argument layer x status) shown as a table. "Covered in this report" shows whether the node is mentioned in the body.';
+      ? `※ GSNノードヒートマップ（論証レイヤー×達成状況）の内容を表形式で示したもの。${COVERAGE_NOTE.ja}`
+      : `Note: The GSN node heatmap (argument layer x status) shown as a table. ${COVERAGE_NOTE.en}`;
   }
   const cats = profile.categories.map((c) => gsnCategoryLabel(c, lang)).join(ja ? '、' : ', ') || '-';
   const layers = profile.layers.map((l) => gsnLayerLabel(l, lang)).join(ja ? '、' : ', ') || '-';
   return ja
-    ? `※ GSNノードヒートマップ（読者への関連度×達成状況）の内容を表形式で示したもの。関連度は、読者が必要とするカテゴリー（${cats}）と重視する論証レイヤー（${layers}）への一致から算出した。「本レポートでの記載」は本文でのノードの言及の有無。`
-    : `Note: The GSN node heatmap (relevance to the reader x status) shown as a table. Relevance is computed from matches with the categories the reader needs (${cats}) and the argument layers they focus on (${layers}). "Covered in this report" shows whether the node is mentioned in the body.`;
+    ? `※ GSNノードヒートマップ（読者への関連度×達成状況）の内容を表形式で示したもの。関連度は、読者が必要とするカテゴリー（${cats}）と重視する論証レイヤー（${layers}）への一致から算出した。${COVERAGE_NOTE.ja}`
+    : `Note: The GSN node heatmap (relevance to the reader x status) shown as a table. Relevance is computed from matches with the categories the reader needs (${cats}) and the argument layers they focus on (${layers}). ${COVERAGE_NOTE.en}`;
 }
 
 /**

@@ -15,6 +15,12 @@ export const CHIP_IN_REPORT =
   'border-2 border-gray-900 bg-white font-bold text-gray-900 shadow hover:bg-blue-50 dark:border-white dark:bg-gray-900 dark:text-gray-100 dark:hover:bg-gray-800';
 export const CHIP_DOC_ONLY =
   'border border-dashed border-gray-500 bg-white/40 font-normal text-gray-600 hover:bg-white/80 dark:border-gray-400 dark:bg-gray-900/30 dark:text-gray-300 dark:hover:bg-gray-900/60';
+// 一覧の「本レポートでの記載」バッジ（詳述＝塗り、言及のみ＝枠線、なし＝点線）
+export const COVERAGE_BADGE_STYLES = {
+  detailed: 'bg-gray-900 text-white dark:bg-white dark:text-gray-900',
+  mentioned: 'border border-gray-900 text-gray-900 dark:border-white dark:text-gray-100',
+  none: 'border border-dashed border-gray-400 text-gray-500 dark:text-gray-400',
+} as const;
 export const CHIP_ACTIVE = 'border-2 border-blue-600 bg-blue-600 font-bold text-white dark:border-sky-400 dark:bg-sky-400 dark:text-gray-900';
 
 export const axisLabelClass = (isActive: boolean) =>

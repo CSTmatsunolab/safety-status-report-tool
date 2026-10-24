@@ -7,7 +7,7 @@
 //   - GSN分析の共通注意書きを一括付与
 //   - 各関数から「因果関係は文書記載がある場合のみ」等の重複記述を除去
 
-import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, Stakeholder } from '../types';
+import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, SafetyVerdictInput, Stakeholder } from '../types';
 import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions } from './gsn-categories';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
@@ -1219,6 +1219,36 @@ ${dataRule}
 }
 
 // ============================================================================
+// 13c. 総合判定（システム算出）
+// ============================================================================
+
+/**
+ * 総合判定の指示。判定はシステムがGSNノード・リスクからルールで算出し、全ステークホルダ共通にする
+ * （判定が無い場合は空文字＝従来どおりLLMが文書から判定する）
+ */
+export function generateSafetyVerdictPrompt(safetyVerdict?: SafetyVerdictInput): string {
+  if (!safetyVerdict) return '';
+  const reasons = safetyVerdict.reasons.length > 0 ? safetyVerdict.reasons.map((r) => `- ${r}`).join('\n') : '- なし（いずれの規則にも該当しない）';
+  return `
+
+### 総合判定（システム算出・固定）
+※ これはセクション定義ではない。エグゼクティブサマリー等、総合判定（安全性ステータス判定）を書く既存の箇所で使うこと。
+本レポートの総合判定は、文書から抽出したGSNノード・リスクに次の規則を適用してシステムが算出したもので、すべてのステークホルダー向けレポートで共通である。
+
+**総合判定: ${safetyVerdict.label}**
+
+判定規則:
+${safetyVerdict.rules.map((r) => `- ${r}`).join('\n')}
+
+この判定に該当した事項:
+${reasons}
+
+- 総合判定は上記の表記（色とラベル）のまま書く。格上げ・格下げ、別の色や表現（「条件付き許容」「要注意」等）への置き換えは禁止
+- 判定根拠には、上記の該当事項をID併記ですべて含める。読者に合わせて変えてよいのは、説明の順序・補足・読者にとっての意味の書き方のみ
+- 文書に別の判定（品質ステータス等）が記載されている場合は、「文書記載の○○ステータス」として区別して記し、総合判定とは混同しない`;
+}
+
+// ============================================================================
 // 14. 完全なユーザープロンプトの組み立て（v5更新）
 // ============================================================================
 
@@ -1235,8 +1265,9 @@ export function buildCompleteUserPrompt(params: {
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
   heatmapGsnStakeholderLayers?: string[];
+  safetyVerdict?: SafetyVerdictInput;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   const parts = [
@@ -1266,6 +1297,7 @@ export function buildCompleteUserPrompt(params: {
     generateFigureRequirementsPrompt(hasGSN, stakeholder),
     generateRiskAnalysisPrompt(heatmapRisks, focusRiskIds),
     generateGsnHeatmapPrompt(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers),
+    generateSafetyVerdictPrompt(safetyVerdict),
     
     // 9. 不適切ファイル対応（参考）
     generateInvalidFileGuidelines(),

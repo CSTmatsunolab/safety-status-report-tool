@@ -98,6 +98,17 @@ export interface FocusGsnNodeInput {
   reason?: string;
 }
 
+// 総合判定（画面で抽出済みのGSNノード・リスクからルールで算出。src/lib/safety-verdict.ts）
+export interface SafetyVerdictInput {
+  level: 'red' | 'yellow' | 'green';
+  // 表示する判定ラベル（例: 「赤（リリース判断保留）」）
+  label: string;
+  // 判定規則の説明
+  rules: string[];
+  // 判定の根拠になった事項（ID併記）
+  reasons: string[];
+}
+
 export interface GenerateReportRequest {
   stakeholder: Stakeholder;
   reportStructure: ReportStructureTemplate;
@@ -114,4 +125,6 @@ export interface GenerateReportRequest {
   // GSNノードヒートマップの関連度の算出に使うステークホルダの要求（必要な情報カテゴリー・重視する論証レイヤーのID）
   heatmapGsnStakeholderCategories?: string[];
   heatmapGsnStakeholderLayers?: string[];
+  // ステークホルダ間で共通にする総合判定
+  safetyVerdict?: SafetyVerdictInput;
 }

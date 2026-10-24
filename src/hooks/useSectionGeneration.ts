@@ -8,6 +8,7 @@ import { UploadedFile, Stakeholder, Report, ReportStructureTemplate } from '@/ty
 import { RiskHeatmapItem } from '@/lib/risk-heatmap';
 import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
 import { FocusGsnNode } from '@/lib/gsn-categories';
+import { SAFETY_VERDICT_LABELS, SAFETY_VERDICT_RULES, computeSafetyVerdict } from '@/lib/safety-verdict';
 
 // Lambda Function URL (環境変数から取得)
 const LAMBDA_FUNCTION_URL = process.env.NEXT_PUBLIC_LAMBDA_FUNCTION_URL || '';
@@ -177,6 +178,16 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
       .filter(f => f.includeFullText)
       .map(f => f.name);
 
+    // 総合判定は抽出済みのGSNノード・リスクからルールで決め、ステークホルダ間で揃える
+    const verdict = computeSafetyVerdict(heatmapGsnNodes, heatmapRisks, language);
+    const safetyVerdict = verdict
+      ? {
+          ...verdict,
+          label: SAFETY_VERDICT_LABELS[language][verdict.level],
+          rules: SAFETY_VERDICT_RULES[language],
+        }
+      : undefined;
+
     const response = await fetch(LAMBDA_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -210,6 +221,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         heatmapGsnStakeholderCategories,
         heatmapGsnStakeholderLayers,
         focusGsnNodes,
+        safetyVerdict,
       }),
       signal,
     });

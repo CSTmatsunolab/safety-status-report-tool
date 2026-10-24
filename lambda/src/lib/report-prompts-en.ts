@@ -7,7 +7,7 @@
 //   - Added common GSN analysis notes as batch
 //   - Removed duplicated "causal relationships only when documented" etc. from individual functions
 
-import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, Stakeholder } from '../types';
+import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, SafetyVerdictInput, Stakeholder } from '../types';
 import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions } from './gsn-categories';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
@@ -1218,6 +1218,36 @@ Heatmap highlighting is determined by the node IDs appearing in the body (symbol
 }
 
 // ============================================================================
+// 13c. Overall verdict (computed by the system)
+// ============================================================================
+
+/**
+ * Instructions for the overall verdict. The system computes it from GSN nodes and risks by rule so it is shared by all stakeholders
+ * (empty string when absent = the LLM judges from the documents as before)
+ */
+export function generateSafetyVerdictPromptEN(safetyVerdict?: SafetyVerdictInput): string {
+  if (!safetyVerdict) return '';
+  const reasons = safetyVerdict.reasons.length > 0 ? safetyVerdict.reasons.map((r) => `- ${r}`).join('\n') : '- None (no rule applies)';
+  return `
+
+### Overall Verdict (computed by the system, fixed)
+* This is not a section definition. Use it where the existing structure states the overall verdict (safety status determination), such as the executive summary.
+The overall verdict of this report was computed by the system by applying the following rules to the GSN nodes and risks extracted from the documents, and is the same for the reports for every stakeholder.
+
+**Overall verdict: ${safetyVerdict.label}**
+
+Rules:
+${safetyVerdict.rules.map((r) => `- ${r}`).join('\n')}
+
+Items that led to this verdict:
+${reasons}
+
+- Write the overall verdict exactly as above (color and label). Do not upgrade or downgrade it, or replace it with another color or wording (e.g. "acceptable with conditions", "caution")
+- Include every item above, with its ID, in the basis for the verdict. Only the order, supplementary explanation, and what it means for the reader may be adapted to the reader
+- If the documents state a different status (e.g. quality status), present it separately as "the documented XX status" and do not confuse it with the overall verdict`;
+}
+
+// ============================================================================
 // 14. Build Complete User Prompt (v5 Update)
 // ============================================================================
 
@@ -1234,8 +1264,9 @@ export function buildCompleteUserPromptEN(params: {
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
   heatmapGsnStakeholderLayers?: string[];
+  safetyVerdict?: SafetyVerdictInput;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
 
   // Prompt assembly order (by importance — no duplicates)
   const parts = [
@@ -1265,6 +1296,7 @@ export function buildCompleteUserPromptEN(params: {
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
     generateRiskAnalysisPromptEN(heatmapRisks, focusRiskIds),
     generateGsnHeatmapPromptEN(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers),
+    generateSafetyVerdictPromptEN(safetyVerdict),
     
     // 9. Invalid file handling (reference)
     generateInvalidFileGuidelinesEN(),

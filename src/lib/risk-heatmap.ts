@@ -15,7 +15,17 @@ export interface RiskHeatmapItem {
   rawImpact?: string;
   // このレポートの本文で言及されているか（markReportMentions で判定。未判定は undefined）
   inReport?: boolean;
+  // 本文での扱いの深さ（詳述／言及のみ／なし）。markReportMentions で判定。未判定は undefined
+  coverage?: ReportCoverage;
 }
+
+// 本文での扱いの深さ: 見出しで個別に取り上げた＝詳述、本文・表で触れただけ＝言及のみ
+export type ReportCoverage = 'detailed' | 'mentioned' | 'none';
+
+export const REPORT_COVERAGE_LABELS: Record<'ja' | 'en', Record<ReportCoverage, string>> = {
+  ja: { detailed: '詳述', mentioned: '言及のみ', none: 'なし' },
+  en: { detailed: 'Detailed', mentioned: 'Mentioned', none: 'No' },
+};
 
 export interface RiskHeatmapData {
   title?: string;
@@ -201,6 +211,32 @@ export function getReportBody(markdown: string): string {
   return stripAuxiliarySections(markdown.replace(ALL_HEATMAP_BLOCKS_REGEX, ''));
 }
 
+// 太字だけの行（「**R-101: リスク名**」のような見出し代わりの行）
+const BOLD_ONLY_LINE_REGEX = /^\s*(?:\*\*|__)[^*_\n]+(?:\*\*|__)\s*$/;
+
+/**
+ * 本文から見出し（# 見出し、太字だけの行）を抜き出す
+ * 見出しで個別に取り上げた項目を「詳述」とみなすため
+ */
+export function getReportHeadings(body: string): string {
+  return body
+    .split('\n')
+    .filter((line) => HEADING_REGEX.test(line) || BOLD_ONLY_LINE_REGEX.test(line))
+    .join('\n');
+}
+
+/**
+ * 本文での扱いの深さを判定する（mentionedIn で本文・見出しそれぞれへの出現を判定）
+ */
+export function reportCoverage(
+  mentionedIn: (text: string) => boolean,
+  body: string,
+  headings: string
+): ReportCoverage {
+  if (!mentionedIn(body)) return 'none';
+  return mentionedIn(headings) ? 'detailed' : 'mentioned';
+}
+
 /**
  * リスクがレポート本文で言及されているかを判定する
  * - リスクID（R-101 等）が本文に出現すれば言及あり（R-1 と R-10 は区別する）
@@ -219,7 +255,19 @@ export function isRiskMentioned(item: RiskHeatmapItem, body: string): boolean {
  */
 export function markReportMentions(risks: RiskHeatmapItem[], markdown: string): RiskHeatmapItem[] {
   const body = getReportBody(markdown);
-  return risks.map((item) => ({ ...item, inReport: isRiskMentioned(item, body) }));
+  const headings = getReportHeadings(body);
+  return risks.map((item) => {
+    const coverage = reportCoverage((text) => isRiskMentioned(item, text), body, headings);
+    return { ...item, inReport: coverage !== 'none', coverage };
+  });
+}
+
+/**
+ * 「本レポートでの記載」列の表示（詳述／言及のみ／なし。未判定は -）
+ */
+export function coverageText(item: { inReport?: boolean; coverage?: ReportCoverage }, lang: 'ja' | 'en'): string {
+  const coverage = item.coverage ?? (item.inReport === undefined ? undefined : item.inReport ? 'mentioned' : 'none');
+  return coverage ? REPORT_COVERAGE_LABELS[lang][coverage] : '-';
 }
 
 function isRated(item: RiskHeatmapItem): boolean {
@@ -275,8 +323,6 @@ function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): strin
   const header = ja
     ? '| リスクID | リスク名 | 発生確率 | 影響度 | スコア | 対策状況 | 本レポートでの記載 |'
     : '| Risk ID | Risk | Likelihood | Impact | Score | Status | Covered in this report |';
-  const mentionText = (item: RiskHeatmapItem) =>
-    item.inReport === undefined ? '-' : item.inReport ? (ja ? 'あり' : 'Yes') : (ja ? 'なし' : 'No');
   const unrated = ja ? '記載なし' : 'Not documented';
 
   const formatLevel = (level: RiskLevel | null, raw?: string) => {
@@ -291,7 +337,7 @@ function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): strin
         : null;
     const scoreText =
       score === null ? '-' : `${score} (${BAND_LABELS[lang][scoreBand(score)]})`;
-    return `| ${escapeTableCell(item.id)} | ${escapeTableCell(item.name ?? '-')} | ${formatLevel(item.likelihood, item.rawLikelihood)} | ${formatLevel(item.impact, item.rawImpact)} | ${scoreText} | ${escapeTableCell(item.status ?? '-')} | ${mentionText(item)} |`;
+    return `| ${escapeTableCell(item.id)} | ${escapeTableCell(item.name ?? '-')} | ${formatLevel(item.likelihood, item.rawLikelihood)} | ${formatLevel(item.impact, item.rawImpact)} | ${scoreText} | ${escapeTableCell(item.status ?? '-')} | ${coverageText(item, lang)} |`;
   });
 
   const lines = [header, '|---|---|---|---|---|---|---|', ...rows];
@@ -299,8 +345,8 @@ function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): strin
   lines.push(
     '',
     ja
-      ? '※ ヒートマップ（影響度×発生確率）の内容を表形式で示したもの。スコア＝影響度×発生確率。「本レポートでの記載」は本文でのリスクIDの言及の有無。'
-      : 'Note: The heatmap (impact x likelihood) shown as a table. Score = impact x likelihood. "Covered in this report" shows whether the risk ID appears in the body.'
+      ? '※ ヒートマップ（影響度×発生確率）の内容を表形式で示したもの。スコア＝影響度×発生確率。「本レポートでの記載」は本文での扱い（詳述＝見出しで個別に取り上げた、言及のみ＝本文・表で触れた、なし）。'
+      : 'Note: The heatmap (impact x likelihood) shown as a table. Score = impact x likelihood. "Covered in this report" shows how the risk is covered in the body (Detailed = has its own heading, Mentioned = referred to in text or tables, No).'
   );
   return lines.join('\n');
 }

@@ -19,8 +19,10 @@ import {
   gsnStatusBand,
   gsnStatusRank,
 } from '@/lib/gsn-heatmap';
+import { REPORT_COVERAGE_LABELS, ReportCoverage } from '@/lib/risk-heatmap';
 import {
   BAND_CELL_STYLES,
+  COVERAGE_BADGE_STYLES,
   CHIP_ACTIVE,
   CHIP_DOC_ONLY,
   CHIP_IN_REPORT,
@@ -77,6 +79,8 @@ const TEXTS = {
     empty: 'GSNノードのデータがありません。',
     countNeutral: (total: number) => `GSNノード ${total}件`,
     count: (on: number, total: number, label: string) => `GSNノード ${total}件（うち${label} ${on}件）`,
+    countCoverage: (detailed: number, mentioned: number, total: number) =>
+      `GSNノード ${total}件（うち本レポートで詳述 ${detailed}件・言及のみ ${mentioned}件）`,
     priority: '優先度',
     priorityLegend: ['高', '中', '低', '達成'],
     severeMark: '重大度 高以上',
@@ -108,6 +112,8 @@ const TEXTS = {
     empty: 'No GSN node data.',
     countNeutral: (total: number) => `${total} GSN nodes`,
     count: (on: number, total: number, label: string) => `${total} GSN nodes (${label}: ${on})`,
+    countCoverage: (detailed: number, mentioned: number, total: number) =>
+      `${total} GSN nodes (detailed in this report: ${detailed}, mentioned only: ${mentioned})`,
     priority: 'Priority',
     priorityLegend: ['High', 'Medium', 'Low', 'Achieved'],
     severeMark: 'Severity High or above',
@@ -195,6 +201,16 @@ export function GsnHeatmap({
   );
   const inReportCount = nodes.filter(isInReport).length;
   const selected = nodes.find((n) => n.id === selectedId);
+  // レポート内の表示では、本文での扱いの深さ（詳述／言及のみ／なし）を示す
+  const coverageMode = labels === undefined && nodes.some((n) => n.coverage !== undefined);
+  const coverageOf = (node: GsnHeatmapItem): ReportCoverage => node.coverage ?? (isInReport(node) ? 'mentioned' : 'none');
+  const countOf = (coverage: ReportCoverage) => nodes.filter((n) => coverageOf(n) === coverage).length;
+  const mentionLabel = (node: GsnHeatmapItem) =>
+    coverageMode && coverageOf(node) !== 'none'
+      ? REPORT_COVERAGE_LABELS[language][coverageOf(node)]
+      : isInReport(node)
+        ? onLabel
+        : offLabel;
 
   const activeId = hoveredId ?? selectedId;
   const active = nodes.find((n) => n.id === activeId);
@@ -211,7 +227,7 @@ export function GsnHeatmap({
   const isFilteredOut = (node: GsnHeatmapItem) =>
     activeCategory !== null && !(node.categories ?? []).includes(activeCategory);
   const statusSuffix = (node: GsnHeatmapItem) =>
-    neutral ? '' : `（${isInReport(node) ? onLabel : offLabel}）`;
+    neutral ? '' : `（${mentionLabel(node)}）`;
   const chipClass = (node: GsnHeatmapItem) =>
     activeId === node.id ? CHIP_ACTIVE : neutral || isInReport(node) ? CHIP_IN_REPORT : CHIP_DOC_ONLY;
   const statusText = (node: GsnHeatmapItem) =>
@@ -234,7 +250,11 @@ export function GsnHeatmap({
       <figcaption className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-base font-semibold text-gray-900 dark:text-white">{title ?? t.title}</span>
         <span className="text-xs text-gray-600 dark:text-gray-400">
-          {neutral ? t.countNeutral(nodes.length) : t.count(inReportCount, nodes.length, onLabel)}
+          {neutral
+            ? t.countNeutral(nodes.length)
+            : coverageMode
+              ? t.countCoverage(countOf('detailed'), countOf('mentioned'), nodes.length)
+              : t.count(inReportCount, nodes.length, onLabel)}
         </span>
       </figcaption>
 
@@ -447,12 +467,10 @@ export function GsnHeatmap({
                   {!neutral && (
                     <span
                       className={`rounded px-1.5 py-0.5 font-medium ${
-                        inReport
-                          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                          : 'border border-dashed border-gray-400 text-gray-500 dark:text-gray-400'
+                        COVERAGE_BADGE_STYLES[coverageMode ? coverageOf(node) : inReport ? 'detailed' : 'none']
                       }`}
                     >
-                      {inReport ? onLabel : offLabel}
+                      {mentionLabel(node)}
                     </span>
                   )}
                   {reasons?.[node.id] && inReport && (
@@ -473,7 +491,7 @@ export function GsnHeatmap({
             {selected.text ? `: ${selected.text}` : ''}
             {!neutral && (
               <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-                （{isInReport(selected) ? onLabel : offLabel}）
+                （{mentionLabel(selected)}）
               </span>
             )}
           </div>

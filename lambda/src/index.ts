@@ -20,6 +20,7 @@ import {
   HeatmapRiskInput,
   HeatmapGsnNodeInput,
   FocusGsnNodeInput,
+  SafetyVerdictInput,
   Stakeholder,
   ReportStructureTemplate,
 } from './types';
@@ -235,6 +236,28 @@ function sanitizeGsnHeatmapInput(
   };
 }
 
+const MAX_VERDICT_ITEMS = 10;
+const MAX_VERDICT_TEXT_CHARS = 400;
+
+/**
+ * 総合判定（クライアント入力）を検証・整形する。判定段階が不明なら使わない
+ */
+function sanitizeSafetyVerdict(value: unknown): SafetyVerdictInput | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const v = value as Record<string, unknown>;
+  if (v.level !== 'red' && v.level !== 'yellow' && v.level !== 'green') return undefined;
+  const clipList = (list: unknown): string[] =>
+    Array.isArray(list)
+      ? list
+          .map((item) => String(item ?? '').trim().slice(0, MAX_VERDICT_TEXT_CHARS))
+          .filter(Boolean)
+          .slice(0, MAX_VERDICT_ITEMS)
+      : [];
+  const label = typeof v.label === 'string' ? v.label.trim().slice(0, MAX_HEATMAP_FIELD_CHARS) : '';
+  if (!label) return undefined;
+  return { level: v.level, label, rules: clipList(v.rules), reasons: clipList(v.reasons) };
+}
+
 // ストリーミングハンドラーの実装
 async function streamHandler(
   event: APIGatewayProxyEventV2,
@@ -277,6 +300,7 @@ async function streamHandler(
         body.heatmapGsnStakeholderCategories,
         body.heatmapGsnStakeholderLayers
       );
+    const safetyVerdict = sanitizeSafetyVerdict(body.safetyVerdict);
 
     // バリデーション
     if (!stakeholder || !reportStructure) {
@@ -438,6 +462,7 @@ async function streamHandler(
       focusGsnNodes,
       heatmapGsnStakeholderCategories,
       heatmapGsnStakeholderLayers,
+      safetyVerdict,
     });
 
     // ステップ5: Claude APIストリーミング呼び出し

@@ -5,9 +5,18 @@
 
 import { useState } from 'react';
 import { useI18n } from './I18nProvider';
-import { RiskBand, RiskHeatmapItem, RiskLevel, riskScore, scoreBand } from '@/lib/risk-heatmap';
+import {
+  REPORT_COVERAGE_LABELS,
+  ReportCoverage,
+  RiskBand,
+  RiskHeatmapItem,
+  RiskLevel,
+  riskScore,
+  scoreBand,
+} from '@/lib/risk-heatmap';
 import {
   BAND_CELL_STYLES,
+  COVERAGE_BADGE_STYLES,
   CHIP_ACTIVE,
   CHIP_DOC_ONLY,
   CHIP_IN_REPORT,
@@ -29,6 +38,8 @@ const TEXTS = {
     empty: 'レポート内に影響度・発生確率のデータがありません。',
     count: (inReport: number, total: number, plotted: number) =>
       `文書のリスク ${total}件（うち本レポートで記載 ${inReport}件）／ ${plotted}件をプロット`,
+    countCoverage: (detailed: number, mentioned: number, total: number, plotted: number) =>
+      `文書のリスク ${total}件（うち本レポートで詳述 ${detailed}件・言及のみ ${mentioned}件）／ ${plotted}件をプロット`,
     note: '※ High=5 / Medium=3 / Low=1 として配置（文書記載値のみ使用）',
     bands: { high: '高', medium: '中', low: '低', minimal: '極低' },
     inReport: '本レポートで記載',
@@ -51,6 +62,8 @@ const TEXTS = {
     empty: 'No likelihood/impact data was found in this report.',
     count: (inReport: number, total: number, plotted: number) =>
       `${total} documented risks (${inReport} covered in this report) / ${plotted} plotted`,
+    countCoverage: (detailed: number, mentioned: number, total: number, plotted: number) =>
+      `${total} documented risks (detailed in this report: ${detailed}, mentioned only: ${mentioned}) / ${plotted} plotted`,
     note: '* High=5 / Medium=3 / Low=1 (documented values only)',
     bands: { high: 'High', medium: 'Medium', low: 'Low', minimal: 'Minimal' },
     inReport: 'Covered in this report',
@@ -86,8 +99,17 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
   const onLabel = labels?.on ?? t.inReport;
   const offLabel = labels?.off ?? t.docOnly;
   const neutral = labels === null;
-  const statusSuffix = (risk: RiskHeatmapItem) =>
-    neutral ? '' : `（${isInReport(risk) ? onLabel : offLabel}）`;
+  // レポート内の表示では、本文での扱いの深さ（詳述／言及のみ／なし）を示す
+  const coverageMode = labels === undefined && risks.some((r) => r.coverage !== undefined);
+  const coverageOf = (risk: RiskHeatmapItem): ReportCoverage => risk.coverage ?? (isInReport(risk) ? 'mentioned' : 'none');
+  const countOf = (coverage: ReportCoverage) => risks.filter((r) => coverageOf(r) === coverage).length;
+  const mentionLabel = (risk: RiskHeatmapItem) =>
+    coverageMode && coverageOf(risk) !== 'none'
+      ? REPORT_COVERAGE_LABELS[language][coverageOf(risk)]
+      : isInReport(risk)
+        ? onLabel
+        : offLabel;
+  const statusSuffix = (risk: RiskHeatmapItem) => (neutral ? '' : `（${mentionLabel(risk)}）`);
   // クリックで固定する選択と、ホバー中の一時的な強調
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -129,6 +151,8 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
             ? t.countNeutral(risks.length, rated.length)
             : labels
             ? t.countGeneric(inReportCount, risks.length, rated.length, onLabel)
+            : coverageMode
+            ? t.countCoverage(countOf('detailed'), countOf('mentioned'), risks.length, rated.length)
             : t.count(inReportCount, risks.length, rated.length)}
         </span>
       </figcaption>
@@ -283,12 +307,10 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
                     {!neutral && (
                       <span
                         className={`rounded px-1.5 py-0.5 font-medium ${
-                          inReport
-                            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                            : 'border border-dashed border-gray-400 text-gray-500 dark:text-gray-400'
+                          COVERAGE_BADGE_STYLES[coverageMode ? coverageOf(risk) : inReport ? 'detailed' : 'none']
                         }`}
                       >
-                        {inReport ? onLabel : offLabel}
+                        {mentionLabel(risk)}
                       </span>
                     )}
                   </button>
@@ -306,7 +328,7 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
             {selected.id}
             {selected.name ? `: ${selected.name}` : ''}
             <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
-              （{isInReport(selected) ? onLabel : offLabel}）
+              （{mentionLabel(selected)}）
             </span>
           </div>
           <div className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
