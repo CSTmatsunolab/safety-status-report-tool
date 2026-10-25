@@ -733,6 +733,7 @@ export default function ReportDetailPage() {
         risks={heatmaps?.risks ?? []}
         gsnNodes={heatmaps?.gsnNodes ?? []}
         gsnStakeholderProfile={heatmaps?.gsnStakeholderProfile}
+        riskStakeholderProfile={heatmaps?.riskStakeholderProfile}
       />
     </main>
   );

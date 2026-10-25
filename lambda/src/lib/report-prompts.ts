@@ -8,7 +8,7 @@
 //   - 各関数から「因果関係は文書記載がある場合のみ」等の重複記述を除去
 
 import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, SafetyVerdictInput, Stakeholder } from '../types';
-import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions } from './gsn-categories';
+import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions, gsnCategoryLabel } from './gsn-categories';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -912,20 +912,31 @@ function getMinimumFigureCount(role: string, hasGSN: boolean): number {
 
 function formatRiskLine(risk: HeatmapRiskInput): string {
   const fmt = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '記載なし' : String(v));
-  return `- ${risk.id}${risk.name ? `: ${risk.name}` : ''}（発生確率: ${fmt(risk.likelihood)} / 影響度: ${fmt(risk.impact)} / 対策状況: ${fmt(risk.status)}）`;
+  const categories = (risk.categories ?? [])
+    .map((c) => `${gsnCategoryLabel(c, 'ja')}${c === risk.primaryCategory ? '（中心）' : ''}`)
+    .join('、');
+  return `- ${risk.id}${risk.name ? `: ${risk.name}` : ''}（発生確率: ${fmt(risk.likelihood)} / 影響度: ${fmt(risk.impact)} / 対策状況: ${fmt(risk.status)}${categories ? ` / カテゴリー: ${categories}` : ''}）`;
 }
 
 /**
  * リスクヒートマップでユーザーが指定した「本レポートで扱うリスク」の指示
  * （指定がない場合は空文字＝従来どおり）
  */
-function generateFocusRiskPrompt(heatmapRisks?: HeatmapRiskInput[], focusRiskIds?: string[]): string {
+function generateFocusRiskPrompt(
+  heatmapRisks?: HeatmapRiskInput[],
+  focusRiskIds?: string[],
+  stakeholderCategories?: string[]
+): string {
   if (!heatmapRisks || heatmapRisks.length === 0) return '';
 
   const focusSet = new Set(focusRiskIds ?? []);
   const focus = heatmapRisks.filter((r) => focusSet.has(r.id));
   const others = heatmapRisks.filter((r) => !focusSet.has(r.id));
-  const blockJson = JSON.stringify({ title: '図X: リスクヒートマップ', risks: heatmapRisks });
+  const blockJson = JSON.stringify({
+    title: '図X: リスクヒートマップ',
+    ...(stakeholderCategories && stakeholderCategories.length > 0 ? { stakeholderCategories } : {}),
+    risks: heatmapRisks,
+  });
 
   return `
 
@@ -933,7 +944,7 @@ function generateFocusRiskPrompt(heatmapRisks?: HeatmapRiskInput[], focusRiskIds
 ユーザーがリスクヒートマップ上で、本レポートの読者に向けて記述すべきリスクを選択した。
 この指定はステークホルダー別の情報の絞り込み・分量規則より優先する。
 
-**必ず記述するリスク（${focus.length}件）**: 本文で各リスクを個別に取り上げ、必ずリスクIDを併記する。内容・発生確率・影響度・対策状況を文書記載の範囲で説明する。
+**必ず記述するリスク（${focus.length}件）**: 本文で各リスクを個別に取り上げ、必ずリスクIDを併記する。内容・発生確率・影響度・対策状況を文書記載の範囲で説明する。カテゴリーが示されたリスクは、そのカテゴリー（特に中心のもの）の観点から読者にとっての意味（判断・説明・対応が必要な点）を添える。
 ${focus.length > 0 ? focus.map(formatRiskLine).join('\n') : '- なし'}
 
 **それ以外のリスク（${others.length}件）**: 本文では個別に取り上げず、「その他${others.length}件」のように件数でまとめて触れるに留める。これらのリスクIDや個別の名称は本文に書かない。
@@ -948,7 +959,8 @@ ${blockJson}
 
 export function generateRiskAnalysisPrompt(
   heatmapRisks?: HeatmapRiskInput[],
-  focusRiskIds?: string[]
+  focusRiskIds?: string[],
+  stakeholderCategories?: string[]
 ): string {
   return `
 ## リスク分析
@@ -979,7 +991,7 @@ export function generateRiskAnalysisPrompt(
 
 ### リスクIDの併記（必須）
 本文（表・箇条書きを含む）で個別のリスクに言及する際は、必ずリスクID（例: R-101）を併記すること。
-ヒートマップの強調表示は、本文中のリスクIDの出現で判定される。${generateFocusRiskPrompt(heatmapRisks, focusRiskIds)}`;
+ヒートマップの強調表示は、本文中のリスクIDの出現で判定される。${generateFocusRiskPrompt(heatmapRisks, focusRiskIds, stakeholderCategories)}`;
 }
 
 // ============================================================================
@@ -1261,13 +1273,14 @@ export function buildCompleteUserPrompt(params: {
   structureDescription?: string;
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  heatmapRiskStakeholderCategories?: string[];
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
   heatmapGsnStakeholderLayers?: string[];
   safetyVerdict?: SafetyVerdictInput;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
 
   // プロンプトの組み立て順序（重要度順・重複なし）
   const parts = [
@@ -1295,7 +1308,7 @@ export function buildCompleteUserPrompt(params: {
     // 8. コンテンツ生成ガイド
     generateGSNAnalysisPrompt(hasGSN, stakeholder),
     generateFigureRequirementsPrompt(hasGSN, stakeholder),
-    generateRiskAnalysisPrompt(heatmapRisks, focusRiskIds),
+    generateRiskAnalysisPrompt(heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories),
     generateGsnHeatmapPrompt(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers),
     generateSafetyVerdictPrompt(safetyVerdict),
     

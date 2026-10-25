@@ -8,7 +8,7 @@
 //   - Removed duplicated "causal relationships only when documented" etc. from individual functions
 
 import { FocusGsnNodeInput, HeatmapGsnNodeInput, HeatmapRiskInput, SafetyVerdictInput, Stakeholder } from '../types';
-import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions } from './gsn-categories';
+import { STAKEHOLDER_PROFILE_MAP, formatCategoryDefinitions, formatLayerDefinitions, gsnCategoryLabel } from './gsn-categories';
 import { RhetoricStrategy } from './rhetoric-strategies';
 
 // ============================================================================
@@ -911,20 +911,31 @@ function getMinimumFigureCount(role: string, hasGSN: boolean): number {
 
 function formatRiskLineEN(risk: HeatmapRiskInput): string {
   const fmt = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? 'not documented' : String(v));
-  return `- ${risk.id}${risk.name ? `: ${risk.name}` : ''} (likelihood: ${fmt(risk.likelihood)} / impact: ${fmt(risk.impact)} / status: ${fmt(risk.status)})`;
+  const categories = (risk.categories ?? [])
+    .map((c) => `${gsnCategoryLabel(c, 'en')}${c === risk.primaryCategory ? ' (primary)' : ''}`)
+    .join(', ');
+  return `- ${risk.id}${risk.name ? `: ${risk.name}` : ''} (likelihood: ${fmt(risk.likelihood)} / impact: ${fmt(risk.impact)} / status: ${fmt(risk.status)}${categories ? ` / categories: ${categories}` : ''})`;
 }
 
 /**
  * Instruction for the risks the user selected on the risk heatmap
  * (empty string when nothing was specified = previous behavior)
  */
-function generateFocusRiskPromptEN(heatmapRisks?: HeatmapRiskInput[], focusRiskIds?: string[]): string {
+function generateFocusRiskPromptEN(
+  heatmapRisks?: HeatmapRiskInput[],
+  focusRiskIds?: string[],
+  stakeholderCategories?: string[]
+): string {
   if (!heatmapRisks || heatmapRisks.length === 0) return '';
 
   const focusSet = new Set(focusRiskIds ?? []);
   const focus = heatmapRisks.filter((r) => focusSet.has(r.id));
   const others = heatmapRisks.filter((r) => !focusSet.has(r.id));
-  const blockJson = JSON.stringify({ title: 'Figure X: Risk Heatmap', risks: heatmapRisks });
+  const blockJson = JSON.stringify({
+    title: 'Figure X: Risk Heatmap',
+    ...(stakeholderCategories && stakeholderCategories.length > 0 ? { stakeholderCategories } : {}),
+    risks: heatmapRisks,
+  });
 
   return `
 
@@ -932,7 +943,7 @@ function generateFocusRiskPromptEN(heatmapRisks?: HeatmapRiskInput[], focusRiskI
 On the risk heatmap, the user selected the risks this report must describe for its reader.
 This selection takes precedence over stakeholder-specific filtering and length rules.
 
-**Risks that MUST be described (${focus.length})**: discuss each one individually in the body, always with its risk ID. Explain its content, likelihood, impact, and mitigation status within what the documents state.
+**Risks that MUST be described (${focus.length})**: discuss each one individually in the body, always with its risk ID. Explain its content, likelihood, impact, and mitigation status within what the documents state. For risks with categories, add what the risk means for the reader (what needs a decision, explanation, or action) from the viewpoint of those categories, especially the primary one.
 ${focus.length > 0 ? focus.map(formatRiskLineEN).join('\n') : '- none'}
 
 **All other risks (${others.length})**: do not discuss them individually; mention them only as a count (e.g. "${others.length} other risks"). Do not write their risk IDs or individual names in the body.
@@ -947,7 +958,8 @@ ${blockJson}
 
 export function generateRiskAnalysisPromptEN(
   heatmapRisks?: HeatmapRiskInput[],
-  focusRiskIds?: string[]
+  focusRiskIds?: string[],
+  stakeholderCategories?: string[]
 ): string {
   return `
 ## RISK ANALYSIS
@@ -978,7 +990,7 @@ and highlights the risks mentioned in the body of this report.
 
 ### Risk IDs (MANDATORY)
 Whenever the body (including tables and lists) mentions an individual risk, always include its risk ID (e.g., R-101).
-Heatmap highlighting is determined by the risk IDs appearing in the body.${generateFocusRiskPromptEN(heatmapRisks, focusRiskIds)}`;
+Heatmap highlighting is determined by the risk IDs appearing in the body.${generateFocusRiskPromptEN(heatmapRisks, focusRiskIds, stakeholderCategories)}`;
 }
 
 // ============================================================================
@@ -1260,13 +1272,14 @@ export function buildCompleteUserPromptEN(params: {
   structureDescription?: string;
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  heatmapRiskStakeholderCategories?: string[];
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];
   heatmapGsnStakeholderCategories?: string[];
   heatmapGsnStakeholderLayers?: string[];
   safetyVerdict?: SafetyVerdictInput;
 }): string {
-  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
+  const { stakeholder, strategy, contextContent, reportSections, hasGSN, structureDescription, heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers, safetyVerdict } = params;
 
   // Prompt assembly order (by importance — no duplicates)
   const parts = [
@@ -1294,7 +1307,7 @@ export function buildCompleteUserPromptEN(params: {
     // 8. Content generation guides
     generateGSNAnalysisPromptEN(hasGSN, stakeholder),
     generateFigureRequirementsPromptEN(hasGSN, stakeholder),
-    generateRiskAnalysisPromptEN(heatmapRisks, focusRiskIds),
+    generateRiskAnalysisPromptEN(heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories),
     generateGsnHeatmapPromptEN(hasGSN, heatmapGsnNodes, focusGsnNodes, stakeholder, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers),
     generateSafetyVerdictPromptEN(safetyVerdict),
     

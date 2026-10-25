@@ -7,13 +7,16 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Stakeholder, UploadedFile } from '@/types';
 import { RiskHeatmapItem } from '@/lib/risk-heatmap';
 import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
-import { selectFocusRisks } from '@/lib/stakeholder-risk-rules';
+import { selectFocusRisksByRelevance } from '@/lib/stakeholder-risk-rules';
+import { StakeholderProfile } from '@/lib/gsn-categories';
 
 const filesKeyOf = (files: UploadedFile[]) => files.map((f) => f.id).join('|');
 
 export function useRiskFocus(
   files: UploadedFile[],
   stakeholder: Stakeholder | null,
+  // 読者の要求（useStakeholderProfile で決める。カテゴリーが付いたリスクの関連度に使う）
+  profile: StakeholderProfile | null,
   language: 'ja' | 'en'
 ) {
   const [risks, setRisks] = useState<RiskHeatmapItem[] | null>(null);
@@ -36,10 +39,10 @@ export function useRiskFocus(
       setReasons({});
       return;
     }
-    const selected = selectFocusRisks(risks, stakeholder, language);
+    const selected = selectFocusRisksByRelevance(risks, stakeholder, profile, language);
     setFocusIds(new Set(selected.keys()));
     setReasons(Object.fromEntries(selected));
-  }, [risks, stakeholder, language]);
+  }, [risks, stakeholder, profile, language]);
 
   // リスク抽出時・ステークホルダ変更時にルールで初期選択し直す（手動調整はリセット）
   useEffect(() => {
@@ -98,6 +101,7 @@ export function useRiskFocus(
       ? {
           heatmapRisks: risks,
           focusRiskIds: risks.filter((r) => focusIds.has(r.id)).map((r) => r.id),
+          ...(profile ? { heatmapRiskStakeholderCategories: profile.categories } : {}),
           ...(gsnNodes && gsnNodes.length > 0 ? { heatmapGsnNodes: gsnNodes } : {}),
         }
       : {};

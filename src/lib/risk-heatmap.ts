@@ -1,6 +1,17 @@
 // src/lib/risk-heatmap.ts
 // リスクヒートマップ（発生確率 × 影響度 の 5×5 マトリクス）用の共通ロジック
 // LLMがレポート中に出力する ```risk-heatmap フェンスブロック（JSON）を扱う
+// 軸は読者によらず共通。読者への関連度（必須/関連/参考）は src/lib/risk-relevance.ts で別に算出して重ねる
+
+import {
+  GSN_RELEVANCES,
+  GSN_RELEVANCE_LABELS,
+  GsnCategoryId,
+  gsnCategoryLabel,
+  isGsnCategoryId,
+  normalizeCategoryIds,
+} from './gsn-categories';
+import { hasRiskCategories, riskRelevance, riskWantedCategories } from './risk-relevance';
 
 export type RiskLevel = 1 | 2 | 3 | 4 | 5;
 
@@ -17,6 +28,10 @@ export interface RiskHeatmapItem {
   inReport?: boolean;
   // 本文での扱いの深さ（詳述／言及のみ／なし）。markReportMentions で判定。未判定は undefined
   coverage?: ReportCoverage;
+  // リスクの影響・対策が関わる話題カテゴリーのID（src/lib/gsn-categories.ts。抽出時にLLMが付与）
+  categories?: string[];
+  // そのうち最も中心的なカテゴリー（関連度の「必須」の判定に使う）
+  primaryCategory?: string;
 }
 
 // 本文での扱いの深さ: 見出しで個別に取り上げた＝詳述、本文・表で触れただけ＝言及のみ
@@ -29,6 +44,8 @@ export const REPORT_COVERAGE_LABELS: Record<'ja' | 'en', Record<ReportCoverage, 
 
 export interface RiskHeatmapData {
   title?: string;
+  // レポート対象のステークホルダが必要とするカテゴリーのID（関連度の算出に使う）
+  stakeholderCategories?: string[];
   risks: RiskHeatmapItem[];
 }
 
@@ -128,7 +145,11 @@ export function parseHeatmapBlock(json: string): RiskHeatmapData | null {
   const root = Array.isArray(parsed) ? { risks: parsed } : parsed;
   if (!root || typeof root !== 'object') return null;
 
-  const { title, risks } = root as { title?: unknown; risks?: unknown };
+  const { title, risks, stakeholderCategories } = root as {
+    title?: unknown;
+    risks?: unknown;
+    stakeholderCategories?: unknown;
+  };
   if (!Array.isArray(risks)) return null;
 
   const items: RiskHeatmapItem[] = [];
@@ -137,6 +158,9 @@ export function parseHeatmapBlock(json: string): RiskHeatmapData | null {
     const r = risk as Record<string, unknown>;
     const rawLikelihood = toOptionalString(r.likelihood ?? r.probability);
     const rawImpact = toOptionalString(r.impact ?? r.severity);
+    const categories = normalizeCategoryIds(r.categories);
+    // 中心カテゴリーは categories に含まれるもののみ（無ければ categories に加える）
+    const primaryCategory = isGsnCategoryId(r.primaryCategory) ? r.primaryCategory : undefined;
     items.push({
       id: toOptionalString(r.id) ?? `#${index + 1}`,
       name: toOptionalString(r.name),
@@ -145,10 +169,19 @@ export function parseHeatmapBlock(json: string): RiskHeatmapData | null {
       status: toOptionalString(r.status),
       rawLikelihood,
       rawImpact,
+      categories:
+        primaryCategory && categories && !categories.includes(primaryCategory)
+          ? normalizeCategoryIds([...categories, primaryCategory])
+          : categories ?? (primaryCategory ? [primaryCategory] : undefined),
+      primaryCategory,
     });
   });
 
-  return { title: toOptionalString(title), risks: items };
+  return {
+    title: toOptionalString(title),
+    stakeholderCategories: normalizeCategoryIds(stakeholderCategories),
+    risks: items,
+  };
 }
 
 /**
@@ -287,6 +320,8 @@ export function mergeRisks(datas: RiskHeatmapData[]): RiskHeatmapItem[] {
           ...item,
           name: item.name ?? existing?.name,
           status: item.status ?? existing?.status,
+          categories: item.categories ?? existing?.categories,
+          primaryCategory: item.primaryCategory ?? existing?.primaryCategory,
         });
       }
     }
@@ -320,33 +355,79 @@ const BAND_LABELS: Record<'ja' | 'en', Record<RiskBand, string>> = {
 
 function heatmapToMarkdownTable(data: RiskHeatmapData, lang: 'ja' | 'en'): string {
   const ja = lang === 'ja';
-  const header = ja
-    ? '| リスクID | リスク名 | 発生確率 | 影響度 | スコア | 対策状況 | 本レポートでの記載 |'
-    : '| Risk ID | Risk | Likelihood | Impact | Score | Status | Covered in this report |';
+  // 読者の要求があり、リスクにカテゴリーが付いていれば関連度とカテゴリーの列を加える
+  const profile =
+    data.stakeholderCategories && data.stakeholderCategories.length > 0 && hasRiskCategories(data.risks)
+      ? { categories: data.stakeholderCategories as GsnCategoryId[], layers: [] }
+      : null;
+  const header = profile
+    ? ja
+      ? '| リスクID | リスク名 | 関連度（根拠） | 発生確率 | 影響度 | スコア | 対策状況 | カテゴリー | 本レポートでの記載 |'
+      : '| Risk ID | Risk | Relevance (basis) | Likelihood | Impact | Score | Status | Categories | Covered in this report |'
+    : ja
+      ? '| リスクID | リスク名 | 発生確率 | 影響度 | スコア | 対策状況 | 本レポートでの記載 |'
+      : '| Risk ID | Risk | Likelihood | Impact | Score | Status | Covered in this report |';
   const unrated = ja ? '記載なし' : 'Not documented';
 
   const formatLevel = (level: RiskLevel | null, raw?: string) => {
     if (level === null) return raw ? escapeTableCell(raw) : unrated;
     return raw && raw !== String(level) ? `${level} (${escapeTableCell(raw)})` : String(level);
   };
+  const scoreOf = (item: RiskHeatmapItem) =>
+    item.likelihood !== null && item.impact !== null ? riskScore(item.likelihood, item.impact) : null;
+  const categoryText = (item: RiskHeatmapItem) => {
+    const names = (item.categories ?? []).map((c) =>
+      c === item.primaryCategory ? `${gsnCategoryLabel(c, lang)}${ja ? '（中心）' : ' (primary)'}` : gsnCategoryLabel(c, lang)
+    );
+    return names.length > 0 ? escapeTableCell(names.join(ja ? '、' : ', ')) : '-';
+  };
 
-  const rows = data.risks.map((item) => {
-    const score =
-      item.likelihood !== null && item.impact !== null
-        ? riskScore(item.likelihood, item.impact)
-        : null;
+  const entries = data.risks.map((item) => ({
+    item,
+    relevance: profile ? riskRelevance(item, profile, lang) : null,
+  }));
+  // 関連度の高い順、その中はスコアの高い順（要求が無ければ文書の順）
+  if (profile) {
+    entries.sort(
+      (a, b) =>
+        GSN_RELEVANCES.indexOf(a.relevance!.relevance) - GSN_RELEVANCES.indexOf(b.relevance!.relevance) ||
+        (scoreOf(b.item) ?? 0) - (scoreOf(a.item) ?? 0)
+    );
+  }
+
+  const rows = entries.map(({ item, relevance }) => {
+    const score = scoreOf(item);
     const scoreText =
       score === null ? '-' : `${score} (${BAND_LABELS[lang][scoreBand(score)]})`;
-    return `| ${escapeTableCell(item.id)} | ${escapeTableCell(item.name ?? '-')} | ${formatLevel(item.likelihood, item.rawLikelihood)} | ${formatLevel(item.impact, item.rawImpact)} | ${scoreText} | ${escapeTableCell(item.status ?? '-')} | ${coverageText(item, lang)} |`;
+    const cells = [
+      escapeTableCell(item.id),
+      escapeTableCell(item.name ?? '-'),
+      ...(relevance
+        ? [`${GSN_RELEVANCE_LABELS[lang][relevance.relevance]}（${escapeTableCell(relevance.reason)}）`]
+        : []),
+      formatLevel(item.likelihood, item.rawLikelihood),
+      formatLevel(item.impact, item.rawImpact),
+      scoreText,
+      escapeTableCell(item.status ?? '-'),
+      ...(profile ? [categoryText(item)] : []),
+      coverageText(item, lang),
+    ];
+    return `| ${cells.join(' | ')} |`;
   });
 
-  const lines = [header, '|---|---|---|---|---|---|---|', ...rows];
+  const separator = `|${'---|'.repeat(profile ? 9 : 7)}`;
+  const lines = [header, separator, ...rows];
   if (data.title) lines.unshift(`**${data.title}**`, '');
+  const relevanceNote = profile
+    ? ja
+      ? `関連度は、読者が必要とするカテゴリー（${riskWantedCategories(profile).map((c) => gsnCategoryLabel(c, lang)).join('、') || '-'}）にリスクの中心カテゴリーが一致＝必須、中心以外のみ一致＝関連、一致なし＝参考。`
+      : `Relevance: the risk's primary category matches a category the reader needs (${riskWantedCategories(profile).map((c) => gsnCategoryLabel(c, lang)).join(', ') || '-'}) = Required, only other categories match = Related, no match = Reference. `
+    : '';
   lines.push(
     '',
     ja
-      ? '※ ヒートマップ（影響度×発生確率）の内容を表形式で示したもの。スコア＝影響度×発生確率。「本レポートでの記載」は本文での扱い（詳述＝見出しで個別に取り上げた、言及のみ＝本文・表で触れた、なし）。'
-      : 'Note: The heatmap (impact x likelihood) shown as a table. Score = impact x likelihood. "Covered in this report" shows how the risk is covered in the body (Detailed = has its own heading, Mentioned = referred to in text or tables, No).'
+      ? `※ ヒートマップ（影響度×発生確率）の内容を表形式で示したもの。スコア＝影響度×発生確率。${relevanceNote}「本レポートでの記載」は本文での扱い（詳述＝見出しで個別に取り上げた、言及のみ＝本文・表で触れた、なし）。`
+      : `Note: The heatmap (impact x likelihood) shown as a table. Score = impact x likelihood. ${relevanceNote}"Covered in this report" shows how the risk is covered in the body (Detailed = has its own heading, Mentioned = referred to in text or tables, No).`
   );
   return lines.join('\n');
 }

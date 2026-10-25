@@ -11,7 +11,7 @@ import { getUploadedFileText } from '@/lib/uploaded-file-text';
 import { parseHeatmapBlock } from '@/lib/risk-heatmap';
 import { GsnHeatmapItem, parseGsnHeatmapBlock } from '@/lib/gsn-heatmap';
 import { stripCodeFence } from '@/lib/llm-json';
-import { formatCategoryDefinitions } from '@/lib/gsn-categories';
+import { GSN_INFO_CATEGORIES, formatCategoryDefinitions } from '@/lib/gsn-categories';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -22,10 +22,16 @@ const MAX_TOTAL_CONTEXT_CHARS = 150000;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// リスクの話題カテゴリー（「ハザード・リスクと対策」は全リスクに当てはまるため除く。src/lib/risk-relevance.ts）
+const riskCategoryDefinitions = (language: 'ja' | 'en') =>
+  GSN_INFO_CATEGORIES.filter((c) => c.id !== 'hazard-risk')
+    .map((c) => `- ${c.id}（${c.label[language]}）: ${c.definition[language]}`)
+    .join('\n');
+
 const SYSTEM_PROMPT_JA = `あなたは安全性文書からリスク情報を抽出するアシスタントです。
 提供された文書に記載されている「リスク」をすべて抽出し、次のJSONのみを出力してください（前置き・説明・コードフェンスは不要）。
 
-{"risks":[{"id":"R-101","name":"リスク名","likelihood":"Medium","impact":"High","status":"対策実施中"}]}
+{"risks":[{"id":"R-101","name":"リスク名","likelihood":"Medium","impact":"High","status":"対策実施中","categories":["technology","verification"],"primaryCategory":"technology"}]}
 
 規則:
 - 文書に記載されたリスク（リスクID R-xxx 等が付いたもの、またはリスク一覧に記載されたもの）を漏れなく全件列挙する
@@ -33,12 +39,15 @@ const SYSTEM_PROMPT_JA = `あなたは安全性文書からリスク情報を抽
 - likelihood（発生確率）・impact（影響度）・status（対策状況）は文書の記載値をそのまま転記する（High/Medium/Low、高/中/低、1〜5 など）
 - 記載がない項目は null とする。推定・補完は禁止
 - 同じリスクが複数の文書に出てくる場合は1件にまとめる
-- id が文書に無い場合は null とする`;
+- id が文書に無い場合は null とする
+- categories には、リスクの内容・原因・対策・影響について提供文書に記載された事実から説明できる、次の話題カテゴリーのIDを入れる（複数可。定義中の「ノード」は「リスク」と読み替える）。リスクが関連するハザード・要件・試験（H-xxx, SR-xxx, TR-xxx 等）について他の文書に記載された事実（試験不合格、マイルストーン遅延、予算超過、規格準拠の可否 等）も根拠にしてよい。記載のない影響の推測は禁止。該当が無ければ []
+- primaryCategory には、categories のうちそのリスクを扱ううえで最も中心となるもの（対策・判断の主な論点）を1つ入れる。categories が [] なら null
+${riskCategoryDefinitions('ja')}`;
 
 const SYSTEM_PROMPT_EN = `You extract risk information from safety documents.
 Extract every "risk" documented in the provided documents and output ONLY the following JSON (no preamble, explanation, or code fences).
 
-{"risks":[{"id":"R-101","name":"Risk name","likelihood":"Medium","impact":"High","status":"Mitigation in progress"}]}
+{"risks":[{"id":"R-101","name":"Risk name","likelihood":"Medium","impact":"High","status":"Mitigation in progress","categories":["technology","verification"],"primaryCategory":"technology"}]}
 
 Rules:
 - List every documented risk (items with a risk ID such as R-xxx, or items in a risk list) without omission
@@ -46,7 +55,10 @@ Rules:
 - Copy likelihood, impact, and status exactly as documented (High/Medium/Low, 1-5, etc.)
 - Use null for anything not documented. Estimation or filling-in is prohibited
 - Merge the same risk appearing in multiple documents into one entry
-- Use null for id when the document gives none`;
+- Use null for id when the document gives none
+- categories lists the IDs of the following topic categories explainable from facts documented about the risk's content, causes, mitigation, and impact (multiple allowed; read "node" in the definitions as "risk"). Facts documented elsewhere about the hazards, requirements, or tests the risk relates to (H-xxx, SR-xxx, TR-xxx, etc.), such as failed tests, milestone delays, budget overruns, or standard conformance, may also be used. Do not guess impacts that are not documented. Use [] if none
+- primaryCategory is the one category in categories that is most central to handling the risk (the main point of its mitigation or decision). null when categories is []
+${riskCategoryDefinitions('en')}`;
 
 const GSN_SYSTEM_PROMPT_JA = `あなたはGSN（Goal Structuring Notation）文書からノード情報を抽出するアシスタントです。
 提供された文書のうち「=== GSNファイル:」で始まるファイルに記載されたGSNノードを抽出し、次のJSONのみを出力してください（前置き・説明・コードフェンスは不要）。

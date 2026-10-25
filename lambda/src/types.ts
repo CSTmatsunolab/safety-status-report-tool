@@ -74,6 +74,9 @@ export interface HeatmapRiskInput {
   likelihood?: string | number | null;
   impact?: string | number | null;
   status?: string;
+  // 話題カテゴリーのID（lib/gsn-categories.ts）と、そのうち中心のもの（読者への関連度の算出に使う）
+  categories?: string[];
+  primaryCategory?: string;
 }
 
 // GSNノードヒートマップ（画面で抽出）の1ノード。値は文書記載のまま
@@ -119,6 +122,8 @@ export interface GenerateReportRequest {
   // 文書の全リスクと、本レポートで必ず扱うリスクのID（リスクヒートマップで指定）
   heatmapRisks?: HeatmapRiskInput[];
   focusRiskIds?: string[];
+  // リスクヒートマップの関連度の算出に使うステークホルダが必要とするカテゴリーのID
+  heatmapRiskStakeholderCategories?: string[];
   // GSNノードヒートマップの元データ（画面で抽出。表示のみで選択はしない）
   heatmapGsnNodes?: HeatmapGsnNodeInput[];
   focusGsnNodes?: FocusGsnNodeInput[];

@@ -1,6 +1,8 @@
 // src/app/components/RiskHeatmap.tsx
 // リスクヒートマップ（発生確率 × 影響度 の 5×5 マトリクス）の描画コンポーネント
 // アップロード文書の全リスクを配置し、このレポートで記載しているリスクを強調する
+// - 軸（影響度×発生確率）は読者によらず共通。profile を渡すと、読者への関連度（必須/関連/参考）をチップの外枠で重ねて示す
+//   （src/lib/risk-relevance.ts の riskRelevance）
 'use client';
 
 import { useState } from 'react';
@@ -23,8 +25,23 @@ import {
   axisLabelClass,
   cellStateClass,
 } from './heatmap-styles';
+import {
+  GSN_RELEVANCES,
+  GSN_RELEVANCE_LABELS,
+  GsnRelevance,
+  StakeholderProfile,
+  gsnCategoryLabel,
+} from '@/lib/gsn-categories';
+import { RiskRelevanceResult, riskRelevance, riskWantedCategories } from '@/lib/risk-relevance';
 
 const LEVELS: RiskLevel[] = [1, 2, 3, 4, 5];
+
+// 関連度の外枠（必須=太い青枠、関連=細い青枠、参考=枠なし）。記載の強調（チップの枠線）とは別に重ねる
+const RELEVANCE_RING: Record<GsnRelevance, string> = {
+  required: 'ring-2 ring-blue-600 ring-offset-1 dark:ring-sky-400 dark:ring-offset-gray-900',
+  related: 'ring-1 ring-blue-400 ring-offset-1 dark:ring-sky-600 dark:ring-offset-gray-900',
+  reference: '',
+};
 
 const TEXTS = {
   ja: {
@@ -50,6 +67,12 @@ const TEXTS = {
     countGeneric: (on: number, total: number, plotted: number, label: string) =>
       `文書のリスク ${total}件（うち${label} ${on}件）／ ${plotted}件をプロット`,
     position: (l: number, i: number, score: number) => `発生確率 ${l} × 影響度 ${i} = ${score}`,
+    relevance: '関連度',
+    relevanceTo: (who?: string) => (who ? `${who} への関連度` : '関連度'),
+    categories: 'カテゴリー',
+    primary: '（中心）',
+    relevanceNote: (cats: string) =>
+      `※ 関連度（チップの外枠）: 読者が必要とするカテゴリー（${cats}）にリスクの中心カテゴリーが一致=必須、中心以外のみ一致=関連、一致なし=参考。「ハザード・リスクと対策」は全リスクに当てはまるため判定に使わない`,
   },
   en: {
     title: 'Risk Heatmap',
@@ -74,6 +97,12 @@ const TEXTS = {
     countGeneric: (on: number, total: number, plotted: number, label: string) =>
       `${total} documented risks (${label}: ${on}) / ${plotted} plotted`,
     position: (l: number, i: number, score: number) => `Likelihood ${l} × Impact ${i} = ${score}`,
+    relevance: 'Relevance',
+    relevanceTo: (who?: string) => (who ? `Relevance to ${who}` : 'Relevance'),
+    categories: 'Categories',
+    primary: ' (primary)',
+    relevanceNote: (cats: string) =>
+      `* Relevance (chip outline): the risk's primary category matches a category the reader needs (${cats}) = Required, only other categories match = Related, no match = Reference. "Hazards, risks & mitigation" applies to every risk and is not used`,
   },
 };
 
@@ -91,9 +120,13 @@ interface RiskHeatmapProps {
   onToggle?: (id: string) => void;
   // リスクID → 強調の理由（一覧に表示）
   reasons?: Record<string, string>;
+  // 読者（ステークホルダ）の要求。指定時は関連度をチップの外枠と一覧に示す（軸は変えない）
+  profile?: StakeholderProfile | null;
+  // 関連度の見出しに出す読者名（例: 「CxO / 経営層」）
+  profileLabel?: string;
 }
 
-export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHeatmapProps) {
+export function RiskHeatmap({ risks, title, labels, onToggle, reasons, profile, profileLabel }: RiskHeatmapProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
   const onLabel = labels?.on ?? t.inReport;
@@ -114,12 +147,32 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // 本レポートで記載しているリスクを先に、その中はスコアの高い順
+  // 各リスクの関連度（profile があるとき）
+  const relevances = new Map<string, RiskRelevanceResult>();
+  if (profile) {
+    for (const risk of risks) relevances.set(risk.id, riskRelevance(risk, profile, language));
+  }
+  const relevanceRank = (risk: RiskHeatmapItem) => {
+    const r = relevances.get(risk.id);
+    return r ? GSN_RELEVANCES.indexOf(r.relevance) : 0;
+  };
+  const ringClass = (risk: RiskHeatmapItem) => {
+    const r = relevances.get(risk.id);
+    return r ? RELEVANCE_RING[r.relevance] : '';
+  };
+  const relevanceText = (risk: RiskHeatmapItem) => {
+    const r = relevances.get(risk.id);
+    return r ? `${GSN_RELEVANCE_LABELS[language][r.relevance]}（${r.reason}）` : '';
+  };
+  const wantedCategories = new Set<string>(profile ? riskWantedCategories(profile) : []);
+
+  // 本レポートで記載しているリスクを先に、関連度の高い順、その中はスコアの高い順
   const rated = risks
     .filter((r): r is RatedRisk => r.likelihood !== null && r.impact !== null)
     .sort(
       (a, b) =>
         Number(isInReport(b)) - Number(isInReport(a)) ||
+        relevanceRank(a) - relevanceRank(b) ||
         riskScore(b.likelihood, b.impact) - riskScore(a.likelihood, a.impact)
     );
   const unrated = risks.filter((r) => r.likelihood === null || r.impact === null);
@@ -200,10 +253,10 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
                             <button
                               key={risk.id}
                               type="button"
-                              title={`${risk.name ? `${risk.id}: ${risk.name}` : risk.id}${statusSuffix(risk)}`}
+                              title={`${risk.name ? `${risk.id}: ${risk.name}` : risk.id}${statusSuffix(risk)}${relevances.has(risk.id) ? ` ${t.relevance}: ${relevanceText(risk)}` : ''}`}
                               onClick={() => handleClick(risk.id)}
                               {...hoverHandlers(risk.id)}
-                              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${
+                              className={`rounded px-1.5 py-0.5 text-xs transition-colors ${ringClass(risk)} ${
                                 activeId === risk.id
                                   ? CHIP_ACTIVE
                                   : isInReport(risk)
@@ -256,8 +309,26 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
             </span>
           </>
         )}
+        {profile && (
+          <>
+            <span className="text-gray-500 dark:text-gray-400">{t.relevanceTo(profileLabel)}:</span>
+            {GSN_RELEVANCES.map((relevance) => (
+              <span key={relevance} className="flex items-center gap-1">
+                <span className={`rounded px-1 text-[10px] ${CHIP_IN_REPORT} ${RELEVANCE_RING[relevance]}`}>R-x</span>
+                {GSN_RELEVANCE_LABELS[language][relevance]}
+              </span>
+            ))}
+          </>
+        )}
       </div>
       <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t.note}</div>
+      {profile && (
+        <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+          {t.relevanceNote(
+            [...wantedCategories].map((c) => gsnCategoryLabel(c, language)).join(language === 'ja' ? '、' : ', ') || '-'
+          )}
+        </div>
+      )}
 
       {/* リスク一覧（ヒートマップ上の位置と連動） */}
       {rated.length > 0 && (
@@ -295,6 +366,25 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
                       {risk.id}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{risk.name ?? ''}</span>
+                    {profile &&
+                      (risk.categories ?? []).map((c) => (
+                        <span
+                          key={c}
+                          className={`rounded px-1.5 py-0.5 ${
+                            wantedCategories.has(c)
+                              ? 'bg-blue-600 text-white dark:bg-sky-400 dark:text-gray-900'
+                              : 'bg-blue-50 text-blue-800 dark:bg-sky-900/40 dark:text-sky-200'
+                          }`}
+                        >
+                          {gsnCategoryLabel(c, language)}
+                          {c === risk.primaryCategory ? t.primary : ''}
+                        </span>
+                      ))}
+                    {relevances.has(risk.id) && (
+                      <span className="text-gray-600 dark:text-gray-400">
+                        {GSN_RELEVANCE_LABELS[language][relevances.get(risk.id)!.relevance]}
+                      </span>
+                    )}
                     {reasons?.[risk.id] && inReport && (
                       <span className="text-blue-700 dark:text-sky-300">{reasons[risk.id]}</span>
                     )}
@@ -354,6 +444,22 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
                 <span>{selected.status}</span>
               </>
             )}
+            {relevances.has(selected.id) && (
+              <>
+                <span className="text-gray-500 dark:text-gray-400">{t.relevance}</span>
+                <span>{relevanceText(selected)}</span>
+              </>
+            )}
+            {(selected.categories?.length ?? 0) > 0 && (
+              <>
+                <span className="text-gray-500 dark:text-gray-400">{t.categories}</span>
+                <span>
+                  {selected.categories!
+                    .map((c) => `${gsnCategoryLabel(c, language)}${c === selected.primaryCategory ? t.primary : ''}`)
+                    .join(language === 'ja' ? '、' : ', ')}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -377,12 +483,14 @@ export function RiskHeatmap({ risks, title, labels, onToggle, reasons }: RiskHea
                     {risk.id}
                     {risk.name ? `: ${risk.name}` : ''}
                     {statusSuffix(risk)}
+                    {relevances.has(risk.id) && ` ${t.relevance}: ${relevanceText(risk)}`}
                   </button>
                 ) : (
                   <>
                     {risk.id}
                     {risk.name ? `: ${risk.name}` : ''}
                     {statusSuffix(risk)}
+                    {relevances.has(risk.id) && ` ${t.relevance}: ${relevanceText(risk)}`}
                   </>
                 )}
               </li>

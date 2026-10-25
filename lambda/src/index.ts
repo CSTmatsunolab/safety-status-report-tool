@@ -126,8 +126,9 @@ const MAX_HEATMAP_FIELD_CHARS = 200;
  */
 function sanitizeHeatmapInput(
   heatmapRisks: unknown,
-  focusRiskIds: unknown
-): { heatmapRisks?: HeatmapRiskInput[]; focusRiskIds?: string[] } {
+  focusRiskIds: unknown,
+  heatmapRiskStakeholderCategories: unknown
+): { heatmapRisks?: HeatmapRiskInput[]; focusRiskIds?: string[]; heatmapRiskStakeholderCategories?: string[] } {
   if (!Array.isArray(heatmapRisks) || heatmapRisks.length === 0) return {};
 
   const clip = (value: unknown): string | undefined => {
@@ -145,6 +146,8 @@ function sanitizeHeatmapInput(
       likelihood: clip(r.likelihood) ?? null,
       impact: clip(r.impact) ?? null,
       status: clip(r.status),
+      categories: normalizeCategoryIds(r.categories),
+      primaryCategory: normalizeCategoryIds([r.primaryCategory])?.[0],
     }))
     .filter((r) => r.id);
 
@@ -153,7 +156,16 @@ function sanitizeHeatmapInput(
     ? focusRiskIds.map((id) => String(id)).filter((id) => ids.has(id))
     : [];
 
-  return risks.length > 0 ? { heatmapRisks: risks, focusRiskIds: focus } : {};
+  const stakeholderCategories = normalizeCategoryIds(heatmapRiskStakeholderCategories);
+  return risks.length > 0
+    ? {
+        heatmapRisks: risks,
+        focusRiskIds: focus,
+        ...(stakeholderCategories && stakeholderCategories.length > 0
+          ? { heatmapRiskStakeholderCategories: stakeholderCategories }
+          : {}),
+      }
+    : {};
 }
 
 const MAX_FOCUS_CATEGORIES = 10;
@@ -292,7 +304,11 @@ async function streamHandler(
       language = 'ja',
       userIdentifier = 'anonymous',
     } = body;
-    const { heatmapRisks, focusRiskIds } = sanitizeHeatmapInput(body.heatmapRisks, body.focusRiskIds);
+    const { heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories } = sanitizeHeatmapInput(
+      body.heatmapRisks,
+      body.focusRiskIds,
+      body.heatmapRiskStakeholderCategories
+    );
     const { heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } =
       sanitizeGsnHeatmapInput(
         body.heatmapGsnNodes,
@@ -458,6 +474,7 @@ async function streamHandler(
       structureDescription: reportStructure.description,
       heatmapRisks,
       focusRiskIds,
+      heatmapRiskStakeholderCategories,
       heatmapGsnNodes,
       focusGsnNodes,
       heatmapGsnStakeholderCategories,

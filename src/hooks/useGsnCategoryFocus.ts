@@ -1,21 +1,15 @@
 // src/hooks/useGsnCategoryFocus.ts
 // GSNノードヒートマップ用フック
-// 選択中のステークホルダの要求（必要なカテゴリー＋重視する論証レイヤー）を決め（既定は対応表、カスタムはLLMで判定）、
-// 関連度（必須/関連/参考）から、レポートで詳述するノードを初期選択・調整する
+// 選択中のステークホルダの要求（useStakeholderProfile）とノードの一致から求めた関連度（必須/関連/参考）をもとに、
+// レポートで詳述するノードを初期選択・調整する
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Stakeholder } from '@/types';
 import { GsnHeatmapItem } from '@/lib/gsn-heatmap';
 import {
   FocusGsnNode,
-  GSN_CATEGORY_IDS,
-  GSN_LAYER_IDS,
   StakeholderProfile,
   gsnCategoryLabel,
-  isPredefinedCategoryStakeholder,
-  normalizeCategoryIds,
-  normalizeLayerIds,
-  profileForStakeholder,
   selectFocusGsnNodes,
   stakeholderCategoryKey,
 } from '@/lib/gsn-categories';
@@ -23,69 +17,19 @@ import {
 export function useGsnCategoryFocus(
   gsnNodes: GsnHeatmapItem[] | null,
   stakeholder: Stakeholder | null,
+  // 読者の要求（useStakeholderProfile で決める）
+  stakeholderProfile: StakeholderProfile | null,
   language: 'ja' | 'en'
 ) {
-  // カスタムステークホルダの判定結果（キー: stakeholderCategoryKey）
-  const [customMap, setCustomMap] = useState<Record<string, StakeholderProfile>>({});
-  const [isMapping, setIsMapping] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [focusIds, setFocusIds] = useState<Set<string>>(new Set());
   const [reasons, setReasons] = useState<Record<string, string>>({});
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  // 応答が返る前にステークホルダが変わった場合に古い結果を捨てるための世代番号
-  const requestSeq = useRef(0);
 
-  const isCustom = !!stakeholder && !isPredefinedCategoryStakeholder(stakeholder);
   const key = stakeholder ? stakeholderCategoryKey(stakeholder) : null;
-  const stakeholderProfile = useMemo(
-    () => (stakeholder ? profileForStakeholder(stakeholder, customMap) : null),
-    [stakeholder, customMap]
-  );
 
   useEffect(() => {
     setActiveCategory(null);
-    setError(null);
   }, [key]);
-
-  const mapCustom = useCallback(async () => {
-    if (!stakeholder || !key || !isCustom) return;
-    const seq = ++requestSeq.current;
-    setIsMapping(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/stakeholder-categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stakeholder: { role: stakeholder.role, concerns: stakeholder.concerns },
-          language,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
-      if (seq !== requestSeq.current) return;
-      setCustomMap((prev) => ({
-        ...prev,
-        [key]: { categories: normalizeCategoryIds(data.categoryIds) ?? [], layers: normalizeLayerIds(data.layers) ?? [] },
-      }));
-    } catch (e) {
-      if (seq !== requestSeq.current) return;
-      // 判定できなかった場合は全カテゴリー・全レイヤーを必要として扱う
-      setCustomMap((prev) => ({ ...prev, [key]: { categories: GSN_CATEGORY_IDS, layers: GSN_LAYER_IDS } }));
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (seq === requestSeq.current) setIsMapping(false);
-    }
-  }, [stakeholder, key, isCustom, language]);
-
-  // カスタムステークホルダを選択し、GSNノードがあって未判定なら自動で判定する
-  useEffect(() => {
-    if (isCustom && key && gsnNodes && gsnNodes.length > 0 && !customMap[key]) {
-      void mapCustom();
-    }
-    // mapCustom の再生成（言語変更等）では再実行しない。キャッシュ有無とキーで判定する
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isCustom, key, gsnNodes, customMap]);
 
   const applyRule = useCallback(() => {
     if (!gsnNodes || !stakeholderProfile) {
@@ -138,17 +82,13 @@ export function useGsnCategoryFocus(
 
   return {
     stakeholderProfile,
-    isCustom,
     heatmapItems,
     focusIds,
     reasons,
-    isMapping,
-    error,
     activeCategory,
     setActiveCategory,
     toggle,
     resetToRule: applyRule,
-    remap: mapCustom,
     // focusGsnNodes: 詳述するノード、heatmapGsnStakeholderCategories/Layers: レポート内ヒートマップの関連度の算出に使う要求
     generationParams:
       focusGsnNodes && stakeholderProfile

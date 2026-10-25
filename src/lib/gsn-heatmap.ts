@@ -32,6 +32,7 @@ import {
   normalizeLayerIds,
   toStakeholderProfile,
 } from './gsn-categories';
+import { hasRiskCategories } from './risk-relevance';
 
 export type GsnSeverity = 1 | 2 | 3 | 4;
 export type GsnStatus = 'achieved' | 'partial' | 'unachieved' | 'undeveloped';
@@ -553,21 +554,27 @@ export function replaceAllHeatmapBlocksWithTables(markdown: string, lang?: 'ja' 
 
 /**
  * レポート全体の risk-heatmap / gsn-heatmap ブロックを集約し、本文での言及を付与して返す
+ * - 読者の要求は、GSNはカテゴリー＋レイヤー、リスクはカテゴリーのみ（リスクにカテゴリーが付いている場合）
  */
 export function collectReportHeatmaps(markdown: string): {
   risks: RiskHeatmapItem[];
   gsnNodes: GsnHeatmapItem[];
   gsnStakeholderProfile: StakeholderProfile | null;
+  riskStakeholderProfile: StakeholderProfile | null;
 } {
   const gsnBlocks = extractGsnHeatmapBlocks(markdown);
   const profileBlock = gsnBlocks.find(
     (b) => (b.stakeholderCategories?.length ?? 0) > 0 || (b.stakeholderLayers?.length ?? 0) > 0
   );
+  const riskBlocks = extractHeatmapBlocks(markdown);
+  const risks = markReportMentions(mergeRisks(riskBlocks), markdown);
+  const riskCategories = riskBlocks.find((b) => (b.stakeholderCategories?.length ?? 0) > 0)?.stakeholderCategories;
   return {
-    risks: markReportMentions(mergeRisks(extractHeatmapBlocks(markdown)), markdown),
+    risks,
     gsnNodes: markGsnReportMentions(mergeGsnNodes(gsnBlocks), markdown),
     gsnStakeholderProfile: profileBlock
       ? toStakeholderProfile(profileBlock.stakeholderCategories, profileBlock.stakeholderLayers)
       : null,
+    riskStakeholderProfile: hasRiskCategories(risks) ? toStakeholderProfile(riskCategories, []) : null,
   };
 }

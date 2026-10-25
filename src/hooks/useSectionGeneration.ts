@@ -52,6 +52,8 @@ interface GenerateReportParams {
   // リスクヒートマップで抽出した文書の全リスクと、本レポートで必ず扱うリスクのID
   heatmapRisks?: RiskHeatmapItem[];
   focusRiskIds?: string[];
+  // リスクの関連度の算出に使うステークホルダが必要とするカテゴリー（レポート内リスクヒートマップ用）
+  heatmapRiskStakeholderCategories?: string[];
   // GSNノードヒートマップの元データ（生成前に抽出したもの。レポート内の gsn-heatmap ブロックに使う）
   heatmapGsnNodes?: GsnHeatmapItem[];
   // ステークホルダが必要とする情報カテゴリーに基づき、本レポートで詳述するGSNノード
@@ -131,7 +133,7 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
    * Lambda Function URL（ストリーミング）を使用してレポートを生成
    */
   const generateReportWithLambda = useCallback(async (params: GenerateReportParams): Promise<Report | null> => {
-    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
+    const { files, stakeholder, reportStructure, userIdentifier, language, heatmapRisks, focusRiskIds, heatmapRiskStakeholderCategories, heatmapGsnNodes, focusGsnNodes, heatmapGsnStakeholderCategories, heatmapGsnStakeholderLayers } = params;
 
     // ストリーミングコンテンツをリセット
     streamingContentRef.current = '';
@@ -200,14 +202,17 @@ export function useSectionGeneration(options: UseSectionGenerationOptions = {}) 
         fullTextFileIds,
         language,
         userIdentifier,
-        heatmapRisks: heatmapRisks?.map(({ id, name, rawLikelihood, rawImpact, status }) => ({
+        heatmapRisks: heatmapRisks?.map(({ id, name, rawLikelihood, rawImpact, status, categories, primaryCategory }) => ({
           id,
           name,
           likelihood: rawLikelihood ?? null,
           impact: rawImpact ?? null,
           status,
+          categories,
+          primaryCategory,
         })),
         focusRiskIds,
+        heatmapRiskStakeholderCategories,
         heatmapGsnNodes: heatmapGsnNodes?.map(({ id, type, text, rawStatus, rawSeverity, severitySource, parentIds, categories }) => ({
           id,
           type,

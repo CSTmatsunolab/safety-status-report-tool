@@ -13,6 +13,7 @@ import { HeatmapKind, HeatmapSwitcher, defaultHeatmapKind } from './HeatmapSwitc
 import { RISK_HEATMAP_LANG, RiskHeatmapItem, markReportMentions, parseHeatmapBlock } from '@/lib/risk-heatmap';
 import { GSN_HEATMAP_LANG, GsnHeatmapItem, markGsnReportMentions, parseGsnHeatmapBlock } from '@/lib/gsn-heatmap';
 import { StakeholderProfile, toStakeholderProfile } from '@/lib/gsn-categories';
+import { hasRiskCategories } from '@/lib/risk-relevance';
 
 const TEXTS = {
   ja: {
@@ -40,9 +41,18 @@ interface HeatmapModalProps {
   gsnNodes: GsnHeatmapItem[];
   // GSNノードヒートマップで強調する列（レポート対象のステークホルダが必要とする情報カテゴリー）
   gsnStakeholderProfile?: StakeholderProfile | null;
+  // リスクの関連度の算出に使う要求（レポート対象のステークホルダが必要とするカテゴリー）
+  riskStakeholderProfile?: StakeholderProfile | null;
 }
 
-export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderProfile }: HeatmapModalProps) {
+export function HeatmapModal({
+  isOpen,
+  onClose,
+  risks,
+  gsnNodes,
+  gsnStakeholderProfile,
+  riskStakeholderProfile,
+}: HeatmapModalProps) {
   const { language } = useI18n();
   const t = TEXTS[language];
   const riskCount = risks.length > 0 ? risks.length : null;
@@ -92,7 +102,7 @@ export function HeatmapModal({ isOpen, onClose, risks, gsnNodes, gsnStakeholderP
           </button>
         </div>
         {kind === 'risk' ? (
-          riskCount ? <RiskHeatmap risks={risks} /> : <p className="text-sm text-gray-600 dark:text-gray-400">{t.noRisk}</p>
+          riskCount ? <RiskHeatmap risks={risks} profile={riskStakeholderProfile} /> : <p className="text-sm text-gray-600 dark:text-gray-400">{t.noRisk}</p>
         ) : gsnCount ? (
           <GsnHeatmap nodes={gsnNodes} profile={gsnStakeholderProfile} />
         ) : (
@@ -115,7 +125,14 @@ function RiskHeatmapBlock({ json, reportContent }: { json: string; reportContent
   const { language } = useI18n();
   const data = parseHeatmapBlock(json);
   if (!data) return <HeatmapLoading text={TEXTS[language].loadingRisk} />;
-  return <RiskHeatmap risks={markReportMentions(data.risks, reportContent)} title={data.title} />;
+  const risks = markReportMentions(data.risks, reportContent);
+  return (
+    <RiskHeatmap
+      risks={risks}
+      title={data.title}
+      profile={hasRiskCategories(risks) ? toStakeholderProfile(data.stakeholderCategories, []) : null}
+    />
+  );
 }
 
 function GsnHeatmapBlock({ json, reportContent }: { json: string; reportContent: string }) {

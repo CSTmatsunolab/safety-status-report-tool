@@ -19,6 +19,7 @@ import { useUserSettings } from '@/hooks/useUserSettings';
 import { useReportHistory } from '@/hooks/useReportHistory';
 import { useRiskFocus } from '@/hooks/useRiskFocus';
 import { useGsnCategoryFocus } from '@/hooks/useGsnCategoryFocus';
+import { useStakeholderProfile } from '@/hooks/useStakeholderProfile';
 import { RiskFocusPanel } from './components/RiskFocusPanel';
 import { FiSave, FiCheck, FiHelpCircle, FiFileText, FiAlertTriangle, FiGrid, FiLoader } from 'react-icons/fi';
 
@@ -73,9 +74,16 @@ export default function Home() {
   const { saveReport, isSaving, isAuthenticated } = useReportHistory();
 
   // ヒートマップ（生成前・リスク／GSNノード）フック
-  const riskFocus = useRiskFocus(files, selectedStakeholder, language);
+  // 読者の要求（必要なカテゴリー・重視する論証レイヤー）。リスク・GSNノードの関連度の算出に使う
+  const stakeholderProfile = useStakeholderProfile(selectedStakeholder, language);
+  const riskFocus = useRiskFocus(files, selectedStakeholder, stakeholderProfile.profile, language);
   // GSNノードの必要情報カテゴリーによる強調・選択（ステークホルダが必要とするカテゴリーのノードを詳述）
-  const gsnFocus = useGsnCategoryFocus(riskFocus.gsnNodes, selectedStakeholder, language);
+  const gsnFocus = useGsnCategoryFocus(riskFocus.gsnNodes, selectedStakeholder, stakeholderProfile.profile, language);
+  // カスタムステークホルダの要求は、ヒートマップのデータ（リスク・GSNノード）が揃ってから判定する
+  const { ensureMapped } = stakeholderProfile;
+  useEffect(() => {
+    if ((riskFocus.risks?.length ?? 0) > 0 || (riskFocus.gsnNodes?.length ?? 0) > 0) ensureMapped();
+  }, [riskFocus.risks, riskFocus.gsnNodes, ensureMapped]);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error' | 'resave'>('idle');
 
   // レポート生成中断ハンドラー
@@ -962,6 +970,7 @@ export default function Home() {
           gsnError={riskFocus.gsnError}
           hasGSNFile={files.some((f) => f.type === 'gsn' || !!f.metadata?.userDesignatedGSN)}
           gsnFocus={gsnFocus}
+          stakeholderProfile={stakeholderProfile}
           heatmapItems={riskFocus.heatmapItems}
           focusCount={riskFocus.focusIds.size}
           reasons={riskFocus.reasons}

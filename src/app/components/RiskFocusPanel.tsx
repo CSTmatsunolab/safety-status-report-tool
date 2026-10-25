@@ -14,7 +14,9 @@ import { RiskHeatmap } from './RiskHeatmap';
 import { GsnHeatmap } from './GsnHeatmap';
 import { HeatmapKind, HeatmapSwitcher, defaultHeatmapKind } from './HeatmapSwitcher';
 import type { useGsnCategoryFocus } from '@/hooks/useGsnCategoryFocus';
+import type { useStakeholderProfile } from '@/hooks/useStakeholderProfile';
 import { gsnCategoryLabel, gsnLayerLabel } from '@/lib/gsn-categories';
+import { hasRiskCategories, riskWantedCategories } from '@/lib/risk-relevance';
 
 interface RiskFocusPanelProps {
   stakeholder: Stakeholder | null;
@@ -25,6 +27,8 @@ interface RiskFocusPanelProps {
   hasGSNFile: boolean;
   // GSNノードの必要情報カテゴリーによる強調・選択
   gsnFocus: ReturnType<typeof useGsnCategoryFocus>;
+  // 読者の要求（関連度の算出に使う。カスタムステークホルダの再判定もここから行う）
+  stakeholderProfile: ReturnType<typeof useStakeholderProfile>;
   heatmapItems: RiskHeatmapItem[];
   focusCount: number;
   reasons: Record<string, string>;
@@ -44,6 +48,7 @@ export function RiskFocusPanel({
   gsnError,
   hasGSNFile,
   gsnFocus,
+  stakeholderProfile,
   heatmapItems,
   focusCount,
   reasons,
@@ -61,6 +66,13 @@ export function RiskFocusPanel({
   // GSNタブは抽出済みなら（0件でも）選べるようにし、未抽出なら無効化する
   const gsnCount = gsnNodes ? gsnNodes.length : null;
   const [kind, setKind] = useState<HeatmapKind>('risk');
+
+  const profile = stakeholderProfile.profile;
+  // リスクの関連度は、読者の要求があり、リスクにカテゴリーが付いている（新しい抽出結果の）ときのみ出す
+  const riskProfile = stakeholder && profile && risks && hasRiskCategories(risks) ? profile : null;
+  const riskWanted = riskProfile
+    ? riskWantedCategories(riskProfile).map((c) => gsnCategoryLabel(c, language)).join(en ? ', ' : '、') || '-'
+    : '';
 
   // 抽出結果が変わったらデータがある方を表示する
   useEffect(() => {
@@ -90,6 +102,10 @@ export function RiskFocusPanel({
                 : en
                   ? 'GSN nodes are placed by argument layer (vertical) and status (horizontal). Select a stakeholder to switch the rows to relevance to that stakeholder.'
                   : 'GSNノードを論証レイヤー（縦軸）×達成状況（横軸）に配置しています。ステークホルダを選択すると、縦軸がそのステークホルダへの関連度（必須/関連/参考）に変わります。'
+              : stakeholder && riskProfile
+              ? en
+                ? `Risks are placed by impact x likelihood (same for every reader), and the chip outline shows relevance to ${stakeholder.role} (Required/Related/Reference, from the categories they need: ${riskWanted}). Risks to cover are highlighted (${focusCount}). Click a risk to include/exclude it; the selection is passed to report generation.`
+                : `リスクを影響度×発生確率（読者によらず共通）に配置し、チップの枠で ${stakeholder.role} への関連度（必須/関連/参考。必要とするカテゴリー: ${riskWanted}）を示しています。記述すべきリスクを強調しています（${focusCount}件）。クリックで追加・除外でき、選択内容はレポート生成に反映されます。`
               : stakeholder
               ? en
                 ? `Risks to cover for ${stakeholder.role} are highlighted (${focusCount}). Click a risk to include/exclude it; the selection is passed to report generation.`
@@ -100,6 +116,17 @@ export function RiskFocusPanel({
           </p>
         </div>
         <div className="flex gap-2">
+          {stakeholder && stakeholderProfile.isCustom && risks && (
+            <button
+              type="button"
+              onClick={() => void stakeholderProfile.remap()}
+              disabled={stakeholderProfile.isMapping}
+              className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-sm transition-colors disabled:opacity-50"
+            >
+              {stakeholderProfile.isMapping ? <FiLoader className="mr-1 animate-spin" /> : <FiTarget className="mr-1" />}
+              {en ? 'Re-assess needs' : '必要情報を再判定'}
+            </button>
+          )}
           {kind === 'risk' && stakeholder && risks && (
             <button
               type="button"
@@ -110,30 +137,15 @@ export function RiskFocusPanel({
               {en ? 'Reset to rule' : 'ルールに戻す'}
             </button>
           )}
-          {kind === 'gsn' && stakeholder && gsnNodes && gsnNodes.length > 0 && (
-            <>
-              {gsnFocus.stakeholderProfile && (
-                <button
-                  type="button"
-                  onClick={gsnFocus.resetToRule}
-                  className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
-                >
-                  <FiRotateCcw className="mr-1" />
-                  {en ? 'Reset to rule' : 'ルールに戻す'}
-                </button>
-              )}
-              {gsnFocus.isCustom && (
-                <button
-                  type="button"
-                  onClick={() => void gsnFocus.remap()}
-                  disabled={gsnFocus.isMapping}
-                  className="flex items-center px-3 py-2 bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-700 dark:text-white dark:hover:bg-blue-600 rounded-md text-sm transition-colors disabled:opacity-50"
-                >
-                  {gsnFocus.isMapping ? <FiLoader className="mr-1 animate-spin" /> : <FiTarget className="mr-1" />}
-                  {en ? 'Re-assess needs' : '必要情報を再判定'}
-                </button>
-              )}
-            </>
+          {kind === 'gsn' && stakeholder && gsnNodes && gsnNodes.length > 0 && gsnFocus.stakeholderProfile && (
+            <button
+              type="button"
+              onClick={gsnFocus.resetToRule}
+              className="flex items-center px-3 py-2 bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600 rounded-md text-sm transition-colors"
+            >
+              <FiRotateCcw className="mr-1" />
+              {en ? 'Reset to rule' : 'ルールに戻す'}
+            </button>
           )}
           <button
             type="button"
@@ -193,25 +205,26 @@ export function RiskFocusPanel({
         </p>
       )}
 
+      {risks && stakeholder && stakeholderProfile.isMapping && (
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+          {en
+            ? `Assigning the information categories ${stakeholder.role} needs from their concerns…`
+            : `${stakeholder.role} の関心事から必要な情報カテゴリーを判定しています…`}
+        </p>
+      )}
+      {risks && stakeholder && stakeholderProfile.error && (
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
+          {en ? 'Failed to assess the stakeholder needs (all categories and layers are treated as needed): ' : '必要情報の判定に失敗しました（全カテゴリー・全レイヤーを必要として扱います）: '}
+          {stakeholderProfile.error}
+        </div>
+      )}
+
       {risks && kind === 'gsn' && (
         <>
           {gsnError && (
             <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
               {en ? 'Failed to extract GSN nodes: ' : 'GSNノードの抽出に失敗しました: '}
               {gsnError}
-            </div>
-          )}
-          {stakeholder && gsnFocus.isMapping && (
-            <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-              {en
-                ? `Assigning the information categories ${stakeholder.role} needs from their concerns…`
-                : `${stakeholder.role} の関心事から必要な情報カテゴリーを判定しています…`}
-            </p>
-          )}
-          {stakeholder && gsnFocus.error && (
-            <div className="mb-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300">
-              {en ? 'Failed to assess the stakeholder needs (all categories and layers are treated as needed): ' : '必要情報の判定に失敗しました（全カテゴリー・全レイヤーを必要として扱います）: '}
-              {gsnFocus.error}
             </div>
           )}
           {gsnNodes &&
@@ -249,6 +262,8 @@ export function RiskFocusPanel({
           }
           onToggle={stakeholder ? onToggle : undefined}
           reasons={reasons}
+          profile={riskProfile}
+          profileLabel={stakeholder?.role}
         />
       )}
     </div>

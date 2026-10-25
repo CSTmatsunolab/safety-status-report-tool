@@ -4,6 +4,8 @@
 
 import { Stakeholder } from '@/types';
 import { RiskHeatmapItem, riskScore } from '@/lib/risk-heatmap';
+import { GSN_RELEVANCE_LABELS, StakeholderProfile } from '@/lib/gsn-categories';
+import { hasRiskCategories, riskRelevance } from '@/lib/risk-relevance';
 
 type RuleType = 'executive' | 'product' | 'all';
 
@@ -91,5 +93,43 @@ export function selectFocusRisks(
     }
   }
 
+  return selected;
+}
+
+const RELEVANCE_REASONS = {
+  ja: { openMedium: '対策未完了・スコア8以上', openHigh: '対策未完了・スコア15以上（高）' },
+  en: { openMedium: 'open, score 8+', openHigh: 'open, score 15+ (high)' },
+};
+
+/**
+ * 読者への関連度に基づいて、レポートで記述すべきリスクを選ぶ
+ * - 必須: 全件
+ * - 関連: 対策未完了かつスコア8以上
+ * - 参考: 対策未完了かつスコア15以上（高）。読者の関心外でも、高リスクの未対策は全読者に示す
+ * - 読者の要求が無い、またはリスクにカテゴリーが無い（旧データ・抽出失敗）場合は selectFocusRisks に戻す
+ * 戻り値: リスクID → 選定理由（「必須（中心カテゴリー一致: …）」）
+ */
+export function selectFocusRisksByRelevance(
+  risks: RiskHeatmapItem[],
+  stakeholder: Stakeholder,
+  profile: StakeholderProfile | null,
+  language: 'ja' | 'en' = 'ja'
+): Map<string, string> {
+  if (!profile || !hasRiskCategories(risks)) return selectFocusRisks(risks, stakeholder, language);
+
+  const labels = GSN_RELEVANCE_LABELS[language];
+  const reasons = RELEVANCE_REASONS[language];
+  const selected = new Map<string, string>();
+  for (const risk of risks) {
+    const r = riskRelevance(risk, profile, language);
+    const open = !isMitigated(risk.status);
+    const score =
+      risk.likelihood !== null && risk.impact !== null ? riskScore(risk.likelihood, risk.impact) : null;
+    const base = `${labels[r.relevance]}（${r.reason}）`;
+    if (r.relevance === 'required') selected.set(risk.id, base);
+    else if (r.relevance === 'related' && open && score !== null && score >= 8)
+      selected.set(risk.id, `${base}・${reasons.openMedium}`);
+    else if (open && score !== null && score >= 15) selected.set(risk.id, `${base}・${reasons.openHigh}`);
+  }
   return selected;
 }

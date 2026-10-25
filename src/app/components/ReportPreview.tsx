@@ -514,6 +514,7 @@ export default function ReportPreview({ report, onUpdate }: ReportPreviewProps) 
         risks={heatmaps?.risks ?? []}
         gsnNodes={heatmaps?.gsnNodes ?? []}
         gsnStakeholderProfile={heatmaps?.gsnStakeholderProfile}
+        riskStakeholderProfile={heatmaps?.riskStakeholderProfile}
       />
     </div>
   );
