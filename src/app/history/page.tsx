@@ -22,11 +22,13 @@ import {
   FiHardDrive,
   FiSquare,
   FiCheckSquare,
-  FiMinusSquare
+  FiMinusSquare,
+  FiColumns
 } from 'react-icons/fi';
 import { useI18n } from '../components/I18nProvider';
 import { useAuth } from '../components/AuthProvider';
 import { useReportHistory, ReportMetadata } from '@/hooks/useReportHistory';
+import { MAX_COMPARE_REPORTS, MIN_COMPARE_REPORTS } from '@/lib/stakeholder-gap';
 
 type SortOrder = 'newest' | 'oldest';
 
@@ -211,6 +213,15 @@ export default function HistoryPage() {
     }
   };
 
+  // 選択したレポートのステークホルダ間ギャップ行列を開く
+  const canCompare =
+    selectionState.totalSelectedCount >= MIN_COMPARE_REPORTS &&
+    selectionState.totalSelectedCount <= MAX_COMPARE_REPORTS;
+  const handleCompare = () => {
+    if (!canCompare) return;
+    router.push(`/history/compare?ids=${[...selectedIds].map(encodeURIComponent).join(',')}`);
+  };
+
   // 削除処理（単体）
   const handleDelete = async (report: ReportMetadata) => {
     const confirmMsg = language === 'en'
@@ -270,6 +281,10 @@ export default function HistoryPage() {
     selectedTotal: language === 'en' ? 'total' : '合計',
     deleting: language === 'en' ? 'Deleting...' : '削除中...',
     clearSelection: language === 'en' ? 'Clear All' : '選択をクリア',
+    compareSelected: language === 'en' ? 'Compare Gaps' : 'ギャップ比較',
+    compareHint: language === 'en'
+      ? `Select ${MIN_COMPARE_REPORTS}-${MAX_COMPARE_REPORTS} reports to compare what each stakeholder is told`
+      : `${MIN_COMPARE_REPORTS}〜${MAX_COMPARE_REPORTS}件選ぶと、ステークホルダごとに何が伝わっているかを比較できます`,
   };
 
   // 未ログイン時
@@ -423,6 +438,23 @@ export default function HistoryPage() {
                 )}
               </div>
 
+              <div className="flex items-center gap-2">
+              {/* ギャップ比較ボタン */}
+              <button
+                onClick={handleCompare}
+                disabled={!canCompare}
+                title={texts.compareHint}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  canCompare
+                    ? 'bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600'
+                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                <FiColumns size={16} />
+                {texts.compareSelected}
+                {canCompare && ` (${selectionState.totalSelectedCount})`}
+              </button>
+
               {/* 一括削除ボタン */}
               <button
                 onClick={handleBulkDelete}
@@ -441,6 +473,7 @@ export default function HistoryPage() {
                 {isDeleting ? texts.deleting : texts.deleteSelected}
                 {selectionState.totalSelectedCount > 0 && !isDeleting && ` (${selectionState.totalSelectedCount})`}
               </button>
+              </div>
             </div>
             
             {/* フィルター外の選択がある場合の通知 */}
